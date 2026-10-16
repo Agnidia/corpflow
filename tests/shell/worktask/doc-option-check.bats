@@ -247,14 +247,14 @@ check() {
 }
 
 @test "backticked git refs, slugs, hosts, ellipses and regex fragments are not paths" {
-  tree_with 'docs/a.md:`origin/develop` `refs/heads/x` `IGRSoft/corpflow` `github.com/IGRSoft/x` `skills/...` `(a)/b` `^docs/[a-z]+` `a|b/c`\n'
+  tree_with 'docs/a.md:`origin/develop` `refs/heads/x` `Agnidia/corpflow` `github.com/Agnidia/x` `skills/...` `(a)/b` `^docs/[a-z]+` `a|b/c`\n'
   check --tree "$T" "$T/docs/a.md"
   assert_success
   assert_output ""
 }
 
 @test "a missing in-tree path is still a finding next to the skipped tokens" {
-  tree_with 'docs/a.md:`origin/develop` `docs/gone.md` `docs/gonedir` `IGRSoft/corpflow`\n'
+  tree_with 'docs/a.md:`origin/develop` `docs/gone.md` `docs/gonedir` `Agnidia/corpflow`\n'
   check --tree "$T" "$T/docs/a.md"
   assert_failure 1
   [ "$(printf '%s\n' "$output" | wc -l | tr -d ' ')" = 2 ]

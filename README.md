@@ -103,7 +103,7 @@ This repository is both a Claude Code marketplace (`igrsoft`) and the plugin it 
 (`corpflow`). From inside Claude Code:
 
 ```
-/plugin marketplace add IGRSoft/corpflow
+/plugin marketplace add Agnidia/corpflow
 /plugin install corpflow@igrsoft
 ```
 
@@ -114,7 +114,7 @@ by `.claude-plugin/plugin.json` on install. There is no manual hook step.
 ### Install with Codex
 
 ```bash
-codex plugin marketplace add https://github.com/IGRSoft/corpflow.git
+codex plugin marketplace add https://github.com/Agnidia/corpflow.git
 codex plugin add corpflow@igrsoft
 ```
 
@@ -142,7 +142,7 @@ skills, and routing all resolved.
 
 The DV stage routes to whichever platform plugin matches the repo, and falls back to project
 tooling when none is installed. Each is a separate marketplace under the same org, installed the
-same way (`/plugin marketplace add IGRSoft/<name>` then `/plugin install <name>@<name>`):
+same way (`/plugin marketplace add Agnidia/<name>` then `/plugin install <name>@<name>`):
 
 | Plugin | Covers |
 |--------|--------|
@@ -184,7 +184,7 @@ targets fall back to the default with a `plugin_unavailable` audit row.
 For contributing, or to run the plugin from a working tree:
 
 ```bash
-git clone https://github.com/IGRSoft/corpflow.git
+git clone https://github.com/Agnidia/corpflow.git
 cd corpflow
 make bootstrap     # vendor bats, check the swift toolchain, probe kcov
 make test          # offline suite — no API calls, no spend

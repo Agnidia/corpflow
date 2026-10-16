@@ -9,6 +9,6 @@
   "facts": { "files_modified": [], "tests_added": [], "decisions": [], "open_questions": [], "verdicts": { "PL": "ok" }, "goal": "Already-published fixture" },
   "handoffs": {},
   "metadata": {
-    "github_issue_url": "https://github.com/IGRSoft/corpflow/issues/42"
+    "github_issue_url": "https://github.com/Agnidia/corpflow/issues/42"
   }
 }

@@ -46,7 +46,7 @@ jobs:
           mkdir -p "$root"
           for p in apple-developer system-developer android-developer \
                    frontend-developer backend-developer ai-engineer; do
-            git clone --depth 1 --quiet "https://github.com/IGRSoft/$p.git" "$root/$p" \
+            git clone --depth 1 --quiet "https://github.com/Agnidia/$p.git" "$root/$p" \
               || echo "::warning::could not clone $p; cross-plugin refs into it stay unverified"
           done
           echo "CORPFLOW_SIBLING_ROOT=$root" >> "$GITHUB_ENV"
