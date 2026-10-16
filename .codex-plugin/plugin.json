@@ -3,12 +3,12 @@
   "version": "4.1.1",
   "description": "Staged worktask pipeline with a durable state ledger, cross-plugin delegation, and dependency-DAG orchestration.",
   "author": {
-    "name": "IGRSoft",
+    "name": "Agnidia",
     "email": "support@igrsoft.com",
-    "url": "https://github.com/IGRSoft"
+    "url": "https://github.com/Agnidia"
   },
-  "homepage": "https://github.com/IGRSoft/corpflow",
-  "repository": "https://github.com/IGRSoft/corpflow",
+  "homepage": "https://github.com/Agnidia/corpflow",
+  "repository": "https://github.com/Agnidia/corpflow",
   "license": "Apache-2.0",
   "keywords": ["worktask", "agent-orchestration", "state-ledger", "project-management"],
   "skills": "./skills/",
@@ -16,10 +16,10 @@
     "displayName": "Corpflow",
     "shortDescription": "Staged engineering worktasks for Codex",
     "longDescription": "Plan, implement, review, test, document, and finalize engineering work through a durable multi-agent workflow.",
-    "developerName": "IGRSoft",
+    "developerName": "Agnidia",
     "category": "Productivity",
     "capabilities": ["Read", "Write", "Interactive"],
-    "websiteURL": "https://github.com/IGRSoft/corpflow",
+    "websiteURL": "https://github.com/Agnidia/corpflow",
     "defaultPrompt": [
       "Use Corpflow to plan this engineering task.",
       "Run a Corpflow worktask for this change.",

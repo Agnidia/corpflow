@@ -276,8 +276,8 @@ fi
 
 # ---------- asset host-and-rewrite (Figma image embed) ----------------------
 # Parse "owner/repo" from a git remote URL. Handles both forms:
-#   git@github.com:IGRSoft/corpflow.git
-#   https://github.com/IGRSoft/corpflow.git   (and without .git)
+#   git@github.com:Agnidia/corpflow.git
+#   https://github.com/Agnidia/corpflow.git   (and without .git)
 # Echoes "owner/repo" on success; empty on no match.
 parse_owner_repo() {
   local url="$1" path

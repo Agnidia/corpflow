@@ -754,7 +754,7 @@ MOCK
     ASSET_DESIGNS_DIR="$t10_dir/.context/designs"
     ASSET_IMAGES_DIR="$t10_dir/.context/images"
     ASSET_HOST_MODE="raw"
-    ASSET_OWNER_REPO="IGRSoft/corpflow"
+    ASSET_OWNER_REPO="Agnidia/corpflow"
     ASSET_REF="feature/figma-screenshot-markdown"
     DRY_RUN=1
     WORKTASK_ID="fixture-10"
@@ -769,8 +769,8 @@ MOCK
     local f10a_ok=1
     # AC-1/AC-7: two ![alt](url) lines, each using the basename as alt text, in
     # document order, with the Figma URL preserved above.
-    printf '%s\n' "$f10_embed" | grep -qF '![figma-scan-25-default-255-2264.png](https://raw.githubusercontent.com/IGRSoft/corpflow/feature/figma-screenshot-markdown/.worktask-assets/fixture-10/figma-scan-25-default-255-2264.png)' || f10a_ok=0
-    printf '%s\n' "$f10_embed" | grep -qF '![figma-analyzing-default-255-2267.png](https://raw.githubusercontent.com/IGRSoft/corpflow/feature/figma-screenshot-markdown/.worktask-assets/fixture-10/figma-analyzing-default-255-2267.png)' || f10a_ok=0
+    printf '%s\n' "$f10_embed" | grep -qF '![figma-scan-25-default-255-2264.png](https://raw.githubusercontent.com/Agnidia/corpflow/feature/figma-screenshot-markdown/.worktask-assets/fixture-10/figma-scan-25-default-255-2264.png)' || f10a_ok=0
+    printf '%s\n' "$f10_embed" | grep -qF '![figma-analyzing-default-255-2267.png](https://raw.githubusercontent.com/Agnidia/corpflow/feature/figma-screenshot-markdown/.worktask-assets/fixture-10/figma-analyzing-default-255-2267.png)' || f10a_ok=0
     printf '%s\n' "$f10_embed" | grep -qF 'https://www.figma.com/design/FOO/FaceScan?node-id=255-2263' || f10a_ok=0
     # AC-7 ordering: scan-25 image line precedes analyzing image line.
     local _l25 _lan
@@ -1254,14 +1254,14 @@ MOCK
 
   # ---- parse_owner_repo: both remote URL forms ----
   local _por
-  _por=$(parse_owner_repo "git@github.com:IGRSoft/corpflow.git")
-  if [ "$_por" = "IGRSoft/corpflow" ]; then
+  _por=$(parse_owner_repo "git@github.com:Agnidia/corpflow.git")
+  if [ "$_por" = "Agnidia/corpflow" ]; then
     echo "publish-pl-issue: self-test parse_owner_repo(ssh) PASS"; pass=$((pass + 1))
   else
     echo "publish-pl-issue: self-test parse_owner_repo(ssh) FAIL (got '$_por')"; fail=$((fail + 1))
   fi
-  _por=$(parse_owner_repo "https://github.com/IGRSoft/corpflow.git")
-  if [ "$_por" = "IGRSoft/corpflow" ]; then
+  _por=$(parse_owner_repo "https://github.com/Agnidia/corpflow.git")
+  if [ "$_por" = "Agnidia/corpflow" ]; then
     echo "publish-pl-issue: self-test parse_owner_repo(https) PASS"; pass=$((pass + 1))
   else
     echo "publish-pl-issue: self-test parse_owner_repo(https) FAIL (got '$_por')"; fail=$((fail + 1))

@@ -41,7 +41,7 @@ run_self_test() {
   printf 'Set `API_PORT` first.\n' > "$tree/docs/defined.md"
   printf 'See [x](/etc/hosts).\n' > "$tree/docs/outside.md"
   printf 'See [x](gone.md).\n' > "$tree/docs/missing.md"
-  printf 'Refs `origin/develop`, `refs/heads/x`, `IGRSoft/corpflow`, `github.com/IGRSoft/x`, `a|b/c`, `(x)/y`, `skills/...` and `^docs/[a-z]+`.\n' > "$tree/docs/notpaths.md"
+  printf 'Refs `origin/develop`, `refs/heads/x`, `Agnidia/corpflow`, `github.com/Agnidia/x`, `a|b/c`, `(x)/y`, `skills/...` and `^docs/[a-z]+`.\n' > "$tree/docs/notpaths.md"
   printf '#!/usr/bin/env bash\nprintf "%%s" "$API_PORT"\n' > "$tree/run.sh"
   printf 'See `docs/a"b\\c/d.md`.\n' > "$tree/docs/hostile.md"
   git -C "$tree" init -q .

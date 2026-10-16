@@ -2,7 +2,7 @@
   "name": "igrsoft",
   "owner": {
     "name": "igrsoft",
-    "url": "https://github.com/igrsoft"
+    "url": "https://github.com/Agnidia"
   },
   "metadata": {
     "description": "Staged worktask pipeline (PL→AR→TL→DV→DR→SR→QA→DC→RE→FN→ST) with a durable state ledger, cross-plugin delegation, and /megatask dependency-DAG orchestration of many worktasks across a GitHub milestone.",
@@ -16,7 +16,7 @@
       "version": "4.1.1",
       "author": {
         "name": "igrsoft",
-        "url": "https://github.com/igrsoft"
+        "url": "https://github.com/Agnidia"
       },
       "license": "Apache-2.0",
       "keywords": [
