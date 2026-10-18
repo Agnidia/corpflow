@@ -1,10 +1,10 @@
 {
   "name": "corpflow",
-  "version": "4.1.1",
+  "version": "4.1.2",
   "description": "Staged worktask pipeline with a durable state ledger, cross-plugin delegation, and dependency-DAG orchestration.",
   "author": {
     "name": "Agnidia",
-    "email": "support@igrsoft.com",
+    "email": "support@agnidia.com",
     "url": "https://github.com/Agnidia"
   },
   "homepage": "https://github.com/Agnidia/corpflow",

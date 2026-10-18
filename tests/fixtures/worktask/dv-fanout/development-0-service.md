@@ -8,6 +8,7 @@ handoff:
   next_stage_focus: "DR reviews stream service"
   worktree: true
   open_questions: []
+  refs: { tests: development-0-service.md#tests-added }
 ---
 
 # Development (service)

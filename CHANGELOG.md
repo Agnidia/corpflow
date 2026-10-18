@@ -2,6 +2,51 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.1.2] — 2026-10-18
+
+The suite runs green again (#483, #488), the cli-fallback render no longer needs a font registry,
+and the marketplace id moves from `igrsoft` to `agnidia`. The repository also stops tracking
+`.claude/settings.local.json`, and the adhoc self-test keeps a caller's EXIT trap.
+
+### Changed
+
+- **The marketplace id is now `agnidia`** (was `igrsoft`), so the install key is `corpflow@agnidia`.
+  An existing install keeps the old `igrsoft` marketplace and the `corpflow@igrsoft` key. To migrate
+  in Claude Code, run `/plugin marketplace remove igrsoft`, then `/plugin marketplace add Agnidia/corpflow`
+  and `/plugin install corpflow@agnidia`. Then rename the `corpflow@igrsoft` key to `corpflow@agnidia`
+  in every `enabledPlugins` map that names it. In Codex (steps verified on Codex CLI 0.163.0), run
+  `codex plugin remove corpflow@igrsoft` and `codex plugin marketplace remove igrsoft`, then
+  `codex plugin marketplace add https://github.com/Agnidia/corpflow.git` and
+  `codex plugin add corpflow@agnidia`.
+- **`.claude/settings.local.json` is no longer tracked.** It is per-operator Claude Code state, so
+  `.gitignore` now lists it. A pull of this change deletes an unmodified tracked copy; save your copy
+  first to keep its `enabledPlugins` and permissions.
+
+### Fixed
+
+- **The cli-fallback ImageMagick render works without a font registry.** `cli-fallback.sh` passed
+  `-font Courier`, which only resolves through fontconfig, so a stock Homebrew ImageMagick 7 failed
+  every render with `render_failed`. It now asks for Courier by name only when `magick -list font`
+  lists it, else uses a monospace font file (Menlo, Courier, DejaVu Sans Mono), else no `-font`.
+- **`adhoc-visual-evidence.sh --self-test` keeps a caller's EXIT trap.** The self-test sets its own
+  EXIT, INT and TERM traps to remove its scratch directory. If the shell exits during the test, the
+  caller's EXIT handler now runs after that cleanup with the real exit status. When the test ends,
+  the caller's traps come back exactly.
+
+### Tests
+
+- `web-capture.bats` T3 and T4 hide `playwright` from PATH, so a host Playwright no longer takes
+  the npx-rung capture or fetches the test URL (#483).
+- The adhoc-visual-evidence self-test owns its PATH: it filters the host's `silicon`, `magick` and
+  `convert` out and uses a PNG-writing stub, so a broken host tool no longer picks or fails an arm
+  (#483).
+- The `size-budget.bats` oversize cases hide `pngquant` through the `--hide` allowlist farm instead
+  of cutting PATH down to the system bin directories, so a distro `pngquant` there no longer turns
+  the "no pngquant" case into "pngquant present".
+- The `handoff-harness.bats` frontmatter-budget case reads the git-tracked
+  `tests/fixtures/worktask` artifacts, not the gitignored `.context/` run folder of the checkout
+  (#488).
+
 ## [4.1.1] — 2026-10-09
 
 One `CORPFLOW.md` can now configure every project. This release also records contract changes

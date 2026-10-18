@@ -1184,13 +1184,26 @@ budget_artifact() {  # <path> <filler-words> <stubs> [runners|bad]
 
 @test "budget: every stage artifact this repo ships passes the promoted gate" {
   # R8 is deliberately breaking; the claim that no in-tree artifact fails it is
-  # verified here rather than asserted in prose.
-  local f
-  for f in "$PLUGIN_ROOT"/.context/*-[0-9].md; do
-    [ -e "$f" ] || continue
-    run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$f"
-    assert_success
+  # verified here rather than asserted in prose. Only git-tracked fixtures count: the
+  # checkout's run folder holds whatever the last local run left there. Names follow
+  # cache-lint.sh --filename-lint: <stage>-N.md, plus DV's development-N-<stream>.md.
+  # <stage> is the closed stem set of cache-lint's _STAGE_TABLE, never a generic
+  # <word>, so a future non-artifact or deliberately invalid fixture named
+  # <word>-N.md is not swept into a gate every artifact must pass.
+  local f n=0
+  local stems='planning|architecture|coordination|development|developer-review|security-review'
+  stems+='|testing|documentation|release|complete-summary|retrospective|incident|ethics-review'
+  local -a tracked=()
+  # Listed into an array first: `run` inherits stdin and would drain a while-read loop.
+  while IFS= read -r f; do tracked+=("$f"); done < <(
+    git -C "$PLUGIN_ROOT" ls-files -- tests/fixtures/worktask \
+      | grep -E "/(($stems)-[0-9]+|development-[0-9]+(-[a-z0-9]+)+)\.md\$")
+  for f in "${tracked[@]}"; do
+    run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$PLUGIN_ROOT/$f"
+    [ "$status" -eq 0 ] || fail "$f fails the promoted gate: $output"
+    n=$((n + 1))
   done
+  [ "$n" -ge 1 ] || fail "no tracked stage-artifact fixture found under tests/fixtures/worktask"
 }
 
 # --- files_touched structural cap (R-2.1) ------------------------------------

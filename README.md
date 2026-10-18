@@ -6,7 +6,7 @@
 
 A staged worktask system for Claude Code and Codex — **9 stages standard, 11 with `--secure`** — with a durable state ledger, worktree-isolated execution behind two human approval gates (plan + finalization), stage transitions, and structured task management.
 
-**Plugin 4.1.1 · Requires Claude Code 2.1.294+ · Verified with Codex CLI 0.156.1**
+**Plugin 4.1.2 · Requires Claude Code 2.1.294+ · Verified with Codex CLI 0.156.1**
 
 ## Features
 
@@ -99,12 +99,12 @@ Screenshot capture at the DV stage pulls in per-platform tooling on demand (Imag
 
 ### Install with Claude Code
 
-This repository is both a Claude Code marketplace (`igrsoft`) and the plugin it publishes
+This repository is both a Claude Code marketplace (`agnidia`) and the plugin it publishes
 (`corpflow`). From inside Claude Code:
 
 ```
 /plugin marketplace add Agnidia/corpflow
-/plugin install corpflow@igrsoft
+/plugin install corpflow@agnidia
 ```
 
 The plugin activates as soon as it is safe to do so; if the commands do not appear, run
@@ -115,13 +115,35 @@ by `.claude-plugin/plugin.json` on install. There is no manual hook step.
 
 ```bash
 codex plugin marketplace add https://github.com/Agnidia/corpflow.git
-codex plugin add corpflow@igrsoft
+codex plugin add corpflow@agnidia
 ```
 
 Start a new Codex thread after installation, review and trust the bundled hooks, then invoke
 workflows as skills: `$request-plan`, `$worktask`, `$arch-review`, and the other command names.
 Codex hooks use its native `PLUGIN_ROOT`/`PLUGIN_DATA` environment; Corpflow normalizes those to
 `BASE_PLUGIN_ROOT`/`BASE_PLUGIN_DATA` before shared logic runs.
+
+### Upgrade from the `igrsoft` marketplace
+
+The marketplace id is now `agnidia`. If you installed `corpflow@igrsoft`, remove the old marketplace
+and install again:
+
+```
+/plugin marketplace remove igrsoft
+/plugin marketplace add Agnidia/corpflow
+/plugin install corpflow@agnidia
+```
+
+Then rename the `corpflow@igrsoft` key to `corpflow@agnidia` in every `enabledPlugins` map that
+names it. In Codex, remove the old plugin and marketplace, then add the new ones. These steps
+were verified on Codex CLI 0.163.0; the two `remove` commands are not checked on 0.156.1:
+
+```bash
+codex plugin remove corpflow@igrsoft
+codex plugin marketplace remove igrsoft
+codex plugin marketplace add https://github.com/Agnidia/corpflow.git
+codex plugin add corpflow@agnidia
+```
 
 ### Verify
 

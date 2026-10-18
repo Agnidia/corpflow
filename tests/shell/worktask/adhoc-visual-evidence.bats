@@ -52,8 +52,10 @@ seed_capture() { # $1=repo dir
   # The un-migrated consumer read cli-fallback's exit 2 as a successful capture, so the
   # manifest named a .png the new floor never wrote. Nothing may claim a file that is absent.
   local d; d="$(mk_pr_repo Views/app.css)"
-  run env WORKSPACE_ROOT="$d" BASE_REF=master PATH="/usr/bin:/bin" \
-    ASSET_HOST_MODE=none DRY_RUN=1 bash "$PLUGIN_ROOT/$SCRIPT" --emit pr
+  # Allowlist farm, not /usr/bin:/bin, where a distro ImageMagick installs convert.
+  run_script_env --hide silicon --hide magick --hide convert \
+    --env "WORKSPACE_ROOT=$d" --env BASE_REF=master --env ASSET_HOST_MODE=none --env DRY_RUN=1 \
+    "$SCRIPT" --emit pr
   assert_success
   local mf; mf="$(find "$d/.context/images" -name screenshots-AD0.md 2>/dev/null | head -1)"
   if [ -n "$mf" ]; then
@@ -184,6 +186,99 @@ seed_capture() { # $1=repo dir
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "fail=0"
+  assert_line "adhoc-visual-evidence: t2-ui-emits-block PASS"
+  assert_line "adhoc-visual-evidence: t2b-no-tool-manifests-no-ghost-row PASS"
+}
+
+@test "self-test: failing host image tools on PATH do not decide or fail an arm" {
+  local d; d="$(mk_tmpworkdir)"
+  local t
+  for t in silicon magick convert; do
+    printf '#!/bin/sh\nexit 1\n' > "$d/$t"; chmod +x "$d/$t"
+  done
+  run env PATH="$d:$PATH" bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "fail=0"
+}
+
+# A caller that sources the harness the way adhoc-visual-evidence.sh does, with $0 set to
+# the script so the self-test's own `bash "$self"` runs resolve. $2 is the caller's trap
+# setup; it prints whether its traps survive run_self_tests unchanged.
+mk_selftest_caller() { # $1=dir $2=caller trap setup (may be empty)
+  cat > "$1/caller.sh" <<EOF
+$2
+ATTACHER="$PLUGIN_ROOT/$ATTACHER"
+. "$PLUGIN_ROOT/skills/worktask/scripts/adhoc-visual-evidence-selftest.sh"
+before=\$(trap -p EXIT INT TERM)
+run_self_tests >/dev/null
+after=\$(trap -p EXIT INT TERM)
+[ "\$before" = "\$after" ] && echo "traps-restored" || echo "traps-changed<\$after>"
+EOF
+}
+
+# The mkdir of the PNG stub dir runs inside the override window, so a TERM sent there
+# exits the shell mid-test.
+mk_midtest_killer() { # $1=dir
+  mkdir -p "$1/bin"
+  printf '%s\n' '#!/bin/sh' \
+    'case "$*" in */png-tool) kill -TERM "$ST_KILL_PID" ;; esac' \
+    'exec /bin/mkdir "$@"' > "$1/bin/mkdir"
+  chmod +x "$1/bin/mkdir"
+}
+
+@test "self-test: a caller's EXIT and INT traps come back exactly" {
+  local d; d="$(mk_tmpworkdir)"
+  mk_selftest_caller "$d" "trap 'echo caller-exit' EXIT; trap 'echo caller-int' INT"
+  run bash -c '. "$1"' "$PLUGIN_ROOT/$SCRIPT" "$d/caller.sh"
+  assert_success
+  assert_line "traps-restored"
+  assert_line "caller-exit"
+}
+
+@test "self-test: a caller with no traps is left with none" {
+  local d; d="$(mk_tmpworkdir)"
+  mk_selftest_caller "$d" ""
+  run bash -c '. "$1"; trap -p EXIT INT TERM' "$PLUGIN_ROOT/$SCRIPT" "$d/caller.sh"
+  assert_success
+  assert_output "traps-restored"
+}
+
+@test "self-test: an exit mid-test cleans up and still runs the caller's EXIT trap with the real status" {
+  local d; d="$(mk_tmpworkdir)"
+  mkdir -p "$d/tmp"; mk_midtest_killer "$d"
+  mk_selftest_caller "$d" "set -e; trap 'echo \"caller-exit rc=\$?\"' EXIT"
+  run env PATH="$d/bin:$PATH" TMPDIR="$d/tmp" bash -c 'ST_KILL_PID=$$; export ST_KILL_PID; . "$1"' \
+    "$PLUGIN_ROOT/$SCRIPT" "$d/caller.sh"
+  assert_equal "$status" 143
+  assert_output "caller-exit rc=143"
+  [ -z "$(find "$d/tmp" -name png-tool)" ]
+}
+
+@test "self-test: a failed scratch removal under set -e still runs the caller's EXIT trap" {
+  local d; d="$(mk_tmpworkdir)"
+  mkdir -p "$d/tmp"; mk_midtest_killer "$d"
+  # Fails only on the self-test's scratch dir (the one holding png-tool); t1's repos and the
+  # farm cleanup still remove normally, so set -e does not end the run before the kill.
+  printf '%s\n' '#!/bin/sh' \
+    'for a in "$@"; do [ -d "$a/png-tool" ] && exit 1; done' \
+    'exec /bin/rm "$@"' > "$d/bin/rm"
+  chmod +x "$d/bin/rm"
+  mk_selftest_caller "$d" "set -e; trap 'echo \"caller-exit rc=\$?\"' EXIT"
+  run env PATH="$d/bin:$PATH" TMPDIR="$d/tmp" bash -c 'ST_KILL_PID=$$; export ST_KILL_PID; . "$1"' \
+    "$PLUGIN_ROOT/$SCRIPT" "$d/caller.sh"
+  assert_equal "$status" 143
+  assert_output "caller-exit rc=143"
+}
+
+@test "self-test: an exit mid-test with no caller trap still cleans up" {
+  local d; d="$(mk_tmpworkdir)"
+  mkdir -p "$d/tmp"; mk_midtest_killer "$d"
+  mk_selftest_caller "$d" ""
+  run env PATH="$d/bin:$PATH" TMPDIR="$d/tmp" bash -c 'ST_KILL_PID=$$; export ST_KILL_PID; . "$1"' \
+    "$PLUGIN_ROOT/$SCRIPT" "$d/caller.sh"
+  assert_equal "$status" 143
+  assert_output ""
+  [ -z "$(find "$d/tmp" -name png-tool)" ]
 }
 
 # Companion to the attach-visual-evidence arm of the same name: nothing pinned the

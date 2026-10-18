@@ -16,9 +16,36 @@ setup() {
   MF="$WD/.context/images/wt-test/screenshots-DV0.md"
 }
 
+# Image-tool cases run on the allowlist farm, never on /usr/bin:/bin: a distro
+# ImageMagick installs /usr/bin/convert, which would turn "absent" into "present".
 floor() { # [extra args] — no image tool on PATH, $WD is not a git repository
-  run bash -c "cd '$WD' && PATH='/usr/bin:/bin' WORKSPACE_ROOT='$WD' bash '$PLUGIN_ROOT/$SCRIPT' \
-    --worktask-id wt-test --task-id DV0 --slug my-feature --platform backend --run-index 0 $*"
+  run_script_env --cwd "$WD" --hide silicon --hide magick --hide convert \
+    --env "WORKSPACE_ROOT=$WD" "$SCRIPT" \
+    --worktask-id wt-test --task-id DV0 --slug my-feature --platform backend --run-index 0 "$@"
+}
+
+in_repo() { # makes $WD a git repository with one commit, so the render steps run
+  git -C "$WD" init -q
+  git -C "$WD" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+}
+
+render() { # [extra args] — farm PATH plus whatever stub_cmd installed
+  run_script_env --cwd "$WD" --hide silicon --hide magick --hide convert \
+    --env "WORKSPACE_ROOT=$WD" "$SCRIPT" \
+    --worktask-id wt-test --task-id DV0 --slug my-feature --run-index 0 --base-ref HEAD "$@"
+}
+
+# An ImageMagick built without fontconfig: `-list font` is empty and a font NAME
+# fails to load, while a font FILE (or no -font at all) renders.
+stub_magick_without_font_registry() {
+  stub_cmd magick --body '
+    if [ "$1" = -list ]; then exit 0; fi
+    prev=""
+    for a in "$@"; do
+      if [ "$prev" = -font ] && [ ! -r "$a" ]; then echo "magick: unable to read font $a" >&2; exit 1; fi
+      prev="$a"
+    done
+    printf "\211PNG\r\n\032\nx" > "${@: -1}"'
 }
 
 # ---------------------------------------------------------------------------
@@ -80,13 +107,9 @@ floor() { # [extra args] — no image tool on PATH, $WD is not a git repository
 }
 
 @test "floor: a present tool that fails to render -> exit 3, render_failed, no row" {
-  mkdir -p "$WD/fakebin"
-  printf '#!/bin/sh\nexit 1\n' > "$WD/fakebin/silicon"
-  chmod +x "$WD/fakebin/silicon"
-  git -C "$WD" init -q
-  git -C "$WD" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
-  run bash -c "cd '$WD' && PATH='$WD/fakebin:/usr/bin:/bin' WORKSPACE_ROOT='$WD' bash '$PLUGIN_ROOT/$SCRIPT' \
-    --worktask-id wt-test --task-id DV0 --slug my-feature --run-index 0 --base-ref HEAD"
+  stub_cmd silicon --exit 1
+  in_repo
+  render
   [ "$status" -eq 3 ]
   [[ "$output" == *"error=render_failed"* ]]
   [ ! -e "$WD/.context/images/wt-test/dv-DV0-01-my-feature.txt" ]
@@ -94,14 +117,50 @@ floor() { # [extra args] — no image tool on PATH, $WD is not a git repository
 }
 
 @test "floor: a present tool outside a git repository exits 2 but records no tool_missing row" {
-  mkdir -p "$WD/fakebin"
-  printf '#!/bin/sh\nexit 0\n' > "$WD/fakebin/silicon"
-  chmod +x "$WD/fakebin/silicon"
-  run bash -c "cd '$WD' && PATH='$WD/fakebin:/usr/bin:/bin' WORKSPACE_ROOT='$WD' GIT_CEILING_DIRECTORIES='$WD' \
-    bash '$PLUGIN_ROOT/$SCRIPT' --worktask-id wt-test --task-id DV0 --slug my-feature"
+  stub_cmd silicon --exit 0
+  run_script_env --cwd "$WD" --hide magick --hide convert \
+    --env "WORKSPACE_ROOT=$WD" --env "GIT_CEILING_DIRECTORIES=$WD" "$SCRIPT" \
+    --worktask-id wt-test --task-id DV0 --slug my-feature
   [ "$status" -eq 2 ]
   [[ "$output" == *"error=tool_missing"* ]]
   [ ! -e "$MF" ]
+}
+
+@test "magick: no font file and an empty registry -> no -font at all, render still succeeds" {
+  stub_magick_without_font_registry
+  in_repo
+  export CLI_FALLBACK_FONT_FILES="$WD/absent.ttf"
+  render
+  assert_success
+  [[ "$output" == *"ok=true error=null"* ]]
+  [ -s "$WD/.context/images/wt-test/dv-DV0-01-my-feature.png" ]
+  [[ "$(stub_log magick)" != *'-font '* ]]
+}
+
+# A registry hit does not prove the glyph file is installed (IM6 lists Courier
+# without gsfonts), so a readable font file outranks the registry name.
+@test "magick: a readable font file is preferred over a registry that lists Courier" {
+  stub_cmd magick --body '
+    if [ "$1" = -list ]; then printf "  Font: Courier\n    family: Courier\n"; exit 0; fi
+    printf "\211PNG\r\n\032\nx" > "${@: -1}"'
+  printf 'font' > "$WD/mono.ttf"
+  in_repo
+  export CLI_FALLBACK_FONT_FILES="$WD/absent.ttf:$WD/mono.ttf"
+  render
+  assert_success
+  [[ "$(stub_log magick)" == *"-font $WD/mono.ttf "* ]]
+  [[ "$(stub_log magick)" != *'-font Courier '* ]]
+}
+
+@test "magick: with no readable font file, a registry that lists Courier is asked for Courier" {
+  stub_cmd magick --body '
+    if [ "$1" = -list ]; then printf "  Font: Courier\n    family: Courier\n"; exit 0; fi
+    printf "\211PNG\r\n\032\nx" > "${@: -1}"'
+  in_repo
+  export CLI_FALLBACK_FONT_FILES="$WD/absent.ttf"
+  render
+  assert_success
+  [[ "$(stub_log magick)" == *'-font Courier '* ]]
 }
 
 @test "root: no declared root exits 1 and creates no .context under cwd" {
