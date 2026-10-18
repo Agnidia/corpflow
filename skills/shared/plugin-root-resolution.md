@@ -7,7 +7,7 @@ name: plugin-root-resolution
 **Definition**: the directory containing the Corpflow portable `plugin.json`,
 `.codex-plugin/plugin.json`, or `.claude-plugin/plugin.json` manifest. Known layouts include the
 Claude Code cache
-`~/.claude/plugins/cache/igrsoft/corpflow/<version>/` (version-keyed, so never hardcode
+`~/.claude/plugins/cache/agnidia/corpflow/<version>/` (version-keyed, so never hardcode
 it); a plain git clone, where it is the repository root; or wherever another harness
 installed the plugin directory.
 
@@ -43,7 +43,7 @@ literal prose.
 4. **Read-path derivation** — from the absolute path of a file you read, walk up to the nearest
    ancestor containing any supported manifest marker.
 5. **Claude Code cache, last resort** (CC installs only):
-   `ls -d ~/.claude/plugins/cache/igrsoft/corpflow/*/ 2>/dev/null | sort -V | tail -1`
+   `ls -d ~/.claude/plugins/cache/agnidia/corpflow/*/ 2>/dev/null | sort -V | tail -1`
    — may be stale if an older version is pinned.
 
 Validate every candidate with `corpflow_is_plugin_root`.

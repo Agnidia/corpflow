@@ -53,7 +53,7 @@ mk_stub_plugin_tree() {
 # --- case 2: an installed Claude Code plugin cache directory -------------------
 
 @test "cache root: the anchored rule matches the substituted invocation, and its script path resolves" {
-  local cache="$BATS_TEST_TMPDIR/home/.claude/plugins/cache/igrsoft/corpflow/9.9.9"
+  local cache="$BATS_TEST_TMPDIR/home/.claude/plugins/cache/agnidia/corpflow/9.9.9"
   mk_stub_plugin_tree "$cache"
 
   run corpflow_grant_matches "$RULE" \

@@ -8,6 +8,7 @@ handoff:
   next_stage_focus: "DR reviews stream web"
   worktree: true
   open_questions: []
+  refs: { tests: development-0-web.md#tests-added }
 ---
 
 # Development (web)

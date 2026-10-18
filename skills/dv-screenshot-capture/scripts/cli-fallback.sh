@@ -502,12 +502,42 @@ if [[ -n "$MAGICK_CMD" ]] && git rev-parse --git-dir > /dev/null 2>&1; then
     DIFF_CONTENT=$(git diff "${_diff_args[@]}" 2> /dev/null | head -60 || true)
   fi
 
+  # Order: readable font FILE, then the registry name Courier, then no -font.
+  # A FILE needs no type registry, so it is tried first. A registry hit is weaker:
+  # IM6 type-ghostscript.xml lists Courier even when its gsfonts glyph file is not
+  # installed. A build without fontconfig (stock Homebrew IM7) has an empty registry,
+  # where `-font Courier` fails. With neither, a registry-backed build uses its default.
+  # CLI_FALLBACK_FONT_FILES (colon-separated) replaces the built-in candidate list.
+  MAGICK_FONT_ARGS=()
+  _font_candidates=()
+  if [[ -n "${CLI_FALLBACK_FONT_FILES+set}" ]]; then
+    IFS=: read -r -a _font_candidates <<< "$CLI_FALLBACK_FONT_FILES"
+  else
+    _font_candidates=(/System/Library/Fonts/Menlo.ttc /System/Library/Fonts/Courier.ttc
+      /usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf
+      /usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf
+      /usr/share/fonts/dejavu/DejaVuSansMono.ttf /usr/share/fonts/TTF/DejaVuSansMono.ttf)
+  fi
+  for _font in ${_font_candidates[@]+"${_font_candidates[@]}"}; do
+    if [[ -n "$_font" ]] && [[ -f "$_font" ]] && [[ -r "$_font" ]]; then
+      MAGICK_FONT_ARGS=(-font "$_font")
+      break
+    fi
+  done
+  if [[ "${#MAGICK_FONT_ARGS[@]}" -eq 0 ]]; then
+    _font_list=$("$MAGICK_CMD" -list font 2> /dev/null || true)
+    if grep -qE '^[[:space:]]*Font: Courier$' <<< "$_font_list"; then
+      MAGICK_FONT_ARGS=(-font Courier)
+    fi
+  fi
+
   RENDER_OK=0
   set +e
+  # ${a[@]+...}: an empty array under `set -u` is an unbound-variable error on Bash 3.2.
   "$MAGICK_CMD" \
     -background white \
     -fill black \
-    -font Courier \
+    ${MAGICK_FONT_ARGS[@]+"${MAGICK_FONT_ARGS[@]}"} \
     -pointsize 13 \
     -size 1200x800 \
     "caption:${SLUG}\n\n${DIFF_CONTENT}" \

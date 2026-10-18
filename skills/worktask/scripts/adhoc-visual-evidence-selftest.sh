@@ -40,24 +40,71 @@ run_self_tests() {
   fi
   rm -rf "$d1"
 
-  # ---- t2/t3/t4: capture-dependent arms.
-  # cli-fallback's floor no longer writes a .txt placeholder, so on a host with no image
-  # tool there is NOTHING to manifest and these arms have no capture to assert against.
-  # Splitting them this way is the point of the fix: the un-migrated version read the
-  # floor's exit 2 as a capture and manifested a .png that was never written.
-  _has_image_tool() {
-    command -v silicon > /dev/null 2>&1 || command -v magick > /dev/null 2>&1 \
-      || command -v convert > /dev/null 2>&1
+  # ---- t2/t3/t4 and t2b own their PATH, so every host runs both arms: the host's
+  # silicon/magick/convert are filtered out (a broken host tool must not pick or fail
+  # an arm), and a PNG-writing silicon stub stands in for a working tool.
+  # `read -a` splits without glob expansion. An empty entry is dropped: it means "cwd",
+  # which shifts with every cd the child makes. A relative entry is pinned to its
+  # physical absolute path, so the farm's symlinks cannot dangle.
+  _toolless_path() { # $1=scratch dir; prints $PATH minus every silicon/magick/convert
+    local root="$1" out='' dir n=0 farm entries=()
+    IFS=: read -r -a entries <<< "$PATH"
+    for dir in ${entries[@]+"${entries[@]}"}; do
+      [ -n "$dir" ] && [ -d "$dir" ] || continue
+      case "$dir" in
+        /*) ;;
+        *) dir=$(cd -- "$dir" 2>/dev/null && pwd -P) || continue ;;
+      esac
+      if [ -e "$dir/silicon" ] || [ -e "$dir/magick" ] || [ -e "$dir/convert" ]; then
+        n=$((n+1)); farm="$root/farm$n"; mkdir -p "$farm"
+        ln -s "$dir"/* "$farm"/ 2>/dev/null
+        rm -f "$farm/silicon" "$farm/magick" "$farm/convert"
+        dir="$farm"
+      fi
+      out="${out:+$out:}$dir"
+    done
+    printf '%s' "$out"
   }
+  local st_tmp tl_path st_saved_traps st_caller_exit='' st_exit_cmd
+  st_tmp=$(mktemp -d)
+  # Captured before overriding so the caller's own handlers come back afterwards;
+  # `$(trap -p ...)` reports the parent shell's traps, Bash 3.2 included.
+  st_saved_traps=$(trap -p EXIT INT TERM)
+  # trap -p prints `trap -- '<cmd>' EXIT` with <cmd> shell-quoted as one word, so the
+  # third word is the caller's EXIT command verbatim.
+  # shellcheck disable=SC2329  # invoked through the eval below
+  _st_take_exit_cmd() { st_caller_exit="${3:-}"; }
+  eval "_st_take_exit_cmd $(trap -p EXIT)"
+  # The path is baked in with %q: the trap may fire after this function's locals unwind.
+  # The caller's EXIT command is chained after the cleanup, so an exit inside this window
+  # still runs it. `(exit N) && :` hands it the real $? without tripping a caller's set -e:
+  # a failure that is not the last command of an && list does not trigger errexit. `|| :`
+  # keeps a failed removal from ending the trap under set -e before the chained command.
+  st_exit_cmd="_st_rc=\$?; rm -rf -- $(printf '%q' "$st_tmp") || :"
+  [ -n "$st_caller_exit" ] \
+    && st_exit_cmd="$st_exit_cmd; (exit \"\$_st_rc\") && :"$'\n'"$st_caller_exit"
+  # INT/TERM route through exit so the EXIT trap does the one cleanup.
+  # shellcheck disable=SC2064  # expand now, deliberately
+  trap "$st_exit_cmd" EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  tl_path=$(_toolless_path "$st_tmp")
+  mkdir -p "$st_tmp/png-tool"
+  # Drains stdin: cli-fallback pipes the diff in under pipefail.
+  # shellcheck disable=SC2016  # the stub body expands when the stub runs, not here
+  printf '%s\n' '#!/bin/sh' 'cat > /dev/null; out=""' \
+    'while [ "$#" -gt 0 ]; do [ "$1" = --output ] && out="$2"; shift; done' \
+    '[ -n "$out" ] && printf "\211PNG\r\n\032\nselftest" > "$out"' > "$st_tmp/png-tool/silicon"
+  chmod +x "$st_tmp/png-tool/silicon"
 
   local d2; d2=$(_mk_repo)
   printf 'body { color: red }\n' > "$d2/Views/app.css"
   git -C "$d2" add -A >/dev/null 2>&1; git -C "$d2" commit -qm ui >/dev/null 2>&1
   local o2
-  o2=$(WORKSPACE_ROOT="$d2" BASE_REF="master" ASSET_HOST_MODE=none DRY_RUN=1 \
-       bash "$self" --emit pr 2>/dev/null)
+  o2=$(PATH="$st_tmp/png-tool:$tl_path" WORKSPACE_ROOT="$d2" BASE_REF="master" \
+       ASSET_HOST_MODE=none DRY_RUN=1 bash "$self" --emit pr 2>/dev/null)
 
-  if _has_image_tool; then
+  {
     if printf '%s' "$o2" | grep -q '^## Visual evidence' \
        && ! printf '%s' "$o2" | grep -qE '\]\(\)|\]\(\.context/'; then
       _ok "t2-ui-emits-block"
@@ -67,8 +114,8 @@ run_self_tests() {
 
     # ---- t3: rerun replays the cache instead of stacking a second capture
     local o3 caps
-    o3=$(WORKSPACE_ROOT="$d2" BASE_REF="master" ASSET_HOST_MODE=none DRY_RUN=1 \
-         bash "$self" --emit pr 2>/dev/null)
+    o3=$(PATH="$st_tmp/png-tool:$tl_path" WORKSPACE_ROOT="$d2" BASE_REF="master" \
+         ASSET_HOST_MODE=none DRY_RUN=1 bash "$self" --emit pr 2>/dev/null)
     caps=$(find "$d2/.context/images" -type f -name 'dv-*' 2>/dev/null | wc -l | tr -d ' ')
     if [ "$o3" = "$o2" ] && [ "$caps" = "1" ]; then
       _ok "t3-idempotent"
@@ -83,9 +130,17 @@ run_self_tests() {
     else
       _fail "t4-manifest-schema" "$(bash "$ATTACHER" --validate-manifest "$mf" 2>&1 | head -2 | tr '\n' '~')"
     fi
-  else
-    # ---- t2b: no image tool → no capture is CLAIMED. The regression this replaces:
-    # exit 2 was read as success, so a manifest row named a .png that does not exist.
+  }
+  rm -rf "$d2"
+
+  # ---- t2b: no image tool → no capture is CLAIMED: exit 2 must never read as success,
+  # and no manifest row may name a .png that does not exist.
+  d2=$(_mk_repo)
+  printf 'body { color: red }\n' > "$d2/Views/app.css"
+  git -C "$d2" add -A >/dev/null 2>&1; git -C "$d2" commit -qm ui >/dev/null 2>&1
+  o2=$(PATH="$tl_path" WORKSPACE_ROOT="$d2" BASE_REF="master" ASSET_HOST_MODE=none DRY_RUN=1 \
+       bash "$self" --emit pr 2>/dev/null)
+  {
     local ghost=0 mf2 mfdir
     mf2=$(find "$d2/.context/images" -name screenshots-AD0.md 2>/dev/null | head -1)
     if [ -n "$mf2" ]; then
@@ -97,13 +152,16 @@ run_self_tests() {
         esac
       done < "$mf2"
     fi
-    if [ "$ghost" -eq 0 ] && ! printf '%s' "$o2" | grep -qE '\]\(\)|\.txt'; then
+    if [ "$ghost" -eq 0 ] && [ -z "$o2" ]; then
       _ok "t2b-no-tool-manifests-no-ghost-row"
     else
       _fail "t2b-no-tool-manifests-no-ghost-row" "ghost=$ghost out='$(printf '%s' "$o2" | head -3 | tr '\n' '~')'"
     fi
-  fi
-  rm -rf "$d2"
+  }
+  rm -rf "$d2" "$st_tmp"
+  # Reset first: a signal the caller left at default prints nothing in trap -p.
+  trap - EXIT INT TERM
+  eval "$st_saved_traps"
 
   # ---- t5: a worktask tree is refused, leaving FN's attachment the only one
   local d5; d5=$(_mk_repo)

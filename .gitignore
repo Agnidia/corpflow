@@ -29,3 +29,6 @@ evals/review/
 
 # Worktask run state, logs and the user-decision ledger (0600, verbatim answer text)
 /.context/
+
+# Per-user Claude Code settings: each operator's own plugin and permission choices
+/.claude/settings.local.json
