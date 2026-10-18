@@ -15,6 +15,8 @@ setup() {
   export WORKSPACE_ROOT="$WD"
 }
 
+# Oversize cases run on the allowlist farm, never on /usr/bin:/bin: a distro pngquant
+# in /usr/bin would turn "no pngquant" into "pngquant present".
 # ---------------------------------------------------------------------------
 
 @test "small file (<200KB) -> verdict=ok, exit 0, size_audit line on stdout" {
@@ -36,8 +38,8 @@ setup() {
 @test "oversize file (>=500KB, no pngquant) -> moved to oversize/, exit 3, .gitignore updated" {
   OVER_FILE="$WD/.context/images/wt-test/dv-DV0-03-big.png"
   dd if=/dev/zero bs=1 count=600000 2>/dev/null > "$OVER_FILE"
-  run bash -c "cd '$WD' && PATH='/usr/bin:/bin' bash '$PLUGIN_ROOT/$SCRIPT' \
-    --path '$OVER_FILE' --worktask-id wt-test --project-root '$WD'"
+  run_script_env --cwd "$WD" --hide pngquant "$SCRIPT" \
+    --path "$OVER_FILE" --worktask-id wt-test --project-root "$WD"
   [ "$status" -eq 3 ]
   assert_output --partial "verdict=oversize"
   [ ! -f "$OVER_FILE" ]
@@ -60,8 +62,8 @@ setup() {
 @test "no --project-root and no repository owning .context -> oversize still moves, no .gitignore" {
   OVER_FILE="$WD/.context/images/wt-test/dv-DV0-06-big.png"
   dd if=/dev/zero bs=1 count=600000 2>/dev/null > "$OVER_FILE"
-  run bash -c "cd / && PATH='/usr/bin:/bin' GIT_CEILING_DIRECTORIES='$WD' bash '$PLUGIN_ROOT/$SCRIPT' \
-    --path '$OVER_FILE' --worktask-id wt-test"
+  run_script_env --cwd / --hide pngquant --env "GIT_CEILING_DIRECTORIES=$WD" "$SCRIPT" \
+    --path "$OVER_FILE" --worktask-id wt-test
   [ "$status" -eq 3 ]
   [ -f "$WD/.context/images/wt-test/oversize/dv-DV0-06-big.png" ]
   [ ! -e "$WD/.gitignore" ]

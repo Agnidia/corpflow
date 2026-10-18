@@ -28,6 +28,13 @@ capture() {  # capture [extra args...] — always with the required flags
     --worktask-id "$WT" --task-id DV0 --slug hero-shot --url https://example.com/app "$@"
 }
 
+# The npx rung is reached only when no `playwright` resolves first, and --stub-path
+# keeps the host PATH: a host Playwright would take the capture and fetch the URL.
+capture_npx_only() {  # capture_npx_only [extra args...]
+  run_script_env --cwd "$WD" --hide playwright --separate-stderr "$SUT" \
+    --worktask-id "$WT" --task-id DV0 --slug hero-shot --url https://example.com/app "$@"
+}
+
 # A stub that behaves like a working Playwright CLI: the last argv slot is the
 # output path, and a real capture is a non-empty PNG on disk.
 stub_playwright_writing_png() {
@@ -74,7 +81,7 @@ stub_playwright_writing_png() {
   # A local package that is not installed: the --no-install probe fails.
   stub_cmd npx --exit 1
 
-  capture
+  capture_npx_only
   assert_failure 2
   assert_output "path=$IMAGES/dv-DV0-01-hero-shot.png bytes=0 ok=false error=tool_missing"
 
@@ -95,7 +102,7 @@ playwright
       --yes) exit 0 ;;                        # fetch path — records but produces nothing
     esac'
 
-  capture --allow-npx-install
+  capture_npx_only --allow-npx-install
   # No PNG was produced by the stub, so the adapter reports capture_failed (3),
   # not tool_missing (2) — the entry point WAS resolved.
   assert_failure 3
