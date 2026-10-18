@@ -3060,3 +3060,101 @@ EOART
   assert_output --partial "--changed applies to --task-settle-stale only"
   assert_ledger_unchanged "$w"
 }
+
+# --- REQ-1: a DV settle adds the branch diff to facts.files_modified ---------------------
+# Base-sanity reads files_modified as its denominator, so an incomplete self-reported list
+# blocks a correct base. Real git fixtures: the fill is a function of refs.
+
+_fill_repo() {
+  cd "$WD"
+  git init -q -b develop .
+  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m base
+  git checkout -q -b feature/work
+  printf 'x\n' > c1.sh
+  printf 'x\n' > c2.sh
+  printf 'x\n' > c3.sh
+  git add c1.sh c2.sh c3.sh
+  git -c user.email=a@b.c -c user.name=t commit -q -m work
+}
+
+_fill_row() { # $1 = DV0 metadata object
+  jq --argjson m "$1" '.tasks.DV0 = {status: "in_progress", metadata: $m}' \
+    .context/state.json > s && mv s .context/state.json
+}
+
+_fill_dv() { # $@ = extra args
+  bash "$PLUGIN_ROOT/$SCRIPT" --stage DV --task-id DV0 --artifact .context/development-0.md \
+    --facts '{"files_modified":["a.sh"]}' "$@"
+}
+
+@test "files_modified: a DV settle adds the committed diff against the row base, each path once (REQ-1, AC-1)" {
+  _fill_repo
+  _fill_row '{"base_ref":"develop"}'
+  run _fill_dv
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh","c1.sh","c2.sh","c3.sh"]'
+  # A second settle that self-reports a git path adds no duplicate.
+  run bash "$PLUGIN_ROOT/$SCRIPT" --stage DV --task-id DV0 --artifact .context/development-0.md \
+    --facts '{"files_modified":["c1.sh"]}'
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh","c1.sh","c2.sh","c3.sh"]'
+}
+
+@test "files_modified: an unresolvable base leaves the self-reported list and exit 0 (REQ-1, AC-2)" {
+  _fill_repo
+  # No row base_ref, no mirror, no workspace.json, no origin/HEAD.
+  _fill_row '{}'
+  run _fill_dv
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh"]'
+}
+
+@test "files_modified: a QA settle adds no git path (REQ-1, AC-3)" {
+  _fill_repo
+  _fill_row '{"base_ref":"develop"}'
+  jq '.metadata = {base_ref: "develop"} | .tasks.QA0 = {status: "in_progress", metadata: {base_ref: "develop"}}' \
+    .context/state.json > s && mv s .context/state.json
+  printf -- '---\nhandoff:\n  stage: QA\n  verdict: go\n  summary: "fixture"\n---\n\n# Testing\n' \
+    > .context/testing-0.md
+  run bash "$PLUGIN_ROOT/$SCRIPT" --stage QA --task-id QA0 --artifact .context/testing-0.md \
+    --facts '{"files_modified":["a.sh"]}'
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh"]'
+}
+
+@test "files_modified: an origin/HEAD-only base is a default, not a configured base, so nothing is added" {
+  _fill_repo
+  git update-ref refs/remotes/origin/develop develop
+  git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/develop
+  _fill_row '{}'
+  run _fill_dv
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh"]'
+}
+
+@test "files_modified: a named workspace_path that is not a work tree adds nothing" {
+  _fill_repo
+  _fill_row "$(jq -cn --arg p "$WD/no-such-tree" '{base_ref: "develop", workspace_path: $p}')"
+  run _fill_dv
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh"]'
+}
+
+@test "files_modified: a settle made from another cwd diffs the row's workspace_path" {
+  _fill_repo
+  _fill_row "$(jq -cn --arg p "$WD" '{base_ref: "develop", workspace_path: $p}')"
+  local elsewhere
+  elsewhere="$(mk_tmpworkdir)"
+  cd "$elsewhere"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --state "$WD/.context/state.json" --stage DV --task-id DV0 \
+    --artifact "$WD/.context/development-0.md" --facts '{"files_modified":["a.sh"]}'
+  assert_success
+  run jq -c '.facts.files_modified' "$WD/.context/state.json"
+  assert_output '["a.sh","c1.sh","c2.sh","c3.sh"]'
+}

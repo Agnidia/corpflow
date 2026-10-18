@@ -17,7 +17,8 @@
 #   cmd_attachments, cmd_staging, cmd_pr_body, cmd_validate_pr, cmd_continuity,
 #   _continuity_stream_mode, _continuity_streams,
 #   cmd_branch_divergence, cmd_issue_close_required, _bs_override_on,
-#   _bs_fork_candidate, cmd_base_sanity, UD_HEADING, UD_LEAD, UD_ACTION, UD_SEP, _ud_rows,
+#   _bs_fork_candidate, _bs_own_branch, _bs_local_fork_candidate, _bs_fork_evidence,
+#   cmd_base_sanity, UD_HEADING, UD_LEAD, UD_ACTION, UD_SEP, _ud_rows,
 #   _ud_question, _ud_render, _ud_scrub, _ud_splice, cmd_unresolved_decisions.
 #
 # Minimum shell: bash 3.2+ (macOS default).
@@ -394,8 +395,10 @@ cmd_continuity() {
 
   # The printed name stays the resolved NAME, not the git ref it mapped to: that is
   # what an operator recognises, and what the existing contract test asserts.
-  if [[ -n "$wt_head" ]] && git merge-base --is-ancestor "$wt_head" "$ref" 2> /dev/null; then
-    printf 'continuity: worktree HEAD is an ancestor of %s (fast-forward safe)\n' "$int_branch"
+  # Base-into-HEAD: a feature branch is ahead of its base by design, and only commits the
+  # base holds that HEAD lacks make the merge more than a fast-forward (`diverged`).
+  if [[ -n "$wt_head" ]] && git merge-base --is-ancestor "$ref" "$wt_head" 2> /dev/null; then
+    printf 'continuity: %s is an ancestor of worktree HEAD (fast-forward safe)\n' "$int_branch"
     return 0
   fi
 
@@ -490,7 +493,9 @@ cmd_branch_divergence() {
 # ---------- issue-close-required ----------
 # GitHub only honours a `Closes #N` trailer when the PR merges into the DEFAULT branch.
 # Merging into any other integration branch leaves the issue open with no signal at all,
-# so FN has to close it explicitly. Read-only: it prints the command, never runs it.
+# so the issue has to be closed explicitly. Read-only: it prints the command, never runs
+# it. FN opens the PR without merging it, so FN records the close and whoever merges runs
+# this again post-merge (skills/megatask/SKILL.md § Post-merge settle).
 #
 # Unresolved base_ref or issue ⇒ report and return 0. A finalization gate that blocks on
 # its own inability to introspect is worse than the open issue it is guarding against.
@@ -546,8 +551,8 @@ cmd_issue_close_required() {
 # resolved base would carry resemble what this run says it changed? A branch
 # stacked on another feature branch, opened against the shared integration
 # branch, silently carries the whole intervening branch — 1008 files where the
-# run itself recorded 27. Ancestry (`continuity`) cannot see that: divergence is
-# the normal state of every feature branch about to merge. Magnitude can.
+# run itself recorded 27. Ancestry (`continuity`) cannot see that: a stacked branch
+# still contains its base, so the ancestor test passes. Magnitude can.
 #
 # The thresholds are WRONG-BASE heuristics, not diff-quality rules. The
 # multiplier alone would trip a 3-file run that legitimately touched 9; the
@@ -578,8 +583,87 @@ _bs_fork_candidate() {
   printf '%s' "$f"
 }
 
+# Does $1 name HEAD's own branch (its short name, or its upstream without the remote)?
+# A stale `origin/<own-branch>` from an earlier push has the smallest ahead-count of all,
+# so on a fix-in-PR re-run it would become the fork candidate and cap the ledger falsely.
+# An upstream that is the branch's own start point is the parent, not a push of this
+# branch: a worktree created from `origin/<parent>` tracks it, and discarding it would
+# lose the one piece of evidence that names the real parent.
+_bs_own_branch() {
+  local c="$1" head up start
+  head=$(git rev-parse --abbrev-ref HEAD 2> /dev/null || printf '')
+  if [[ -n "$head" && "$head" != "HEAD" && "$c" == "$head" ]]; then return 0; fi
+  up=$(git rev-parse --verify --quiet --abbrev-ref '@{upstream}' 2> /dev/null || printf '')
+  if [[ -z "$up" || "$c" != "${up#*/}" ]]; then return 1; fi
+  # The oldest reflog entry of the branch records its start point. No reflog keeps the
+  # upstream treated as own: a lost parent only removes the cap, a false parent adds a block.
+  start=$(git reflog show --format=%gs "refs/heads/${head}" 2> /dev/null | tail -n 1 || printf '')
+  start="${start#branch: Created from }"
+  start="${start#refs/remotes/}"
+  if [[ -n "$start" && "$start" == "$up" ]]; then return 1; fi
+  return 0
+}
+
+# fork_base enumerates refs/remotes/origin only, so an unpushed parent is invisible to it.
+# A local branch counts when HEAD descends from it more closely than from the base
+# (0 < ahead < $2); lowest ahead wins, then byte order. Prints "<ahead> <name>" or nothing.
+_bs_local_fork_candidate() {
+  local base_bare="$1" limit="$2" head name n rows="" sorted
+  head=$(git rev-parse --abbrev-ref HEAD 2> /dev/null || printf '')
+  while IFS= read -r name; do
+    name="${name#refs/heads/}"
+    [[ -n "$name" ]] || continue
+    if [[ "$name" == "$head" || "$name" == "$base_bare" ]]; then continue; fi
+    n=$(git rev-list --count "refs/heads/${name}..HEAD" 2> /dev/null) || continue
+    case "$n" in '' | *[!0-9]*) continue ;; esac
+    if [[ "$n" -gt 0 && "$n" -lt "$limit" ]]; then rows="${rows}${n} ${name}"$'\n'; fi
+  done <<< "$(git for-each-ref --format='%(refname)' refs/heads 2> /dev/null || printf '')"
+  [[ -n "$rows" ]] || return 0
+  # Captured, not piped into `head -1`: an early-exit consumer can SIGPIPE sort under pipefail.
+  sorted=$(printf '%s' "$rows" | LC_ALL=C sort -k1,1n -k2,2)
+  printf '%s' "${sorted%%$'\n'*}"
+}
+
+# Fork evidence for base $1 with HEAD $2 commits ahead of it. Sets BS_FORK_NAME,
+# BS_FORK_REF, BS_FORK_SOURCE (remote|local|none), BS_FORK_REL (same|distinct|none),
+# BS_FORK_AHEAD and BS_OWN_BRANCH. Always returns 0: it is called bare under errexit, and
+# globals because a `$(…)` capture would discard them.
+# `distinct` = HEAD forked from something other than the base, so the files committed since
+# that candidate are an independent measure of this run's footprint. A local candidate is
+# tried before declaring `same`: otherwise a remote base that matches would pass a branch
+# stacked on an unpushed parent.
+_bs_fork_evidence() {
+  local base_bare="${1#origin/}" limit="$2" f fref="" hit=""
+  BS_FORK_NAME="unavailable" BS_FORK_REF="" BS_FORK_SOURCE="none" BS_FORK_REL="none"
+  BS_FORK_AHEAD="" BS_OWN_BRANCH=""
+  f=$(_bs_fork_candidate "$1")
+  if [[ "$f" != "unavailable" && "${f#origin/}" != "$base_bare" ]] && _bs_own_branch "${f#origin/}"; then
+    BS_OWN_BRANCH="$f"
+    f="unavailable"
+  fi
+  if [[ "$f" != "unavailable" && "${f#origin/}" != "$base_bare" ]]; then
+    fref=$(resolve_git_ref "$f" || printf '')
+    if [[ -n "$fref" ]]; then
+      BS_FORK_NAME="$f" BS_FORK_REF="$fref" BS_FORK_SOURCE="remote" BS_FORK_REL="distinct"
+      BS_FORK_AHEAD=$(git rev-list --count "${fref}..HEAD" 2> /dev/null || printf '')
+      return 0
+    fi
+  fi
+  hit=$(_bs_local_fork_candidate "$base_bare" "$limit")
+  if [[ -n "$hit" ]]; then
+    BS_FORK_AHEAD="${hit%% *}" BS_FORK_NAME="${hit#* }"
+    BS_FORK_REF="refs/heads/${BS_FORK_NAME}" BS_FORK_SOURCE="local" BS_FORK_REL="distinct"
+    return 0
+  fi
+  if [[ "$f" != "unavailable" ]]; then
+    BS_FORK_NAME="$f" BS_FORK_SOURCE="remote"
+    if [[ "${f#origin/}" == "$base_bare" ]]; then BS_FORK_REL="same"; fi
+  fi
+  return 0
+}
+
 cmd_base_sanity() {
-  local base ref src ahead pr_files ledger_files fork fork_ahead meta diff_out
+  local base ref src ahead pr_files ledger_files meta diff_out
 
   # Degrade ladder, evaluated BEFORE the rule and ordered most-fundamental first.
   # Each rung warns and exits 0: a blocking gate that fires on its own inability
@@ -638,6 +722,33 @@ cmd_base_sanity() {
     return 0
   fi
 
+  ahead=$(git rev-list --count "${ref}..HEAD" 2> /dev/null || printf '0')
+  case "$ahead" in '' | *[!0-9]*) ahead=0 ;; esac
+
+  # Ninth degrade rung, evaluated before the eighth: a merge payload makes every
+  # denominator unreliable, and its local stream branches would otherwise be taken as
+  # fork evidence below. Under fan-out the payload is a MERGE of independently-staged
+  # streams, and `facts.files_modified` is never their union: each stream records what it
+  # knows, none records the assembly. So the denominator is incomplete BY CONSTRUCTION, not
+  # by under-recording, and the rule blocks on every fan-out — observed at 140 PR files
+  # against 19 ledger files, cleared only with the sanctioned override, which is a gate
+  # teaching its own operators to bypass it.
+  #
+  # A merge parent is the mechanical signal: a single-stream payload has none. Same
+  # direction as every rung above — an input the rule cannot trust degrades to a warn, and
+  # a wrong base still shows up in `continuity`, which does not depend on this denominator.
+  local merge_parents=0
+  merge_parents=$(git rev-list --merges --count "${ref}..HEAD" 2> /dev/null || printf '0')
+  case "$merge_parents" in '' | *[!0-9]*) merge_parents=0 ;; esac
+  if [[ "$merge_parents" -gt 0 ]]; then
+    printf 'base-sanity: this payload has %s merge commit(s) — facts.files_modified cannot be the union of independently-staged streams, so the magnitude comparison is unreliable; skipped
+' \
+      "$merge_parents"
+    audit_fn base_sanity multi_parent_payload \
+      "$(meta_json base "$base" ledger_files "$ledger_files" merge_parents "$merge_parents")"
+    return 0
+  fi
+
   # Eighth degrade rung. facts.files_modified is this rule's denominator and is known to
   # under-record — 18 recorded against 33 dirty in this release's own run. When the working
   # tree shows a gap of the same magnitude the rule itself treats as significant, the
@@ -672,33 +783,37 @@ cmd_base_sanity() {
     tree_files=$((tree_files - untracked_landed))
     [[ "$tree_files" -lt 0 ]] && tree_files=0
   fi
-  if [[ "$tree_files" -gt $((ledger_files * 3)) ]] && [[ $((tree_files - ledger_files)) -gt 20 ]]; then
-    printf 'base-sanity: the ledger records %s modified files but the working tree shows %s — the denominator is incomplete, so the magnitude comparison is unreliable; skipped\n' \
-      "$ledger_files" "$tree_files"
-    audit_fn base_sanity ledger_under_recording \
-      "$(meta_json base "$base" ledger_files "$ledger_files" tree_files "$tree_files")"
-    return 0
-  fi
 
-  # Ninth degrade rung. Under fan-out the payload is a MERGE of independently-staged
-  # streams, and `facts.files_modified` is never their union: each stream records what it
-  # knows, none records the assembly. So the denominator is incomplete BY CONSTRUCTION, not
-  # by under-recording, and the rule blocks on every fan-out — observed at 140 PR files
-  # against 19 ledger files, cleared only with the sanctioned override, which is a gate
-  # teaching its own operators to bypass it.
-  #
-  # A merge parent is the mechanical signal: a single-stream payload has none. Same
-  # direction as every rung above — an input the rule cannot trust degrades to a warn, and
-  # a wrong base still shows up in `continuity`, which does not depend on this denominator.
-  local merge_parents=0
-  merge_parents=$(git rev-list --merges --count "${ref}..HEAD" 2> /dev/null || printf '0')
-  case "$merge_parents" in '' | *[!0-9]*) merge_parents=0 ;; esac
-  if [[ "$merge_parents" -gt 0 ]]; then
-    printf 'base-sanity: this payload has %s merge commit(s) — facts.files_modified cannot be the union of independently-staged streams, so the magnitude comparison is unreliable; skipped
-' \
-      "$merge_parents"
-    audit_fn base_sanity multi_parent_payload \
-      "$(meta_json base "$base" ledger_files "$ledger_files" merge_parents "$merge_parents")"
+  # Committed files count only from a fork candidate that is NOT the base. Measured from
+  # the base they would equal the PR diff, so the rung would fire on every wrong base.
+  local committed_files="" fork_diff="" fork_diff_out evidence_files
+  _bs_fork_evidence "$base" "$ahead"
+  if [[ "$BS_FORK_REL" == "distinct" ]]; then
+    # Captured, then counted, for the same reason as the PR diff below.
+    if fork_diff_out=$(git diff --name-only "${BS_FORK_REF}...HEAD" 2> /dev/null); then
+      committed_files=0
+      if [[ -n "$fork_diff_out" ]]; then
+        committed_files=$(printf '%s\n' "$fork_diff_out" | wc -l | tr -d ' ')
+      fi
+    else
+      BS_FORK_REL="none"
+      fork_diff="unreadable"
+    fi
+  fi
+  evidence_files="$tree_files"
+  if [[ "$BS_FORK_REL" == "distinct" ]]; then evidence_files=$((committed_files + tree_files)); fi
+
+  if [[ "$evidence_files" -gt $((ledger_files * 3)) ]] && [[ $((evidence_files - ledger_files)) -gt 20 ]]; then
+    if [[ "$BS_FORK_REL" == "distinct" ]]; then
+      printf 'base-sanity: the ledger records %s modified files but git shows %s (%s committed since fork candidate %s, %s in the working tree) — the denominator is incomplete, so the magnitude comparison is unreliable; skipped\n' \
+        "$ledger_files" "$evidence_files" "$committed_files" "$BS_FORK_NAME" "$tree_files"
+    else
+      printf 'base-sanity: the ledger records %s modified files but the working tree shows %s — the denominator is incomplete, so the magnitude comparison is unreliable; skipped\n' \
+        "$ledger_files" "$tree_files"
+    fi
+    audit_fn base_sanity ledger_under_recording \
+      "$(meta_json base "$base" ledger_files "$ledger_files" tree_files "$tree_files" \
+        committed_files "$committed_files" fork_candidate "$BS_FORK_NAME" fork_source "$BS_FORK_SOURCE")"
     return 0
   fi
 
@@ -718,34 +833,49 @@ cmd_base_sanity() {
     pr_files=$(printf '%s\n' "$diff_out" | wc -l | tr -d ' ')
   fi
 
-  ahead=$(git rev-list --count "${ref}..HEAD" 2> /dev/null || printf '0')
-  case "$ahead" in '' | *[!0-9]*) ahead=0 ;; esac
-
-  fork=$(_bs_fork_candidate "$base")
-  fork_ahead=""
-  if [[ "$fork" != "unavailable" ]]; then
-    # Through resolve_git_ref, exactly like $base above: fork_base returns a BARE
-    # branch name, and a remote-only branch does not resolve bare under git's
-    # disambiguation ladder. That is the incident's own topology, so counting on
-    # the bare name would blank the candidate precisely when it matters most.
-    local fork_ref
-    fork_ref=$(resolve_git_ref "$fork" || printf '')
-    if [[ -n "$fork_ref" ]]; then
-      fork_ahead=$(git rev-list --count "${fork_ref}..HEAD" 2> /dev/null || printf '')
-    fi
+  # The ledger is capped by git evidence. Once DV fills files_modified from the branch
+  # diff, the ledger is about the PR file count against the same base, so a rule reading
+  # only the ledger could never fire on a wrong base again. Under `distinct`, the files
+  # committed since the real parent are the independent count. No committed file is no cap:
+  # a candidate that already holds all of HEAD's committed work says nothing about its
+  # footprint, and the dirty count alone would then stand in for it.
+  local denominator="$ledger_files" capped=0
+  if [[ "$BS_FORK_REL" == "distinct" && "${committed_files:-0}" -gt 0 && "$evidence_files" -lt "$ledger_files" ]]; then
+    denominator="$evidence_files"
+    capped=1
   fi
 
   meta=$(meta_json base "$base" pr_files "$pr_files" ledger_files "$ledger_files" \
-    ahead "$ahead" fork_candidate "$fork" base_source "${src:-unknown}")
+    ahead "$ahead" fork_candidate "$BS_FORK_NAME" base_source "${src:-unknown}" \
+    fork_relation "$BS_FORK_REL" fork_source "$BS_FORK_SOURCE" committed_files "$committed_files" \
+    tree_files "$tree_files" denominator "$denominator" own_branch_candidate "$BS_OWN_BRANCH" \
+    fork_diff "$fork_diff")
 
-  if [[ "$pr_files" -gt $((ledger_files * 3)) ]] && [[ $((pr_files - ledger_files)) -gt 20 ]]; then
+  if [[ "$pr_files" -gt $((denominator * 3)) ]] && [[ $((pr_files - denominator)) -gt 20 ]]; then
+    # HEAD forked from the base itself, so a gap this size is the ledger under-recording,
+    # not the wrong-base topology the rule describes. Warned and audited, never blocked.
+    if [[ "$BS_FORK_REL" == "same" ]]; then
+      printf 'base-sanity: WARNING — a PR against %s would carry %s files; this run'"'"'s ledger records %s, but the fork candidate %s IS the base, so the gap is an incomplete ledger, not a wrong base; not blocking\n' \
+        "$base" "$pr_files" "$ledger_files" "$BS_FORK_NAME"
+      audit_fn base_sanity fork_confirms_base "$meta"
+      return 0
+    fi
+
     local candidate_line
-    if [[ -n "$fork_ahead" ]]; then
+    # The remote form is pinned byte-for-byte by the remote-only fixture.
+    if [[ "$BS_FORK_SOURCE" == "local" && -n "$BS_FORK_AHEAD" ]]; then
+      candidate_line=$(printf 'Closest fork-point candidate by commits-ahead: %s (%s ahead, local branch) vs %s (%s ahead).' \
+        "$BS_FORK_NAME" "$BS_FORK_AHEAD" "$base" "$ahead")
+    elif [[ "$BS_FORK_REL" == "distinct" && -n "$BS_FORK_AHEAD" ]]; then
       candidate_line=$(printf 'Closest fork-point candidate by commits-ahead: %s (%s ahead) vs %s (%s ahead).' \
-        "$fork" "$fork_ahead" "$base" "$ahead")
+        "$BS_FORK_NAME" "$BS_FORK_AHEAD" "$base" "$ahead")
     else
       candidate_line=$(printf 'Closest fork-point candidate by commits-ahead: unavailable vs %s (%s ahead).' \
         "$base" "$ahead")
+    fi
+    if [[ "$capped" -eq 1 ]]; then
+      candidate_line="${candidate_line}"$'\n'"$(printf 'Git evidence from fork candidate %s: %s committed + %s dirty files; the ledger is capped at %s.' \
+        "$BS_FORK_NAME" "$committed_files" "$tree_files" "$denominator")"
     fi
 
     if _bs_override_on; then
@@ -753,7 +883,8 @@ cmd_base_sanity() {
         "$base" "$pr_files" "$ledger_files" "$candidate_line"
       audit_fn base_sanity override \
         "$(meta_json base "$base" pr_files "$pr_files" ledger_files "$ledger_files" \
-          ahead "$ahead" fork_candidate "$fork" base_source "${src:-unknown}" \
+          ahead "$ahead" fork_candidate "$BS_FORK_NAME" base_source "${src:-unknown}" \
+          fork_relation "$BS_FORK_REL" denominator "$denominator" \
           override "${FN_BASE_SANITY_OVERRIDE:-}")"
       return 0
     fi

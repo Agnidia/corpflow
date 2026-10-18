@@ -165,22 +165,45 @@ no_screenshots() {
   assert_output --partial "fast-forward safe"
 }
 
-@test "continuity: a diverged HEAD records the cherry-pick fallback and still exits 0" {
-  # Carried from DV2/DV3: only the ancestor arm was covered, so the branch that
-  # actually changes FN0's merge strategy had no test at all.
+# The base holds a commit HEAD lacks and HEAD holds one the base lacks. Since continuity
+# tests base-into-HEAD, this is the shape that diverges; HEAD merely ahead of its base is not.
+mk_diverged_base() { # $1 = base branch name
+  git init -q -b work .
+  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m "base"
+  git checkout -q -b "$1"
+  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m "base moved on"
+  git checkout -q work
+  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m "worktask work"
+}
+
+@test "continuity: HEAD ahead of its base is fast-forward safe, not diverged (REQ-5, AC-7)" {
+  # A feature branch is ahead of its base by design; that alone is never `diverged`.
   cd "$WD"
-  git init -q .
+  git init -q -b work .
   git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m "base"
   git branch -q integration
-  # One commit on the checked-out branch that `integration` does not carry, so
-  # HEAD is not an ancestor of it.
   git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m "worktask work"
+  jq '.metadata.base_ref="integration"' .context/state.json > s && mv s .context/state.json
+  run --separate-stderr bash "$PLUGIN_ROOT/$SCRIPT" continuity
+  assert_success
+  assert_line "continuity: integration is an ancestor of worktree HEAD (fast-forward safe)"
+  [[ "$stderr" != *"diverged"* ]] || fail "false diverged: $stderr"
+  # Through cat: grep -c prints nothing at all for an absent log, which is the usual case.
+  run bash -c "cat '$WD/.context/logs/audit.jsonl' 2> /dev/null | grep -c diverged_cherry_pick || true"
+  assert_output "0"
+}
+
+@test "continuity: a base holding commits HEAD lacks records the cherry-pick fallback and still exits 0 (AC-8)" {
+  # Carried from DV2/DV3: only the ancestor arm was covered, so the branch that
+  # actually changes FN0's merge strategy had no test at all. The base moved on after the
+  # fork, so it is not an ancestor of HEAD.
+  cd "$WD"
+  mk_diverged_base integration
   jq '.metadata.base_ref="integration"' .context/state.json > s && mv s .context/state.json
   run --separate-stderr bash "$PLUGIN_ROOT/$SCRIPT" continuity
   # Divergence is a documented fallback, not a hard block.
   assert_success
-  [[ "$stderr" == *"diverged"* ]]
-  [[ "$stderr" == *"cherry-pick"* ]]
+  [[ "$stderr" == *"worktree branch diverged — falling back to cherry-pick; verify commits are complete."* ]]
   # commit_count is the observable that proves the divergence was MEASURED rather
   # than merely detected — a row with the right verdict but a wrong/zero count
   # would mean the operator is told nothing about how much work is at risk.
@@ -189,7 +212,9 @@ no_screenshots() {
     .context/logs/audit.jsonl
   assert_output --partial '"diverged_cherry_pick"'
   assert_output --partial '"integration"'
-  assert_output --partial '1'
+  run jq -se 'map(select(.action=="branch_continuity"))[-1].metadata.commit_count
+              | (type == "number") and (. == 1)' .context/logs/audit.jsonl
+  assert_output "true"
 }
 
 @test "SR-M1: a double quote in the branch name still yields a parseable audit row" {
@@ -199,10 +224,7 @@ no_screenshots() {
   # this row. Mutation check: revert the emitter to printf and this arm fails.
   cd "$WD"
   local hostile='int"egration'
-  git init -q .
-  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m "base"
-  git branch -q "$hostile"
-  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m "worktask work"
+  mk_diverged_base "$hostile"
   jq --arg b "$hostile" '.metadata.base_ref=$b' .context/state.json > s && mv s .context/state.json
   run --separate-stderr bash "$PLUGIN_ROOT/$SCRIPT" continuity
   assert_success
@@ -472,7 +494,7 @@ EOF
   jq '.metadata.base_ref = "master" | del(.git)' .context/state.json > s && mv s .context/state.json
   run bash "$PLUGIN_ROOT/$SCRIPT" continuity
   assert_success
-  assert_output --partial "ancestor of master"
+  assert_output --partial "master is an ancestor of worktree HEAD"
   refute_output --partial "main"
 }
 
@@ -510,7 +532,7 @@ EOF
   printf '{"git":{"base_branch":"also-not"}}\n' > workspace.json
   run env FN_BASE_REF=master bash "$PLUGIN_ROOT/$SCRIPT" continuity
   assert_success
-  assert_output --partial "ancestor of master"
+  assert_output --partial "master is an ancestor of worktree HEAD"
 }
 
 # ---------------------------------------------------------------------------
@@ -924,6 +946,70 @@ _mk_repo_with_default() {
   refute_output --partial "issue-close-required"
 }
 
+@test "issue-close-required: the FN row's base_ref develop with origin/HEAD master prints the close (REQ-7, AC-12)" {
+  # A merge into a non-default base never fires the Closes trailer. The FN row carries the
+  # base; the mirror does not.
+  _mk_repo_with_default master
+  jq '.run_index = 0 | .tasks.FN0.metadata.base_ref = "develop" | del(.metadata.base_ref)
+      | .metadata.github_issue_url = "https://github.com/o/r/issues/497"' \
+    .context/state.json > s && mv s .context/state.json
+  run bash "$PLUGIN_ROOT/$SCRIPT" issue-close-required
+  assert_success
+  assert_output --partial "gh issue close 497"
+}
+
+# Two candidate bases that both resolve: the FN row names one, the ledger mirror the other.
+_fn_row_repo() {
+  cd "$WD"
+  git init -q -b integration .
+  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m base
+  git branch -q other
+  git update-ref refs/remotes/origin/main HEAD
+  git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  git checkout -q -b feature/work
+  printf 'x\n' > run1.txt
+  git add run1.txt
+  git -c user.email=a@b.c -c user.name=t commit -q -m run
+  jq '.run_index = 0 | .tasks.FN0.metadata.base_ref = "integration" | .metadata.base_ref = "other"
+      | .tasks.DV0 = {status: "completed", metadata: {base_ref: "other"}}
+      | .facts.files_modified = ["run1.txt"]' \
+    .context/state.json > s && mv s .context/state.json
+}
+
+@test "REQ-6: continuity, base-sanity and issue-close-required read the FN<run_index> row (AC-10)" {
+  _fn_row_repo
+  # An inherited DV-scoped value must not steer FN onto another row's base.
+  run env BASE_REF_TASK_ID=DV0 bash "$PLUGIN_ROOT/$SCRIPT" continuity
+  assert_success
+  assert_output --partial "continuity: integration is an ancestor of worktree HEAD"
+  run env BASE_REF_TASK_ID=DV0 bash "$PLUGIN_ROOT/$SCRIPT" base-sanity
+  assert_success
+  run jq -sr 'map(select(.action=="base_sanity"))[-1].metadata.base' .context/logs/audit.jsonl
+  assert_output "integration"
+  run env BASE_REF_TASK_ID=DV0 bash "$PLUGIN_ROOT/$SCRIPT" issue-close-required
+  assert_success
+  assert_output --partial 'Merged into integration.'
+}
+
+@test "REQ-6: with no FN<run_index> row each check falls through to the ledger mirror (AC-10)" {
+  _fn_row_repo
+  jq 'del(.tasks.FN0)' .context/state.json > s && mv s .context/state.json
+  run bash "$PLUGIN_ROOT/$SCRIPT" continuity
+  assert_success
+  assert_output --partial "continuity: other is an ancestor of worktree HEAD"
+  run bash "$PLUGIN_ROOT/$SCRIPT" base-sanity
+  assert_success
+  run jq -sr 'map(select(.action=="base_sanity"))[-1].metadata.base' .context/logs/audit.jsonl
+  assert_output "other"
+  run bash "$PLUGIN_ROOT/$SCRIPT" issue-close-required
+  assert_success
+  assert_output --partial 'Merged into other.'
+  # A row without base_ref falls through the same way.
+  jq '.tasks.FN0 = {status: "in_progress"}' .context/state.json > s && mv s .context/state.json
+  run bash "$PLUGIN_ROOT/$SCRIPT" issue-close-required
+  assert_output --partial 'Merged into other.'
+}
+
 # ---------------------------------------------------------------------------
 # base-sanity (REQ-T1 / AC-A1..A7). The magnitude comparison: does the diff a PR
 # against the resolved base would carry resemble what this run recorded changing?
@@ -1164,6 +1250,187 @@ _bs_fanout_repo() {
   assert_failure 1
   assert_output --partial "Closest fork-point candidate by commits-ahead: parent (1 ahead) vs grandparent (2 ahead)."
   refute_output --partial "unavailable"
+}
+
+# --- git fork evidence (REQ-2, REQ-3, REQ-4) ----------------------------------
+
+# HEAD forked from `develop`, which is both the configured base and, on origin, the fork
+# candidate. $1 = files this run committed.
+_bs_same_base_repo() {
+  cd "$WD"
+  git init -q -b develop .
+  _bs_commit --allow-empty -m base
+  git update-ref refs/remotes/origin/develop HEAD
+  git checkout -q -b feature/work
+  _bs_files run "$1"
+  jq '.metadata.base_ref="develop" | .facts.files_modified=["run1.txt","run2.txt"]' \
+    .context/state.json > s && mv s .context/state.json
+}
+
+@test "base-sanity: a fork candidate equal to the base warns fork_confirms_base instead of blocking (REQ-3, AC-4)" {
+  # When HEAD forked from the base itself the gap can only be an incomplete ledger.
+  _bs_same_base_repo 27
+  run bash "$PLUGIN_ROOT/$SCRIPT" base-sanity
+  assert_success
+  refute_output --partial "BLOCKED"
+  assert_output --partial "IS the base"
+  run jq -sr 'map(select(.action=="base_sanity"))[-1] | .result, .metadata.fork_relation' \
+    .context/logs/audit.jsonl
+  assert_output "$(printf 'fork_confirms_base\nsame')"
+}
+
+@test "base-sanity: committed files since a distinct fork candidate count as under-recording evidence (REQ-2, AC-5)" {
+  # A clean tree, so the dirty-only rung saw nothing and the 2-file ledger blocked.
+  cd "$WD"
+  git init -q -b grandparent .
+  _bs_commit --allow-empty -m base
+  git checkout -q -b parent
+  _bs_files other 25
+  git update-ref refs/remotes/origin/parent HEAD
+  git checkout -q -b feature/work
+  _bs_files run 26
+  git branch -q -D parent
+  jq '.metadata.base_ref="grandparent" | .facts.files_modified=["run1.txt","run2.txt"]' \
+    .context/state.json > s && mv s .context/state.json
+  run bash "$PLUGIN_ROOT/$SCRIPT" base-sanity
+  assert_success
+  refute_output --partial "BLOCKED"
+  assert_output --partial "the denominator is incomplete"
+  run jq -sr 'map(select(.action=="base_sanity"))[-1]
+              | .result, .metadata.committed_files, .metadata.fork_source' .context/logs/audit.jsonl
+  assert_output "$(printf 'ledger_under_recording\n26\nremote')"
+}
+
+@test "base-sanity: a ledger filled against the wrong base still blocks when origin names the parent (REQ-4, AC-6)" {
+  # After the DV fill the ledger equals the PR file count against the base it was filled
+  # from. A rule reading only the ledger would pass; the fork evidence caps it at 2.
+  _bs_remote_only_parent_repo
+  local f=() i
+  for i in $(seq 1 25); do f+=("other$i.txt"); done
+  _bs_ledger "$(printf '%s\n' run1.txt run2.txt "${f[@]}" | jq -R . | jq -sc .)"
+  run bash "$PLUGIN_ROOT/$SCRIPT" base-sanity
+  assert_failure 1
+  assert_output --partial "BLOCKED: base-sanity"
+  assert_output --partial "ledger records 27"
+  assert_output --partial "Git evidence from fork candidate parent: 2 committed + 0 dirty files; the ledger is capped at 2."
+  run jq -sr 'map(select(.action=="base_sanity"))[-1] | .result, .metadata.denominator' \
+    .context/logs/audit.jsonl
+  assert_output "$(printf 'blocked\n2')"
+}
+
+@test "base-sanity: a remote base match does not hide an unpushed local parent" {
+  # Guard twin for AC-4: `same` is declared only after the local probe finds nothing.
+  cd "$WD"
+  git init -q -b grandparent .
+  _bs_commit --allow-empty -m base
+  git update-ref refs/remotes/origin/grandparent HEAD
+  git checkout -q -b parent
+  _bs_files other 25
+  git checkout -q -b feature/work
+  _bs_files run 2
+  jq '.metadata.base_ref="grandparent" | .facts.files_modified=["run1.txt","run2.txt"]' \
+    .context/state.json > s && mv s .context/state.json
+  run bash "$PLUGIN_ROOT/$SCRIPT" base-sanity
+  assert_failure 1
+  assert_output --partial "BLOCKED: base-sanity"
+  assert_output --partial "parent (1 ahead, local branch) vs grandparent (2 ahead)."
+  run jq -sr 'map(select(.action=="base_sanity"))[-1] | .metadata.fork_source' .context/logs/audit.jsonl
+  assert_output "local"
+}
+
+@test "base-sanity: a stale origin/<own-branch> is never fork evidence" {
+  # Guard twin for AC-6: on a fix-in-PR re-run the branch's own earlier push has the
+  # smallest ahead-count, and taking it as the parent would cap a full ledger at 2.
+  _bs_same_base_repo 25
+  git update-ref refs/remotes/origin/feature/work HEAD
+  _bs_files late 2
+  local f=() i
+  for i in $(seq 1 25); do f+=("run$i.txt"); done
+  _bs_ledger "$(printf '%s\n' "${f[@]}" late1.txt late2.txt | jq -R . | jq -sc .)"
+  run bash "$PLUGIN_ROOT/$SCRIPT" base-sanity
+  assert_success
+  assert_output --partial "base-sanity: pass"
+  run jq -sr 'map(select(.action=="base_sanity"))[-1]
+              | .metadata.fork_relation, .metadata.own_branch_candidate' .context/logs/audit.jsonl
+  assert_output "$(printf 'none\nfeature/work')"
+}
+
+@test "base-sanity: a fan-out with a dirty tree is still multi_parent_payload" {
+  # Guard twin for the rung reorder: the merge rung now runs before the under-recording
+  # rung, so local stream branches never reach the fork probe.
+  _bs_fanout_repo
+  local i
+  for i in $(seq 1 25); do printf 'x\n' > "dirty$i.txt"; done
+  run bash "$PLUGIN_ROOT/$SCRIPT" base-sanity
+  assert_success
+  run _bs_row
+  assert_output --partial "multi_parent_payload"
+}
+
+@test "base-sanity: an upstream that is the branch's start point stays fork evidence" {
+  # A worktree created from origin/<parent> tracks it. Treating that upstream as the
+  # branch's own push would discard the only evidence naming the real parent, and the
+  # filled ledger would then pass the wrong base.
+  cd "$WD"
+  git init -q -b grandparent .
+  git config remote.origin.url /dev/null
+  git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+  _bs_commit --allow-empty -m base
+  git checkout -q -b parent
+  _bs_files other 25
+  git update-ref refs/remotes/origin/parent HEAD
+  git checkout -q grandparent
+  git branch -q -D parent
+  git checkout -q --track -b feature/work origin/parent
+  _bs_files run 2
+  [ "$(git rev-parse --abbrev-ref '@{upstream}')" = "origin/parent" ]
+  local f=() i
+  for i in $(seq 1 25); do f+=("other$i.txt"); done
+  jq '.metadata.base_ref="grandparent"' .context/state.json > s && mv s .context/state.json
+  _bs_ledger "$(printf '%s\n' run1.txt run2.txt "${f[@]}" | jq -R . | jq -sc .)"
+  run bash "$PLUGIN_ROOT/$SCRIPT" base-sanity
+  assert_failure 1
+  assert_output --partial "BLOCKED: base-sanity"
+  run jq -sr 'map(select(.action=="base_sanity"))[-1] | .metadata.fork_source, .metadata.own_branch_candidate' \
+    .context/logs/audit.jsonl
+  assert_output "$(printf 'remote\n')"
+}
+
+@test "base-sanity: a fork candidate holding all of HEAD's committed work never caps the ledger" {
+  # Zero committed files since the candidate say nothing about HEAD's footprint; capping
+  # at the dirty count alone would block on whatever happens to be uncommitted.
+  _bs_remote_only_parent_repo
+  git reset -q --hard HEAD~1
+  _bs_commit --allow-empty -m "no files of its own"
+  printf 'x\n' > dirty1.txt
+  printf 'x\n' > dirty2.txt
+  local f=() i
+  for i in $(seq 1 25); do f+=("other$i.txt"); done
+  _bs_ledger "$(printf '%s\n' "${f[@]}" | jq -R . | jq -sc .)"
+  run bash "$PLUGIN_ROOT/$SCRIPT" base-sanity
+  assert_success
+  refute_output --partial "BLOCKED"
+  run jq -sr 'map(select(.action=="base_sanity"))[-1]
+              | .metadata.fork_relation, .metadata.committed_files, .metadata.denominator' \
+    .context/logs/audit.jsonl
+  assert_output "$(printf 'distinct\n0\n25')"
+}
+
+@test "issue-close-required: runs from another checkout against an archived ledger" {
+  # The megatask merger runs it after the issue worktree and its .context/ are gone.
+  _mk_repo_with_default master
+  local arch
+  arch="$(mk_tmpworkdir)"
+  mkdir -p "$arch/logs"
+  jq '.run_index = 0 | .tasks.FN0.metadata.base_ref = "develop" | del(.metadata.base_ref)
+      | .metadata.github_issue_url = "https://github.com/o/r/issues/497"' \
+    .context/state.json > "$arch/state.json"
+  rm -rf .context
+  run bash "$PLUGIN_ROOT/$SCRIPT" --state "$arch/state.json" --context "$arch" issue-close-required
+  assert_success
+  assert_output --partial 'gh issue close 497 --comment "Merged into develop."'
+  run jq -sr 'map(select(.action=="issue_close_required"))[-1].result' "$arch/logs/audit.jsonl"
+  assert_output "required"
 }
 
 # --- QA additions: the five degrade rungs no REQ-T1 fixture reached -----------
@@ -1489,10 +1756,7 @@ _rgr_fork_repo() {
 
 @test "SR: the diverged continuity row refuses a symlinked audit.jsonl" {
   cd "$WD"
-  git init -q .
-  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m "base"
-  git branch -q integration
-  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m "worktask work"
+  mk_diverged_base integration
   jq '.metadata.base_ref="integration"' .context/state.json > s && mv s .context/state.json
   mkdir -p target-dir .context/logs
   ln -s "$WD/target-dir/escaped.txt" .context/logs/audit.jsonl
@@ -1887,10 +2151,7 @@ $(head -5 body.md)"
 
 @test "continuity: one stream_branches key keeps the legacy path and its diverged row" {
   cd "$WD"
-  git init -q .
-  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m "base"
-  git branch -q integration
-  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m "worktask work"
+  mk_diverged_base integration
   jq '.metadata.base_ref="integration" | .facts.stream_branches={"only":"integration"}' \
     .context/state.json > s && mv s .context/state.json
   run --separate-stderr bash "$PLUGIN_ROOT/$SCRIPT" continuity
