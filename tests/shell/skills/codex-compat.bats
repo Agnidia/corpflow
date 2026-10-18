@@ -8,7 +8,7 @@ CAPTURE="tests/fixtures/hooks/codex-capture.sh"
 @test "manifests: portable, Codex, Claude and marketplace versions agree" {
   run jq -er '
     input as $codex | input as $claude | input as $market
-    | .version == "4.1.1"
+    | .version == "4.1.2"
       and $codex.version == .version
       and $claude.version == .version
       and $market.metadata.version == .version
