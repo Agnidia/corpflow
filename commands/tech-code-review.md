@@ -146,7 +146,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/stream-diff.sh --tree "$PWD" 
 Each block opens with one header line; `--format names` swaps the body for `<X><TAB><path>` lines plus `?<TAB><path>` per untracked file, `--format tsv` adds each block's `tree`:
 
 ```text
-stream-diff task=<ID|-> stream=<s|-> source=<committed|staged|worktree|empty> base=<name|-> base_source=<env|state|workspace|origin_head|unresolved> files=<n> untracked=<n> staged_also=<n> shared_with=<ID|-> reason=<-|no_changes|base_unresolved|base_unresolvable|tree_unresolved|tree_missing|not_a_work_tree>
+stream-diff task=<ID|-> stream=<s|-> source=<committed|staged|worktree|empty> base=<name|-> base_source=<env|task|state|workspace|origin_head|unresolved> files=<n> untracked=<n> staged_also=<n> shared_with=<ID|-> reason=<-|no_changes|base_unresolved|base_unresolvable|tree_unresolved|tree_missing|not_a_work_tree>
 ```
 
 #### What each header key asks of you
@@ -156,6 +156,7 @@ stream-diff task=<ID|-> stream=<s|-> source=<committed|staged|worktree|empty> ba
 - `staged_also` — above 0 on a `committed` block, that many uncommitted tracked edits sit outside the body: a coverage gap to record in `§ Findings`, `[verify-later]`.
 - `untracked` — new files no body shows: list them with `--format names` and `Read` each under that block's tree.
 - `shared_with` — same tree as a lower task, whose block carries the body: review it once.
+- `base_source` — `task` is the row's own `metadata.base_ref`; `state` the ledger mirror. A `base` unlike the row's is a finding.
 
 ### Read beyond the diff
 

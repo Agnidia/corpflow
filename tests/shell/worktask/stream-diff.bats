@@ -45,8 +45,27 @@ header_of() { # $1=task
   run --separate-stderr bash "$PLUGIN_ROOT/$SCRIPT" --state "$L"
   assert_success
   [[ "$(header_of DV0)" == *"source=committed"* ]]
-  [[ "$(header_of DV0)" == *"base=develop base_source=state files=1"* ]]
+  # assert_line, not a bare [[ ]]: bash 3.2 does not fail a test on a non-final [[ ]].
+  assert_line --regexp '^stream-diff task=DV0 .* base=origin/develop base_source=task files=1 '
   [[ "$output" == *"+svc"* ]]
+}
+
+@test "task row: the row's base_ref outranks a wrong ledger mirror (AC-1)" {
+  # origin/master stays one commit behind develop, so a master base would also count
+  # develop's d.txt: files=1 proves the diff ran against the row's base.
+  git -C "$WD/repo" push -q origin develop:master
+  printf 'dev\n' > "$WD/repo/d.txt"
+  git -C "$WD/repo" add d.txt
+  git -C "$WD/repo" commit -qm "dev history"
+  git -C "$WD/repo" push -q origin develop
+  git -C "$WD/repo" fetch -q origin
+  git -C "$WD/wt-service" merge -q --ff-only origin/develop
+  printf 'svc\n' >> "$WD/wt-service/a.txt"
+  git -C "$WD/wt-service" commit -qam "feat: service"
+  jq '.metadata.base_ref = "master" | .tasks.DV0.metadata.base_ref = "develop"' "$L" > "$L.tmp" && mv "$L.tmp" "$L"
+  run --separate-stderr bash "$PLUGIN_ROOT/$SCRIPT" --state "$L" --task DV0 --caller DR0
+  assert_success
+  assert_line --regexp '^stream-diff task=DV0 .* source=committed base=develop base_source=task files=1 '
 }
 
 @test "staged: an empty range falls back to the index and is non-empty (AC2)" {
@@ -86,7 +105,7 @@ header_of() { # $1=task
 }
 
 @test "unresolved base: reported as base_unresolved, never a literal branch" {
-  jq '.metadata = {}' "$L" > "$L.tmp" && mv "$L.tmp" "$L"
+  jq '.metadata = {} | del(.tasks[].metadata.base_ref)' "$L" > "$L.tmp" && mv "$L.tmp" "$L"
   printf 'web\n' >> "$WD/wt-web/b.txt"
   git -C "$WD/wt-web" commit -qam "feat: web"
   run --separate-stderr bash "$PLUGIN_ROOT/$SCRIPT" --state "$L" --task DV1
@@ -159,6 +178,15 @@ header_of() { # $1=task
   run --separate-stderr env FN_BASE_REF=develop bash "$PLUGIN_ROOT/$SCRIPT" --tree "$WD/wt-web"
   assert_success
   [[ "$output" == "stream-diff task=- stream=- source=staged base=develop base_source=env"* ]]
+}
+
+@test "tree mode: an inherited BASE_REF_TASK_ID is cleared, so no task row answers" {
+  mkdir -p "$WD/wt-web/.context"
+  printf '{"tasks":{"DV0":{"metadata":{"base_ref":"master"}}},"metadata":{"base_ref":"develop"}}\n' \
+    > "$WD/wt-web/.context/state.json"
+  run --separate-stderr env BASE_REF_TASK_ID=DV0 bash "$PLUGIN_ROOT/$SCRIPT" --tree "$WD/wt-web"
+  assert_success
+  assert_line --regexp '^stream-diff task=- .* base=develop base_source=state '
 }
 
 @test "missing tree: tree_missing degrades the row, the run still exits 0" {
