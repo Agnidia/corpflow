@@ -262,6 +262,33 @@ stop_payload() {  # stop_payload <agent_id> <cwd> [agent_transcript_path]
   [ ! -e "$WT/.context/logs/audit.jsonl" ] || fail "an unstamped tree bound as an issue"
 }
 
+@test "hooks: test-execution-gate binds from the per-issue prefix when the session cwd is another issue" {
+  local wt42 prefix gate_in_41
+  wt42="$(issue 42)"
+  printf '{"version":2,"run_index":0,"tasks":{"QA0":{"status":"in_progress","metadata":{}}}}\n' \
+    > "$wt42/.context/state.json"
+  printf '{"version":2,"run_index":0,"tasks":{"PL0":{"status":"completed","metadata":{}},"QA0":{"status":"completed","metadata":{}}}}\n' \
+    > "$WT/.context/state.json"
+  prefix="$(doc_prefix)"
+  [ -n "$prefix" ] || fail "megatask Step 3 no longer states the Bash prefix"
+  # gate_in_41 <command> — PreToolUse Bash as Claude Code runs it from a session sitting in #41.
+  gate_in_41() {
+    jq -cn --arg c "$WT" --arg x "$1" '{hook_event_name:"PreToolUse", tool_name:"Bash",
+      tool_input:{command:$x}, cwd:$c, session_id:"sess_mt"}' \
+      | (cd "$WT" && env -u WORKSPACE_ROOT -u MILESTONE_MODE -u CONTEXT_DIR -u _CORPFLOW_ISSUE_ROOT \
+        CLAUDE_PROJECT_DIR="$ROOT" bash "$PLUGIN_ROOT/hooks/test-execution-gate.sh")
+  }
+  # Anti-vacuity: unbound, this fixture is the reported denial.
+  run gate_in_41 "bats x.bats"
+  assert_output --partial "No stage is in progress"
+  rm -rf "$WT/.context/logs" "$ROOT/.context/logs"
+  run gate_in_41 "${prefix//<wt>/$wt42} bats x.bats"
+  assert_success
+  refute_output --partial "No stage is in progress"
+  [ ! -e "$WT/.context/logs/audit.jsonl" ] || fail "the session's issue ledger received a row"
+  [ ! -e "$ROOT/.context/logs/audit.jsonl" ] || fail "the batch log received a row"
+}
+
 @test "doc: megatask's run environment opens the prompt with the WORKSPACE_ROOT=<wt> banner" {
   section "$MEGATASK_DOC" "$ENV_HEAD" | grep -qF 'Open the prompt with the line `WORKSPACE_ROOT=<wt>`' \
     || fail "megatask Step 3 no longer tells the per-issue prompt to carry the hook binding banner"
