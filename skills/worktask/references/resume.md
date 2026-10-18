@@ -121,7 +121,8 @@ The row's Ledger Shape carries a non-ledger condition (a human instruction), so 
 The agent ended its turn with no finished handoff, which the runtime treats as an ordinary return,
 so 6.5a's errored-return arm never fires. Reattach to finish the same work. Do not re-delegate (a
 fresh dispatch redoes work against a tree the yielded agent already edited) and do not increment
-`retry_count`: nothing failed. Detector: `skills/worktask/SKILL.md § Step 6.5a2`.
+`retry_count`: nothing failed. Detector: `skills/worktask/SKILL.md § Step 6.5a2`. An audit tail of
+`stage_resume_exhausted` (a 3rd incomplete return in the run) is surfaced to the operator and never reattached.
 
 #### Mid-stage yield — the three reasons
 

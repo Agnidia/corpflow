@@ -125,7 +125,7 @@ Steady-path digest of `skills/worktask/references/pl0-procedure.md` (canonical).
 
 #### PL0 runbook — 2. Criteria, summary, sweep
 
-- Given/When/Then per requirement, each with a `Verify:` command PL never runs: `\b`-anchored greps, plus one repo-wide residual-grep per edit theme.
+- Given/When/Then per requirement, each with a `Verify:` command PL never runs: word anchors via `git grep -P '\bname\b'` (fallback `git grep -w`), plus one repo-wide residual-grep per edit theme. Never `\b` inside `-E` or a BRE; `[[:<:]]`/`[[:>:]]` are BSD/macOS-only.
 - Exact output: every exact-output rule in the goal — CLI flags, output formats, byte-level examples, leading and trailing spaces — becomes a byte-exact criterion whose expected bytes are quoted verbatim in a fenced block under `## acceptance-criteria`, never paraphrased or reflowed.
 - `## summary` opens with score, tier, stage set and one vetoable clause per added or skipped stage.
 - Sweep: decisions only — a question a file, command or tool answers is a fact you resolve. ≤4 items, 2–4 options, one `recommended: true`; none ⇒ `open_questions: []` plus a one-line nothing-to-elicit statement.
