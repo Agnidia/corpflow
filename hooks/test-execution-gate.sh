@@ -1536,12 +1536,17 @@ gate_classify_payload() {
   return 0
 }
 
-# gate_ctx <ctx dir or empty> -> the given dir, else the resolved context root;
+# gate_ctx <ctx dir or empty> [payload] -> the given dir, else the resolved context root;
 # rc 1 when unresolved ("no worktask here"). Resolution forks git and the
 # resolver, so run_gate asks only once a payload is known to need a ledger.
 gate_ctx() {
   local _c="${1:-}"
   if [ -z "$_c" ]; then
+    # The hook inherits the session's roots, never the per-issue Bash prefix, so
+    # only the payload can name the issue whose ledger holds this call's authority.
+    if command -v corpflow_bind_payload > /dev/null 2>&1; then
+      corpflow_bind_payload "${2:-}"
+    fi
     _c=$(corpflow_context_root)
     [ -n "$_c" ] || return 1
     # A degraded strip still enforces, so it is announced rather than blocked on.
@@ -1570,7 +1575,7 @@ run_gate() {
   # at all — otherwise a shell-profile-wide CORPFLOW_TEST_GATE=off would
   # materialize .context/logs/ in every unrelated directory the user opens.
   if [ "${CORPFLOW_TEST_GATE:-}" = "off" ]; then
-    _ctx=$(gate_ctx "$_ctx") || return 0
+    _ctx=$(gate_ctx "$_ctx" "$_payload") || return 0
     [ -f "$_ctx/state.json" ] || return 0
     _sentinel="$_ctx/logs/.gate-off-noted"
     if [ ! -f "$_sentinel" ]; then
@@ -1596,7 +1601,7 @@ run_gate() {
       # means no worktask is in flight — the common case in a repo where the
       # plugin is merely installed — and such a session must see zero side
       # effects: no directory creation, no log growth.
-      _ctx=$(gate_ctx "$_ctx") || return 0
+      _ctx=$(gate_ctx "$_ctx" "$_payload") || return 0
       _stage=$(corpflow_active_stage "$_ctx")
       if [ -n "$_stage" ]; then
         _subagent=$(printf '%s' "$_payload" | jq -r '.tool_input.subagent_type // "unknown"' 2>/dev/null)
@@ -1633,7 +1638,7 @@ run_gate() {
   case "$_class" in
     not_test|build_only) return 0 ;;
   esac
-  _ctx=$(gate_ctx "$_ctx") || return 0
+  _ctx=$(gate_ctx "$_ctx" "$_payload") || return 0
 
   # Stage resolution runs only once the command is known to be a test run.
   # Classification never reads the stage, and the overwhelming majority of tool
