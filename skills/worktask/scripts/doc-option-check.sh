@@ -4,9 +4,16 @@
 #   not-ignored file of an assigned tree, and every link target or backticked relative path must resolve inside a tree and
 #   exist. Doc text is only scanned: nothing from it is eval'd, executed or used as a regex.
 #   Backticked tokens that only look like paths (git refs, owner/repo slugs, host/... URLs,
-#   ellipses, regex fragments) are skipped; a link target is always checked.
+#   ellipses, regex fragments, integrity hashes such as sha512-<base64>) are skipped, and so is
+#   a backticked token whose first segment exists nowhere in a tree: not on disk at the doc
+#   directory or a tree root, and not a segment of any evidence path. A link target is always
+#   checked.
+#   A doc named CHANGELOG.md is scanned only inside its [Unreleased] block, from that level-2
+#   heading up to the next level-2 heading (released history is not re-gated); with no such
+#   heading it yields nothing.
+#   Reported line numbers stay file line numbers.
 #
-# Usage: doc-option-check.sh [--tree <path>]... [--allow <NAME>]... [--allow-path <path>]... <doc>...
+# Usage: doc-option-check.sh [--tree <path>]... [--allow <NAME>]... [--allow-path <path>]... [--exclude <path>]... <doc>...
 #        doc-option-check.sh --self-test | -h | --help
 #
 # @arg --tree <path>   Assigned tree root, repeatable. Absent: state.json
@@ -17,6 +24,10 @@
 #                      Suppresses only a `missing` finding whose resolved path is <path> or
 #                      lies below it, compared as a literal string. Exit 2 when <path> is
 #                      empty, `.`, absolute or holds a `..` segment: each is a broad exemption.
+# @arg --exclude <path>  Tree-relative path of a vendored doc or doc directory; repeatable.
+#                      A <doc> whose tree-relative path is <path> or lies below it is not
+#                      scanned, and stderr gets "doc-option-check: excluded: <doc>". Same
+#                      literal match and exit-2 rules as --allow-path.
 # @arg <doc>           Documentation files to check.
 #
 # Evidence: `git ls-files --cached --others --exclude-standard` of each tree, minus the
@@ -46,7 +57,7 @@ BUILTIN_ALLOW=$'\nHOME\nPATH\nPWD\nSHELL\nTMPDIR\nUSER\n'
 
 usage_error() {
   printf >&2 'doc-option-check: %s\n' "$1"
-  printf >&2 'usage: doc-option-check.sh [--tree <path>]... [--allow <NAME>]... [--allow-path <path>]... <doc>...\n'
+  printf >&2 'usage: doc-option-check.sh [--tree <path>]... [--allow <NAME>]... [--allow-path <path>]... [--exclude <path>]... <doc>...\n'
   exit 2
 }
 
@@ -125,14 +136,17 @@ is_doc() {
   return 1
 }
 
-# Writes the NUL-delimited evidence list and the newline-delimited basename set.
+# Writes the NUL-delimited evidence list, the newline-delimited basename set, and the set of
+# every path segment the trees list (the "exists somewhere" test of not_a_path).
 build_evidence() {
   local root rel abs
+  : > "$WORK/segments"
   for root in "${TREES[@]}"; do
     # --others: DC runs before anything is committed, so files DV just created are still
     # untracked; ignored build output stays out.
     git -C "$root" ls-files -z --cached --others --exclude-standard > "$WORK/ls" 2> /dev/null \
       || unresolved "tree is not a git work tree: $root"
+    tr '\0' '\n' < "$WORK/ls" | awk -F/ '{ for (i = 1; i <= NF; i++) if ($i != "") print $i }' >> "$WORK/segments"
     while IFS= read -r -d '' rel; do
       printf '%s\n' "${rel##*/}" >&4
       case "$rel" in .context/*) continue ;; esac
@@ -178,18 +192,26 @@ option_defined() { # <name> <env|flag>
 }
 
 # True when a backticked token only looks like a path: a git ref, a regex fragment, an
-# ellipsis, or an owner/repo slug or host/... URL whose first segment exists in no tree.
-# A missing in-tree path (`docs/gone.md`, `skills/gone`) is never exempt.
+# ellipsis, an integrity hash, a token whose first segment exists nowhere in the trees, or an
+# owner/repo slug or host/... URL whose first segment is not on disk at a root.
+# A missing path under an existing segment (`docs/gone.md`, `skills/gone`) is never exempt.
 not_a_path() { # <token> <physical doc dir>
   local p="$1" docdir="$2" first root known=0
   local slug_re='^[A-Za-z0-9_-]+/[A-Za-z0-9_-]+$'
+  local sri_re='^sha(256|384|512)-[A-Za-z0-9+/]+={0,2}$'
   case "$p" in
     *')'* | *'…'* | *...* | origin/* | upstream/* | refs/* | remotes/*) return 0 ;;
   esac
+  [[ $p =~ $sri_re ]] && return 0
   first="${p%%/*}"
   for root in "$docdir" "${TREES[@]}"; do
     if [ -e "$root/$first" ]; then known=1; fi
   done
+  # Vendored docs name paths of the upstream package; a first segment no tree has at any depth
+  # cannot be a stale reference to this tree. A deeper match keeps the old rules below.
+  if [ "$known" -eq 0 ] && ! grep -F -x -q -e "$first" -- "$WORK/segments"; then
+    return 0
+  fi
   # A regex metacharacter reads as a fragment only when no tree holds the first segment, so
   # a real directory with an odd character in a deeper name still reaches the path check.
   if [ "$known" -eq 0 ]; then
@@ -203,9 +225,10 @@ not_a_path() { # <token> <physical doc dir>
   [[ $p =~ $slug_re ]]
 }
 
-# path_allowed <tree-relative path> — exact or descendant match against --allow-path.
-path_allowed() {
-  local a rest="${ALLOW_PATH_NL#$'\n'}"
+# prefix_match <newline list> <tree-relative path> — exact or descendant match, literal.
+prefix_match() {
+  local a rest="${1#$'\n'}"
+  shift
   while [ -n "$rest" ]; do
     a="${rest%%$'\n'*}"
     rest="${rest#*$'\n'}"
@@ -216,9 +239,10 @@ path_allowed() {
 }
 
 # Sets PATH_NAME to the checked path, PATH_REASON to "", "outside" or "missing", and MISS_RELS
-# to the "<tree>\t<rel>" lines of a missing path's in-tree candidates.
+# to the "<tree>\t<rel>" lines of a missing path's in-tree candidates, tree-root resolutions
+# first: the hint must print a value that works as --allow-path from the tree root.
 check_path() { # <token> <link|code> <physical doc dir>
-  local tok="$1" src="$2" docdir="$3" p cand inside=0 root cands rel
+  local tok="$1" src="$2" docdir="$3" p cand inside=0 root cands rel doc_miss="" first_cand=0
   local scheme_re='^[A-Za-z][A-Za-z0-9+.-]*:' lineref_re='^(.*[^:]):[0-9]+(:[0-9]+)?$'
   PATH_NAME=""
   PATH_REASON=""
@@ -239,18 +263,26 @@ check_path() { # <token> <link|code> <physical doc dir>
     /*) cands=("$p") ;;
     *)
       cands=("$docdir/$p")
+      first_cand=1
       for root in "${TREES[@]}"; do cands+=("$root/$p"); done
       ;;
   esac
   for cand in "${cands[@]}"; do
     normalize_path "$cand"
-    tree_of "$NORM" || continue
-    inside=1
-    [ -e "$NORM" ] && return 0
-    rel="${NORM#"$TREE_OF"/}"
-    path_allowed "$rel" && return 0
-    MISS_RELS="$MISS_RELS$TREE_OF"$'\t'"$rel"$'\n'
+    if tree_of "$NORM"; then
+      inside=1
+      [ -e "$NORM" ] && return 0
+      rel="${NORM#"$TREE_OF"/}"
+      prefix_match "$ALLOW_PATH_NL" "$rel" && return 0
+      if [ "$first_cand" -eq 1 ]; then
+        doc_miss="$TREE_OF"$'\t'"$rel"$'\n'
+      else
+        MISS_RELS="$MISS_RELS$TREE_OF"$'\t'"$rel"$'\n'
+      fi
+    fi
+    first_cand=0
   done
+  MISS_RELS="$MISS_RELS$doc_miss"
   if [ "$inside" -eq 1 ]; then PATH_REASON=missing; else PATH_REASON=outside; fi
 }
 
@@ -278,8 +310,9 @@ report() { # <check> <kind> <name> <doc label> <line> <reason>
 
 # Emits one tab-separated candidate per line: kind, name, line number, source.
 # Flags whose command word is external are dropped here, since only awk sees the words.
-scan_doc() { # <doc>
-  awk -v BNFILE="$WORK/basenames" '
+# SCOPE=unreleased limits the scan to the CHANGELOG [Unreleased] block; NR stays the file line.
+scan_doc() { # <doc> <all|unreleased>
+  awk -v BNFILE="$WORK/basenames" -v SCOPE="$2" '
     function emit(kind, name, no, extra,   key) {
       key = kind SUBSEP name SUBSEP no
       if (key in seen) return
@@ -462,10 +495,17 @@ scan_doc() { # <doc>
     BEGIN {
       while ((getline l < BNFILE) > 0) bn[l] = 1
       close(BNFILE)
-      infence = 0; blk_n = 0
+      infence = 0; blk_n = 0; inrel = 0
     }
     {
       sub(/\r$/, "")
+      if (SCOPE == "unreleased" && !infence) {
+        if (!inrel) {
+          if ($0 ~ /^## \[Unreleased\]([ \t]|$)/) inrel = 1
+          next
+        }
+        if ($0 ~ /^## /) exit
+      }
       if (infence) {
         if (fence_close($0)) { flush_block(); infence = 0 }
         else { blk_n++; blk[blk_n] = $0; blk_no[blk_n] = NR }
@@ -496,12 +536,19 @@ ignored_hint() { # <doc label> <line>
 }
 
 check_doc() { # <doc as given> <physical abs path>
-  local given="$1" abs="$2" label docdir kind name lineno src
+  local given="$1" abs="$2" label docdir kind name lineno src scope=all
   label="$given"
-  if tree_of "$abs"; then label="${abs#"$TREE_OF"/}"; fi
+  if tree_of "$abs"; then
+    label="${abs#"$TREE_OF"/}"
+    if prefix_match "$EXCLUDE_NL" "$label"; then
+      printf >&2 'doc-option-check: excluded: %s\n' "$label"
+      return 0
+    fi
+  fi
   docdir="${abs%/*}"
+  [ "${abs##*/}" != CHANGELOG.md ] || scope=unreleased
   # Exit 2 is reserved for usage, so a scanner failure must not leak awk's own status.
-  scan_doc "$abs" > "$WORK/candidates" || unresolved "could not scan doc: $given"
+  scan_doc "$abs" "$scope" > "$WORK/candidates" || unresolved "could not scan doc: $given"
   while IFS=$'\t' read -r kind name lineno src; do
     case "$kind" in
       env | flag)
@@ -517,10 +564,34 @@ check_doc() { # <doc as given> <physical abs path>
   done < "$WORK/candidates"
 }
 
+# Sets REL_VALUE to the canonical tree-relative form of an --allow-path or --exclude value, or
+# exits 2 when the value would exempt the whole tree or reach outside it.
+tree_rel_value() { # <flag> <value>
+  local v="$2"
+  # Validate the normalized form: `.//x` strips to `/x`, which would never match.
+  while [ "${v#./}" != "$v" ]; do v="${v#./}"; done
+  while [ "${v%/}" != "$v" ]; do v="${v%/}"; done
+  case "$v" in /*) usage_error "$1 must be tree-relative: $2" ;; esac
+  # Candidates are compared in normalize_path form, so a//b and a/./b must reach it as a/b.
+  while :; do
+    case "$v" in
+      *//*) v="${v%%//*}/${v#*//}" ;;
+      */./*) v="${v%%/./*}/${v#*/./}" ;;
+      *) break ;;
+    esac
+  done
+  case "$v" in */.) v="${v%/.}" ;; esac
+  case "/$v/" in */../*) usage_error "$1 must not hold '..': $2" ;; esac
+  case "$v" in '' | .) usage_error "$1 would exempt the whole tree: $2" ;; esac
+  REL_VALUE="$v"
+}
+
 TREE_ARGS=()
 ALLOW_NL=$'\n'
 # A newline string, not an array: an empty array under `set -u` fails on bash 3.2.
 ALLOW_PATH_NL=$'\n'
+EXCLUDE_NL=$'\n'
+REL_VALUE=""
 DOC_ARGS=()
 CMD=check
 
@@ -531,25 +602,14 @@ while [ "$#" -gt 0 ]; do
       if [ "$1" = --tree ]; then TREE_ARGS+=("$2"); else ALLOW_NL="$ALLOW_NL$2"$'\n'; fi
       shift 2
       ;;
-    --allow-path)
+    --allow-path | --exclude)
       [ "$#" -ge 2 ] && [ -n "$2" ] || usage_error "$1 needs a value"
-      v="$2"
-      # Validate the normalized form: `.//x` strips to `/x`, which would never match.
-      while [ "${v#./}" != "$v" ]; do v="${v#./}"; done
-      while [ "${v%/}" != "$v" ]; do v="${v%/}"; done
-      case "$v" in /*) usage_error "--allow-path must be tree-relative: $2" ;; esac
-      # Candidates are compared in normalize_path form, so a//b and a/./b must reach it as a/b.
-      while :; do
-        case "$v" in
-          *//*) v="${v%%//*}/${v#*//}" ;;
-          */./*) v="${v%%/./*}/${v#*/./}" ;;
-          *) break ;;
-        esac
-      done
-      case "$v" in */.) v="${v%/.}" ;; esac
-      case "/$v/" in */../*) usage_error "--allow-path must not hold '..': $2" ;; esac
-      case "$v" in '' | .) usage_error "--allow-path would exempt the whole tree: $2" ;; esac
-      ALLOW_PATH_NL="$ALLOW_PATH_NL$v"$'\n'
+      tree_rel_value "$1" "$2"
+      if [ "$1" = --exclude ]; then
+        EXCLUDE_NL="$EXCLUDE_NL$REL_VALUE"$'\n'
+      else
+        ALLOW_PATH_NL="$ALLOW_PATH_NL$REL_VALUE"$'\n'
+      fi
       shift 2
       ;;
     --self-test)

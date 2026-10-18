@@ -1019,6 +1019,13 @@ time. The value must not be empty, `.`, absolute, or hold `..`. Each use records
 attempt, never deletes a correct claim to quiet the check, and runs the gate at most 3 times per doc
 set.
 
+#### DC scopes CHANGELOG.md and skips vendored docs (tpl-dc)
+
+The gate reads a `CHANGELOG.md` only from its `## [Unreleased]` heading to the next `## ` heading.
+With no `[Unreleased]` heading it gives no finding. `--exclude <path>` skips a vendored doc at that
+tree-relative path or below it, with the same value rules as `--allow-path`. Each use records the
+path and the reason in `documentation-N.md`.
+
 #### A finding routes by who wrote the line (tpl-dc)
 
 The first arm that matches wins:

@@ -44,6 +44,11 @@ run_self_test() {
   printf 'Refs `origin/develop`, `refs/heads/x`, `Agnidia/corpflow`, `github.com/Agnidia/x`, `a|b/c`, `(x)/y`, `skills/...` and `^docs/[a-z]+`.\n' > "$tree/docs/notpaths.md"
   printf '#!/usr/bin/env bash\nprintf "%%s" "$API_PORT"\n' > "$tree/run.sh"
   printf 'See `docs/a"b\\c/d.md`.\n' > "$tree/docs/hostile.md"
+  printf '## [Unreleased]\n- `docs/gone-new.md`\n## [1.0.0]\n- `docs/gone-old.md`\n' > "$tree/CHANGELOG.md"
+  mkdir -p "$tree/old"
+  printf '## [1.0.0]\n- `docs/gone-old.md` and `API_NOWHERE_X`\n' > "$tree/old/CHANGELOG.md"
+  printf 'Pins `sha512-AbC+dEf/GhI/jKl==` and `sha256-q/r`.\n' > "$tree/docs/hashes.md"
+  printf 'Built from `package/bundles/app.js`.\n' > "$tree/docs/vendored.md"
   git -C "$tree" init -q .
   git -C "$tree" add -- .
 
@@ -63,6 +68,18 @@ run_self_test() {
     bash "$SELF" --tree "$tree" "$tree/docs/hostile.md"
   selftest_case 'S8: --allow-path exempts an exact missing path' 0 '' \
     bash "$SELF" --tree "$tree" --allow-path docs/gone.md "$tree/docs/missing.md"
+  selftest_case 'S9: CHANGELOG.md [Unreleased] block is scanned' 1 '"name":"docs/gone-new.md","doc":"CHANGELOG.md","line":2,' \
+    bash "$SELF" --tree "$tree" "$tree/CHANGELOG.md"
+  selftest_case 'S10: CHANGELOG.md with no [Unreleased] block is clean' 0 '' \
+    bash "$SELF" --tree "$tree" "$tree/old/CHANGELOG.md"
+  selftest_case 'S11: integrity hashes are not paths' 0 '' \
+    bash "$SELF" --tree "$tree" "$tree/docs/hashes.md"
+  selftest_case 'S12: an unknown first segment is not a path' 0 '' \
+    bash "$SELF" --tree "$tree" "$tree/docs/vendored.md"
+  selftest_case 'S13: --exclude skips a doc' 0 '' \
+    bash "$SELF" --tree "$tree" --exclude docs/undefined.md "$tree/docs/undefined.md"
+  selftest_case 'S14: --exclude rejects a .. value' 2 '' \
+    bash "$SELF" --tree "$tree" --exclude ../docs "$tree/docs/undefined.md"
 
   printf 'self-test: ALL PASS (%d passed, 0 failed)\n' "$_SELFTEST_PASSED"
   exit 0

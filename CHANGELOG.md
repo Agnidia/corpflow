@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **The DC option gate no longer checks released history or vendored docs** (#475, #492).
+  `doc-option-check.sh` scans a `CHANGELOG.md` only inside its `## [Unreleased]` block. It skips
+  integrity hashes such as `sha512-<base64>` and backticked tokens whose first segment exists
+  nowhere in the tree. The new repeatable `--exclude <path>` skips a vendored doc. The git-ignored
+  runtime hint now prints a path that works as `--allow-path` from the tree root.
+
 ## [4.1.2] — 2026-10-18
 
 The suite runs green again (#483, #488), the cli-fallback render no longer needs a font registry,
