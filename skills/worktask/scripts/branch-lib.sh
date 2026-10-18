@@ -23,7 +23,7 @@
 # Anti-execution guard — MUST be the first statement. Fires only when this file is
 # run directly ($0 == BASH_SOURCE[0]); a sourcing caller always has a different $0.
 if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
-  printf >&2 'branch-lib.sh: this is a library — source it, do not execute it directly\n'
+  printf >&2 'branch-lib.sh: this is a library — source it, do not execute it directly; for a CLI run branch-name.sh\n'
   exit 2
 fi
 

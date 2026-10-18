@@ -190,6 +190,12 @@ evidence is invisible; `probe_timeout`/`token_invalid` is resolved by exporting
   record it as an `### Issue` H3 under `complete-summary-N.md ## artifacts`. On `no`, do nothing.
 - **Settle the row last**: on the success path, run § State Patch after the push and the PR.
 
+##### CI wait
+
+When `state.json → metadata.ci` is `"disabled"`, skip `gh run watch` and write "CI wait skipped:
+metadata.ci disabled" in `complete-summary-N.md`. Absent or any other value waits as usual
+(`skills/shared/state-ledger.md § CI field`).
+
 ##### Check for an external rename before pushing
 
 Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh branch-divergence` — read-only, exits 0 always. It compares the local branch
@@ -323,10 +329,16 @@ Pass `--facts` in the **same call** to union this stage's facts into `state.json
 bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage FN --prev <PREV> --facts '{
   "files_modified": ["CHANGELOG.md"],
   "decisions": [{"id":"fn1","summary":"≤160 chars","ref":"complete-summary-0.md#summary"}],
-  "open_questions": [{"id":"sw-FN0-1","class":"decision","ref":"complete-summary-0.md#elicitation-sweep","blocks_next_stage":false}]}'
+  "open_questions": []}'
 ```
 
 Omitting it loses the fact silently: a stub that reaches only the frontmatter never reaches the FN gate's render, so the question is never asked. Union by `.id`, last writer wins. Canonical: `handoff-protocol.md#facts-union`.
+
+#### Under fn_gate: "bypass"
+
+The FN gate never shows, so FN emits `open_questions: []`, as the example
+shows, and auto-records any `decision` it takes (`stage-contracts.md § Under fn_gate: "bypass"`).
+An attended run lists its stubs in the same field.
 
 <!-- output-sections:begin stage=FN -->
 ### Artifact anchors

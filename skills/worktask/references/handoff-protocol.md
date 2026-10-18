@@ -1133,6 +1133,7 @@ basename resolved against the directory holding `state.json`.
       requires_screenshots: { type: boolean }
       test_mode: { type: string }
       preflight: { type: object, description: "Autonomy preflight result, v1 — see metadata.preflight below" }
+      ci: { type: string, enum: [enabled, disabled], description: "Absent means enabled — state-ledger.md § CI field" }
     additionalProperties: true
 ```
 

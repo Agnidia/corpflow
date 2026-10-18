@@ -39,6 +39,13 @@ mk_no_jq_path() {
 # ---------------------------------------------------------------------------
 # T2 — symbol inventory: all 16 required functions defined after one source.
 # ---------------------------------------------------------------------------
+@test "executing branch-lib.sh directly is refused and names branch-name.sh" {
+  run bash "$PLUGIN_ROOT/$LIB"
+  assert_failure 2
+  assert_output --partial "source it, do not execute it directly"
+  assert_output --partial "branch-name.sh"
+}
+
 @test "T2: all 16 required symbols are defined after sourcing" {
   cd "$WD"
   run bash -c "

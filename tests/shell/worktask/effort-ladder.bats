@@ -30,6 +30,12 @@ ladder() { # <shell body>
   assert_output --partial "source it, do not execute it directly"
 }
 
+@test "the refusal names the CLI entry point" {
+  run bash "$PLUGIN_ROOT/$LIB"
+  assert_failure 2
+  assert_output --partial "effort-ladder-cli.sh"
+}
+
 @test "a double source is a no-op, not a re-assignment failure" {
   run ladder ". '$PLUGIN_ROOT/$LIB'; printf ok"
   assert_success
