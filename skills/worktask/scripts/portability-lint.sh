@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# portability-lint.sh — flags BSD/GNU shell divergences (rules P001-P008) so a new one
+# portability-lint.sh — flags BSD/GNU shell divergences (rules P001-P009) so a new one
 # cannot land the way the 32 mktemp -t sites did.
 #
 # Usage:
@@ -17,7 +17,10 @@
 #   P005  bash 4+ syntax against the repository's bash 3.2 floor
 #   P006  unguarded platform-only (Apple) binary at command position
 #   P007  direct `uname` call outside host-os-lib.sh
-#   P008  GNU-only flags (grep -P, find -printf, sort -V, readlink -f, GNU long options)
+#   P008  GNU-only flags (grep -P, find -printf, sort -V, readlink -f, GNU long options);
+#         `git grep -P` is exempt (git ships its own PCRE2 matcher on every host)
+#   P009  `\b` in a git grep pattern without -P (BSD regex has no `\b`, so the match is
+#         silently empty on macOS)
 #
 # Suppression, in precedence order:
 #   1. A line whose first non-blank character is `#` is never scanned.
@@ -53,7 +56,7 @@ HIT_COUNT=0
 SCAN_ERR=0
 
 # All rule IDs, space-delimited — the closed vocabulary a disable directive may name.
-RULE_IDS="P001 P002 P003 P004 P005 P006 P007 P008"
+RULE_IDS="P001 P002 P003 P004 P005 P006 P007 P008 P009"
 
 is_known_rule() {
   case " $RULE_IDS " in
@@ -221,6 +224,58 @@ report() {
   HIT_COUNT=$((HIT_COUNT + 1))
 }
 
+# A git-grep head: `git` as a word, any global options (`-C <dir>`, `-c k=v`, `--no-pager`),
+# then the `grep` subcommand. Kept in a variable because bash 3.2 and 4+ disagree on a
+# quoted regex written inline in `[[ =~ ]]`.
+GIT_GREP_HEAD='(^|[^A-Za-z0-9_./-])git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|--[A-Za-z][A-Za-z-]*(=[^[:space:]]*)?))*[[:space:]]+grep([[:space:]]|$)'
+GIT_GREP_PERL='(^|[[:space:]])(-[A-Za-z]*P[A-Za-z]*|--perl-regexp)([[:space:]=]|$)'
+
+# cmd_segment <text> — sets SEGMENT to <text> up to the first `|`, `;` or `&&` outside
+# quotes and SEGMENT_REST to what follows, so a -P on the next command of a pipeline is
+# never credited to this one. Globals, not stdout: a `$(...)` per git grep line would
+# fork on the lint's hot path.
+cmd_segment() {
+  local s="$1" i=0 c q="" n=${#1}
+  while [ "$i" -lt "$n" ]; do
+    c="${s:i:1}"
+    if [ "$c" = "\\" ] && [ "$q" != "'" ]; then
+      i=$((i + 2))
+      continue
+    fi
+    if [ -n "$q" ]; then
+      [ "$c" = "$q" ] && q=""
+    else
+      case "$c" in
+        "'" | '"') q="$c" ;;
+        '|' | ';') break ;;
+        '&') [ "${s:i:2}" = '&&' ] && break ;;
+      esac
+    fi
+    i=$((i + 1))
+  done
+  SEGMENT="${s:0:i}"
+  SEGMENT_REST="${s:i}"
+}
+
+# p009_scan <file> <lineno> <line> <prev> — at most one P009 per line, over every git
+# grep command the line holds.
+p009_scan() {
+  local f="$1" lineno="$2" rest="$3" prev="$4"
+  while [[ "$rest" =~ $GIT_GREP_HEAD ]]; do
+    rest="${rest#*"${BASH_REMATCH[0]}"}"
+    cmd_segment "$rest"
+    rest="$SEGMENT_REST"
+    case "$SEGMENT" in
+      *'\b'*)
+        if [[ ! "$SEGMENT" =~ $GIT_GREP_PERL ]]; then
+          report "$f" "$lineno" P009 "\\b in a git grep pattern without -P matches nothing on BSD regex — use git grep -P, or git grep -w for a whole word" "$3" "$prev"
+          return 0
+        fi
+        ;;
+    esac
+  done
+}
+
 # scan_line_rules <file> <lineno> <line> <prevline> <p004_stat_exon> <p004_date_exon>
 #   <p004_hash_exon> <p006_exonerated>
 scan_line_rules() {
@@ -288,7 +343,25 @@ scan_line_rules() {
       ;;
   esac
 
-  if [[ "$line" =~ grep\ +(-[A-Za-z]*)?-P($|[^A-Za-z]) ]] \
+  # P009 and P008's grep -P branch key on the same git-grep head. P008 tests a copy with
+  # each head swapped for a token that does not end in `grep`, so `git grep -P` passes
+  # while a bare `grep -P` later in the same pipeline still fires.
+  local p008_line="$line" before
+  case "$line" in
+    *git*grep*)
+      case "$f" in
+        *portability-lint.sh) : ;; # own regex and message text hold both tokens
+        *) p009_scan "$f" "$lineno" "$line" "$prev" ;;
+      esac
+      while [[ "$p008_line" =~ $GIT_GREP_HEAD ]]; do
+        before="$p008_line"
+        p008_line="${p008_line/"${BASH_REMATCH[0]}"/ _gg_ }"
+        [ "$p008_line" != "$before" ] || break
+      done
+      ;;
+  esac
+
+  if [[ "$p008_line" =~ grep\ +(-[A-Za-z]*)?-P($|[^A-Za-z]) ]] \
     || [[ "$line" =~ find\ .*-printf($|[^A-Za-z]) ]] \
     || [[ "$line" =~ sort\ +(-[A-Za-z]*)?-V($|[^A-Za-z]) ]] \
     || [[ "$line" =~ readlink\ +(-[A-Za-z]*)?-f($|[^A-Za-z]) ]]; then

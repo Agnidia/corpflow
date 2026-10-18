@@ -75,12 +75,12 @@ The gate above fires at return time; if you exhaust context mid-batch the orches
 
 ### Checkpoint steps 2–3
 
-2. **When budget is near exhaustion** (the remaining context cannot finish the next batch and write the artifact), do not push forward: finish and commit the batch in flight, write `<your artifact>` for the batches completed, list every unfinished batch under `## Blockers` (`kind: hard_constraint`, `escalate_to: TL`), update `tasks.<ID>.progress`, and return that completed-so-far artifact as your handoff. The orchestrator resumes from `tasks.<ID>.progress.next_batch` (`retry_count` bumped) — `skills/worktask/SKILL.md § Orchestrator Execution Loop`.
-3. **Never emit a progress narration as terminal output.** A budget-exhausted DV with a checkpoint artifact + `## Blockers` is a valid partial handoff; a chat-style "here's where I got to" is not.
+2. **At the checkpoint turn** your brief's `TURN BUDGET` line names, or when the remaining context cannot finish the next batch, do not push forward: finish and commit the batch in flight, update `tasks.<ID>.progress`, write `<your artifact>` with no `handoff.verdict`, list every unfinished batch in its body, and return. The orchestrator auto-resumes that partial return (`references/return-arms.md § Step 6.5a2`); a re-dispatch resumes from `progress.next_batch`. `## Blockers` (`kind: hard_constraint`, `escalate_to: TL`) is for a real hard constraint only.
+3. **Never emit a progress narration as terminal output.** A checkpoint artifact with its unfinished batches listed is a valid partial handoff; a chat-style "here's where I got to" is not.
 
 ## Delegation
 
-Route with the Agent tool. The `subagent_type` is the qualified agent ID from `agents/developer.md § Platform Specialization` or, for specialists outside those rows, from the per-platform tables in `skills/shared/platform-detection.md`.
+Route with the Agent tool. The `subagent_type` is the qualified agent ID from `agents/developer.md § Platform Specialization` or, for specialists outside those rows, from the per-platform tables in `skills/shared/platform-detection.md`. The delegate's brief carries its own `TURN BUDGET` line, sized to the delegate's `maxTurns` by the same helper (`references/return-arms.md § Turn budget — the cap`).
 
 ### Dispatch Injection (REQUIRED)
 

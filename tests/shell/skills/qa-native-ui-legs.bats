@@ -267,8 +267,8 @@ row_for_platform() {
     *) fail "budget line lacks the never-waived rule: $line" ;;
   esac
   # A second statement of the cap could disagree about the exemption.
-  count="$(cd "$PLUGIN_ROOT" && grep -rF '≤35 tool calls' agents skills commands | wc -l | tr -d ' ')"
-  [ "$count" -eq 1 ] || fail "expected exactly one '≤35 tool calls' statement, found $count"
+  count="$(cd "$PLUGIN_ROOT" && grep -rF '≤64 tool calls' agents skills commands | wc -l | tr -d ' ')"
+  [ "$count" -eq 1 ] || fail "expected exactly one '≤64 tool calls' statement, found $count"
 }
 
 @test "checklist: Completion Verification requires a row for every native UI leg" {

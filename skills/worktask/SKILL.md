@@ -781,6 +781,21 @@ Correction re-opens a task of any stage; gate loop-back reaches DV. When `fix_ro
     }
 ```
 
+##### Step 4.7 — turn-budget banner
+
+Every loop-dispatched row, any stage. `turnBudget` reads the dispatched agent's `maxTurns`
+(default 50) and checkpoints at `floor(0.8 × cap)`: `references/return-arms.md § Turn budget — the cap`.
+
+```typescript
+    // …continued: step 4.7 body. The first [7] banner: after WORKSPACE_ROOT=, before 4.8a/4.8b.
+    const tb = turnBudget(subagentType);   // {cap, checkpoint, line, source}
+    full.description += "\n\n" + tb.line;  // TURN BUDGET: <cap> turns. Checkpoint by turn …
+    appendAudit({ actor: "orchestrator", action: "turn_budget_injected", subject: task.id,
+                  result: tb.source === "default" ? "warn" : "ok",
+                  metadata: { agent: subagentType, cap: tb.cap, checkpoint: tb.checkpoint,
+                              source: tb.source } });
+```
+
 #### Step 4.7a
 
 AR writes design outputs — an OpenAPI contract, a schema, a generated header — into the shared
@@ -1442,16 +1457,16 @@ live in `references/return-arms.md`; read its section when the predicate holds.
 
 ```typescript
       // 6.5a2. The stage yielded without finishing its handoff. Precondition — the agent is NOT
-      //        live (Step 6.5's liveness rule forbids this block while agent_id is live).
+      //        live (Step 6.5's liveness rule bars this block while agent_id lives).
       const incArtifact = stageArtifactPath(code, full.metadata.run_index ?? 0, post.tasks?.[task.id]);
       const incHandoff = fs.existsSync(incArtifact) ? parseFrontmatter(incArtifact) : null;
       const selfPatched = post.tasks?.[task.id]?.status === "completed"
                           && Boolean(post.tasks[task.id].verdict);
-      // Incomplete even WITH a verdict: a maxTurns stop can land after the frontmatter is
-      // written. Field name unconfirmed — read defensively, re-check at the next /cc-update.
+      // Incomplete even WITH a verdict: a maxTurns stop can land after the frontmatter
+      // is written. Field name unconfirmed: read defensively, recheck at /cc-update.
       const maxTurnsPartial = Boolean(launchAck?.partial);
       const incomplete = maxTurnsPartial || (!selfPatched && !incHandoff?.verdict);
-      // incomplete → return-arms.md § Step 6.5a2 — mark & audit.
+      // incomplete → return-arms.md § Step 6.5a2: auto-resume ≤2 per row, then escalate
 ```
 
 ##### Step 6.5a3 — route every typed blocked return

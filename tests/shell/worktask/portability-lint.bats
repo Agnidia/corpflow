@@ -3,7 +3,7 @@
 # Contracts (from header + architecture-0.md AD-2):
 #   - explicit-file mode: a hit prints "<path>:<line>:<RULE-ID>: <message>", exit 1
 #   - clean input: no output, exit 0
-#   - rules P001-P008, one positive + one negative case each (see selftest for the
+#   - rules P001-P009, one positive + one negative case each (see selftest for the
 #     exhaustive per-rule fixtures; this file covers the CLI contract plus one
 #     representative rule end to end)
 #   - suppression tier 1: a comment-only line is never scanned
@@ -135,6 +135,52 @@ setup() {
     assert_failure 1
     assert_output --partial ":P008:"
   done
+}
+
+@test "P008 negative: git grep -P is exempt, a bare grep -P in the same pipeline still fires" {
+  printf "git grep -P '\\\\d+' .\n" > "$WD/a.sh"
+  run bash "$PLUGIN_ROOT/$SCRIPT" -- "$WD/a.sh"
+  assert_success
+  assert_output ""
+  printf "git grep -nP x . | grep -P 'y'\n" > "$WD/b.sh"
+  run bash "$PLUGIN_ROOT/$SCRIPT" -- "$WD/b.sh"
+  assert_failure 1
+  assert_output --partial "$WD/b.sh:1:P008:"
+}
+
+@test "P009: \\b in a git grep -E pattern is flagged with file, line, rule id and the -P/-w fix" {
+  printf "git grep -nE '\\\\bfoo\\\\b' .\n" > "$WD/a.sh"
+  run bash "$PLUGIN_ROOT/$SCRIPT" -- "$WD/a.sh"
+  assert_failure 1
+  assert_output --partial "$WD/a.sh:1:P009:"
+  assert_output --partial "git grep -P"
+  assert_output --partial "git grep -w"
+}
+
+@test "P009: a git global option before grep and the default BRE are flagged too" {
+  printf "git -C \"\$d\" grep -E '\\\\bx' .\n" > "$WD/a.sh"
+  printf "git grep -n '\\\\bx' -- '*.md'\n" > "$WD/b.sh"
+  for f in a b; do
+    run bash "$PLUGIN_ROOT/$SCRIPT" -- "$WD/$f.sh"
+    assert_failure 1
+    assert_output --partial ":P009:"
+  done
+}
+
+@test "P009 negative: git grep -nP keeps \\b, git grep -nwE needs none" {
+  printf "git grep -nP '\\\\bfoo\\\\b' .\n" > "$WD/a.sh"
+  printf "git grep -nwE 'foo' .\n" > "$WD/b.sh"
+  for f in a b; do
+    run bash "$PLUGIN_ROOT/$SCRIPT" -- "$WD/$f.sh"
+    assert_success
+    assert_output ""
+  done
+}
+
+@test "P009 negative: plain grep -E with \\b stays out of scope (sw-PL0-1)" {
+  printf "grep -qE '\\\\bfoo\\\\b' \"\$f\"\n" > "$WD/a.sh"
+  run bash "$PLUGIN_ROOT/$SCRIPT" -- "$WD/a.sh"
+  assert_success
 }
 
 @test "P000: a disable directive with no reason is itself reported" {

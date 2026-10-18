@@ -720,7 +720,8 @@ When a worktask includes a version bump (release, tag, or `version:`/`CHANGELOG`
 
 For grep-based verification steps in `<plan_file>` (e.g. AC validation commands):
 
-- Use word-boundary anchors (`\b`) or full filename matches, not substring patterns, which false-positive on legitimate canonical names.
+- Anchor whole words with `git grep -P '\bname\b'`, or `git grep -w name` when no regex is needed, or match full filenames. Substring patterns false-positive on legitimate canonical names.
+- Never put `\b` inside `git grep -E` or a BRE: BSD regex has no `\b`, so on macOS the grep matches nothing and reads as clean. `[[:<:]]`/`[[:>:]]` are BSD/macOS-only; glibc rejects them.
 - Record each AC verification command in `<plan_file>` beside its criterion, with the output
   that passes. PL does not run it: DV runs the residual-greps before yielding and DV and QA
   execute the rest, per `skills/shared/testing-strategy.md § Test-Execution Authority`.
@@ -739,7 +740,7 @@ An enumerated edit-file list goes stale between plan authoring and DV execution,
 ##### Residual-grep authoring rules
 
 - A clean diff yields zero residuals (`grep` returns no unhandled matches) once the theme is fully applied.
-- Use word-boundary anchors (`\b`) or full-filename matches per the rule above.
+- Anchor words with `git grep -P` (fallback `git grep -w`) or full-filename matches, per the rule above.
 - Pair each residual-grep with its theme; one theme may need more than one pattern.
 
 ##### Residual-grep worked example
@@ -748,7 +749,7 @@ Example AC verification command (theme: rename a hypothetical `legacy_flag` → 
 
 ```bash
 # Completeness gate — MUST return no unhandled matches after the theme is applied.
-grep -rn '\blegacy_flag\b' --include='*.md' --include='*.sh' . || echo "clean: no residuals"
+git grep -nP '\blegacy_flag\b' -- '*.md' '*.sh' || echo "clean: no residuals"
 ```
 
 DV runs each theme's residual-grep before yielding (`agents/workflow-engineer.md § Batch-Completion Discipline`); a non-empty result means the theme is incomplete however many enumerated files were edited.
