@@ -259,7 +259,8 @@ Run once, at PL0, through the shared resolver so every reader agrees on the rank
 |---|---|
 | 0 | `fork_base()` fork point — evidence, opt-in; reconciles by sweep item rather than overriding |
 | 1 | `$FN_BASE_REF` — explicit operator/test override |
-| 2 | `state.json .metadata.base_ref` — where a host-declared target branch enters the order |
+| 2a | `state.json tasks.<ID>.metadata.base_ref` — the row named in `$BASE_REF_TASK_ID` |
+| 2b | `state.json .metadata.base_ref` — where a host-declared target branch enters the order |
 | 3 | `workspace.json .git.base_branch` — `/megatask` per-issue record |
 | 4 | `git symbolic-ref refs/remotes/origin/HEAD` — repository default branch |
 | — | unresolved — reported, never guessed |
@@ -267,9 +268,14 @@ Run once, at PL0, through the shared resolver so every reader agrees on the rank
 ##### Calling the resolver
 
 ```bash
-. skills/worktask/scripts/branch-lib.sh
-BASE=$(resolve_base_ref); BASE="${BASE#origin/}"
+. "${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/branch-lib.sh"
+BASE=$(BASE_REF_TASK_ID=PL0 resolve_base_ref); BASE="${BASE#origin/}"
 ```
+
+The snippet sources the library from the plugin root, because a cwd-relative path does not exist
+in a project checkout; that sourcing is the #482 fix. Naming `PL0` lets a `base_ref` already on the
+PL0 row (rank 2a) answer before the ledger mirror (rank 2b), which this run is about to rewrite. The
+`/megatask` stamp carries no `base_ref` key, so naming `PL0` does not make that stamp win.
 
 There is no literal fallback: an unresolved base is reported and the caller degrades
 non-blocking, because a hardcoded `master` may name a branch that does not exist. PL0 does not
@@ -300,7 +306,7 @@ would be the silent retarget this reconcile exists to prevent.
 Stamp the result in two places, unconditionally (`master` included):
 
 - `task.metadata.base_ref` on PL0 and every downstream task — `--task-create` refuses a downstream row without it. DV reads it as the per-task base override (`agents/developer.md § Worktree Mode`).
-- `state.json .metadata.base_ref`, in the step-4 reset. Shell scripts cannot read Task-System metadata, so this mirror is how `branch-lib.sh resolve_base_ref` (rank 2) sees the value. On a turn that skips the reset (`plan_revision`), write it with `state-patch.sh --ledger-meta --set '{"base_ref":"<branch>"}'`, not a hand edit — a hand edit bypasses the lock and the bounds filter.
+- `state.json .metadata.base_ref`, in the step-4 reset. Shell scripts cannot read Task-System metadata, so this mirror is how `branch-lib.sh resolve_base_ref` (rank 2b) sees the value when the caller names no task. On a turn that skips the reset (`plan_revision`), write it with `state-patch.sh --ledger-meta --set '{"base_ref":"<branch>"}'`, not a hand edit — a hand edit bypasses the lock and the bounds filter.
 
 Reader resolution order is canonical in `handoff-protocol.md § metadata.base_ref`.
 

@@ -232,13 +232,14 @@ keeps no variables, and without `WORKSPACE_ROOT` the state scripts resolve megat
 
 Hooks run as their own processes with megatask's environment, so the Bash export never reaches
 them, and a subagent's cwd is megatask's root. `corpflow_bind_payload` (`hooks/model-switch-lib.sh`)
-binds each hook process to `<wt>` from its payload instead: the payload's `cwd`, else the
-`WORKSPACE_ROOT=` line in the acting agent's own prompt, accepted only for a stamped
-`.worktrees/<group>/<issue#>` under megatask's root that holds its own ledger. The per-issue
-prompt carries that line; each nested stage agent gets it from `/worktask`'s stage brief
-(`commands/worktask.md § Banner injection`). Their `SubagentStop` audit, merge and DV-gate hooks
-and the ledger-transition audit then use `<wt>/.context/`, never the batch's. The binding lives in
-one hook process, not a shared variable, so concurrent issues cannot cross.
+binds each hook process to `<wt>` from its payload; the first valid candidate wins: the
+`WORKSPACE_ROOT=` line in the acting agent's prompt, a `WORKSPACE_ROOT=<wt>` assignment in its Bash
+command (read as text, never expanded), the payload's `cwd`, the hook's own cwd. Only a stamped
+`.worktrees/<group>/<issue#>` under megatask's root with its own ledger binds. The cwd ranks last,
+so a session inside one issue's worktree cannot pull other issues onto its ledger. Stage briefs
+carry the banner (`commands/worktask.md § Banner injection`). The audit, merge, DV-gate and
+`test-execution-gate` hooks then use `<wt>/.context/`, never the batch's. Each binding lives in one
+hook process, so concurrent issues cannot cross.
 
 #### Step 3 — PL0's model and effort
 

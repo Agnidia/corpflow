@@ -201,7 +201,7 @@ continue, in the shape the megatask Shared Seams registry declares
 
 `handoff-harness.sh --validate-frontmatter` fails an unknown kind, an unknown `resume_with` or a
 missing `detail`; the router also refuses a missing key or another row's pairing. All seven route
-through one table (`skills/worktask/SKILL.md § Step 6.5a3`). `scripts/blocked-on-lib.sh` holds both
+through one table (`skills/worktask/SKILL.md § Step 6.5a3`). `skills/worktask/scripts/blocked-on-lib.sh` holds both
 enums, so a new kind, key or value changes this table, that lib and the registry entry together.
 
 #### Schema — blocked_on, the permission arm
@@ -1156,7 +1156,8 @@ cannot read Task-System metadata) can reach it. Reader resolution order, highest
 |---|---|---|
 | 0 | `fork_base()` fork point | Evidence, opt-in — see below. |
 | 1 | `$FN_BASE_REF` | Explicit operator/test override. |
-| 2 | `state.json .metadata.base_ref` | Stamped by PL0; where a host-declared target branch enters the order — see below. |
+| 2a | `state.json tasks.<ID>.metadata.base_ref` | The row the caller names in `$BASE_REF_TASK_ID`; skipped when no task is named. |
+| 2b | `state.json .metadata.base_ref` | Stamped by PL0; where a host-declared target branch enters the order — see below. |
 | 3 | `workspace.json .git.base_branch` | `/megatask` per-issue record. |
 | 4 | `git symbolic-ref refs/remotes/origin/HEAD` | Repository default branch. |
 | — | unresolved | Reported, never guessed. |
@@ -1173,17 +1174,26 @@ gates on it (`refine-branch-target.sh`'s `base_unresolved` no-op, `branch-name.s
 `issue-close-required`). `base-sanity` opts in because it alone distinguishes an inferred base from
 a configured one (its `base_guessed` degrade rung).
 
-##### Rank 2 and the host-declared target branch
+##### Rank 2a reads the named task row
+
+A caller that reviews or merges one task's work names that task in `BASE_REF_TASK_ID` (for
+example `stream-diff.sh` sets it to each DV row's own id). The row's `metadata.base_ref` then
+answers ahead of the ledger mirror: the mirror is a copy, and a wrong copy otherwise gives every
+row a wrong base. A row without a value, the string `null`, or an id absent from the ledger falls
+through to rank 2b. The id reaches `jq` only as `--arg`, never inside the filter. Scope the
+variable to one call; an exported value steers every later resolver call in that shell.
+
+##### Rank 2b and the host-declared target branch
 
 A host telling the session "the target branch for this workspace is `origin/develop`" is the
-*provenance* of rank 2, not a separate probe. It is outranked by `$FN_BASE_REF` alone, and it
+*provenance* of rank 2b, not a separate probe. It is outranked by `$FN_BASE_REF` alone, and it
 outranks both the megatask record and the repository default.
 
 ##### Implementation
 
 `skills/worktask/scripts/branch-lib.sh` — `resolve_base_ref` returns the value, `base_ref_source`
-returns which rank answered (`env`, `state`, `workspace`, `origin_head`, `fork_point`,
-`unresolved`), both over one shared internal ladder and both accepting `--with-fork-point`. There is
+returns which rank answered (`env`, `task`, `state`, `workspace`, `origin_head`, `fork_point`,
+`unresolved`; `task` is rank 2a, `state` rank 2b), both over one shared internal ladder and both accepting `--with-fork-point`. There is
 no literal fallback; readers report unresolved and degrade non-blocking. The same ranks, identically
 ordered, are restated in `pl0-procedure.md § Integration-branch detection`.
 
