@@ -14,6 +14,10 @@
 #   _base_ref_ranked, resolve_base_ref, base_ref_source, resolve_git_ref, BRANCH_AUDIT_ACTORS,
 #   branch_audit_actor.
 #
+# @env BASE_REF_TASK_ID  Ledger task id whose row the ladder reads at rank 2a (e.g. DV1).
+#                        Scope it to one call (`BASE_REF_TASK_ID=DV1 resolve_base_ref`): an
+#                        exported value steers every later resolver call in that shell.
+#
 # Minimum shell: bash 3.2+ (macOS default).
 
 # Anti-execution guard — MUST be the first statement. Fires only when this file is
@@ -440,7 +444,10 @@ fn_batch_scope() {
 #                                            supplies a value only when 1-4 are all
 #                                            empty and the caller asked; see below
 #   1. $FN_BASE_REF                          explicit operator/test override
-#   2. state.json .metadata.base_ref         stamped by PL0, mirrors task metadata.
+#   2a. state.json tasks.<ID>.metadata.base_ref
+#                                            the row $BASE_REF_TASK_ID names; skipped
+#                                            when the caller names no task
+#   2b. state.json .metadata.base_ref        stamped by PL0, mirrors task metadata.
 #                                            This rank is where a host-declared
 #                                            target branch enters the order — it is
 #                                            that value's provenance, not a probe
@@ -569,9 +576,23 @@ _base_ref_ranked() {
   src="env"
   [ "$v" = "null" ] && v=""
   if [ -z "$v" ] && command -v jq > /dev/null 2>&1; then
-    v=$(jq -r '.metadata.base_ref // empty' "${STATE_PATH:-.context/state.json}" 2> /dev/null || printf '')
-    [ "$v" = "null" ] && v=""
-    [ -n "$v" ] && src="state"
+    # Rank 2a outranks the ledger mirror because the mirror is a copy: when it is
+    # written wrong, every row under it inherits the wrong base, while the row's
+    # own stamp is the value the run was dispatched with. The id is caller input,
+    # so it reaches jq only as a bound variable; an unknown or hostile id is a
+    # missing key and falls through to rank 2b. `strings` drops a non-string value
+    # the same way instead of printing JSON as a branch name.
+    if [ -n "${BASE_REF_TASK_ID:-}" ]; then
+      v=$(jq -r --arg id "${BASE_REF_TASK_ID}" '.tasks[$id].metadata.base_ref // empty | strings' \
+        "${STATE_PATH:-.context/state.json}" 2> /dev/null || printf '')
+      [ "$v" = "null" ] && v=""
+      if [ -n "$v" ]; then src="task"; fi
+    fi
+    if [ -z "$v" ]; then
+      v=$(jq -r '.metadata.base_ref // empty' "${STATE_PATH:-.context/state.json}" 2> /dev/null || printf '')
+      [ "$v" = "null" ] && v=""
+      if [ -n "$v" ]; then src="state"; fi
+    fi
     if [ -z "$v" ]; then
       local ws="${WORKSPACE_ROOT:-$PWD}/workspace.json"
       if [ -f "$ws" ]; then
@@ -606,8 +627,9 @@ resolve_base_ref() {
   printf '%s' "${r#* }"
 }
 
-# Which rank answered: env | state | workspace | origin_head | fork_point |
-# unresolved. `fork_point` tells a caller the base is inferred evidence rather
+# Which rank answered: env | task | state | workspace | origin_head | fork_point |
+# unresolved. `task` is rank 2a, the row BASE_REF_TASK_ID names; `state` is the
+# ledger mirror at rank 2b. `fork_point` tells a caller the base is inferred evidence rather
 # than a configured target — base-sanity degrades rather than blocking on it.
 base_ref_source() {
   local r

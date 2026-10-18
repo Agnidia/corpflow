@@ -2224,7 +2224,8 @@ fi
 
 # ---------- Top-level metadata ----------
 # The ledger's metadata{} is run-wide, not per-task: base_ref, milestone, the gate flags.
-# resolve_base_ref (branch-lib.sh) reads .metadata.base_ref and nothing else, but until this
+# resolve_base_ref (branch-lib.sh) reads a named task row's base_ref first (rank 2a, ahead of
+# the mirror) and .metadata.base_ref otherwise, but until this
 # op the writer had only --task-meta, so the key had to be hand-edited into state.json
 # beside the single writer that exists to keep hand edits out. An unresolved base_ref falls
 # through to origin/HEAD — the repository default branch — which is exactly the wrong-base
