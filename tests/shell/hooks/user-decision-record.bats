@@ -966,5 +966,6 @@ _probe_hook() {
   run env -u WORKSPACE_ROOT -u CLAUDE_PROJECT_DIR -u CONTEXT_DIR bash "$PLUGIN_ROOT/$SELFTEST"
   assert_success
   assert_output --partial "user-decision-record: self-test OK"
+  assert_output --regexp 'user-decision-record: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
   refute_output --partial "FAIL"
 }

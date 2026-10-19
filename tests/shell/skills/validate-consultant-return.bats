@@ -151,7 +151,9 @@ _assert_error() {
 @test "--self-test prints self-test OK and exits 0" {
   run_script "$SCRIPT" --self-test
   assert_success
-  assert_output "self-test OK"
+  assert_output --partial "self-test OK"
+  assert_output --regexp 'self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
+  assert_output "self-test OK (4 passed, 0 failed)"
 }
 
 @test "--self-test fails closed with exit 2 when the harness is missing" {
@@ -161,6 +163,19 @@ _assert_error() {
   run --separate-stderr bash "$wd/validate-consultant-return.sh" --self-test
   _assert_error unreadable
   [[ "$stderr" == *"self-test harness missing"* ]] || fail "unexpected stderr: $stderr"
+}
+
+@test "--self-test reports only reached cases after a failed assertion" {
+  local wd
+  wd="$(mk_tmpworkdir)"
+  cp "$PLUGIN_ROOT/$SCRIPT" "$wd/validate-consultant-return.sh"
+  sed "s/^  local expected=.*/  local expected='invalid'/" \
+    "$PLUGIN_ROOT/skills/cross-plugin-handoff/scripts/validate-consultant-return-selftest.sh" \
+    > "$wd/validate-consultant-return-selftest.sh"
+  run --separate-stderr bash "$wd/validate-consultant-return.sh" --self-test
+  [ "$status" -eq 1 ]
+  [[ "$stderr" == *"self-test FAIL: valid: normalized output differs"* ]]
+  [[ "$stderr" == *"(0 passed, 1 failed)"* ]]
 }
 
 @test "idempotence: re-validating stdout yields the same bytes and no warnings" {

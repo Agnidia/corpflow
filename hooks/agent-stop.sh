@@ -70,8 +70,8 @@ if [ "$SELF_TEST" -eq 1 ]; then
     and .metadata.session_crons_count == 1
     and .metadata.session_cron_ids == ["cr1"]
   ' >/dev/null \
-    || { echo "agent-stop: self-test FAIL"; exit 1; }
-  echo "agent-stop: self-test OK"
+    || { echo "agent-stop: self-test FAIL (0 passed, 1 failed)"; exit 1; }
+  echo "agent-stop: self-test OK (1 passed, 0 failed)"
   exit 0
 fi
 

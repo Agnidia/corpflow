@@ -59,10 +59,11 @@ _run_audit() {
   assert_success
 }
 
-@test "contract: --self-test passes (smoke, NON-counting)" {
+@test "contract: --self-test passes (counted summary)" {
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'model-switch-audit: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 @test "off_tier: alias vs resolved id is one family, not a re-tier" {

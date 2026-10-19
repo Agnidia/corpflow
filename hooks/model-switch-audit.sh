@@ -144,6 +144,7 @@ if [ "$SELF_TEST" -eq 1 ]; then
   _tmp=$(mktemp -d)
   trap 'rm -rf "$_tmp"' EXIT
   _fail=0
+  _st_cases=0
 
   _sctx="$_tmp/ok/.context"
   mkdir -p "$_sctx"
@@ -152,19 +153,21 @@ if [ "$SELF_TEST" -eq 1 ]; then
   # does not imply an agent dependency the code does not have.
   printf '%s' '{"version":1,"worktask_id":"wid-ms","tasks":{"DV0":{"status":"in_progress"}},"facts":{"dispatched_agents":[{"stage":"DV","task_id":"DV0","subagent_type":"stage-agent","agent_id":"agt_test","model_requested":"opus","status":"launched"}]}}' > "$_sctx/state.json"
   run_audit "$(read_stdin)" "$_sctx"
+  _st_cases=$((_st_cases + 1))
   tail -n 1 "$_sctx/logs/audit.jsonl" | jq -e '
     .action == "model_switched" and .metadata.task_id == "DV0"
     and .metadata.pinned == "opus" and .metadata.resolved == "sonnet"
     and .metadata.off_tier == true
-  ' > /dev/null 2>&1 || { echo "model-switch-audit: self-test FAIL (row)"; _fail=1; }
+  ' > /dev/null 2>&1 || { echo "model-switch-audit: self-test FAIL (row)"; _fail=$((_fail + 1)); }
 
   _nctx="$_tmp/none/.context"
   mkdir -p "$_nctx"
   run_audit '{"session_id":"s","to_model":"sonnet"}' "$_nctx"
-  [ ! -d "$_nctx/logs" ] || { echo "model-switch-audit: self-test FAIL (no-ledger wrote logs)"; _fail=1; }
+  _st_cases=$((_st_cases + 1))
+  [ ! -d "$_nctx/logs" ] || { echo "model-switch-audit: self-test FAIL (no-ledger wrote logs)"; _fail=$((_fail + 1)); }
 
-  [ "$_fail" -eq 0 ] || { echo "model-switch-audit: self-test FAIL"; exit 1; }
-  echo "model-switch-audit: self-test OK"
+  [ "$_fail" -eq 0 ] || { echo "model-switch-audit: self-test FAIL ($((_st_cases - _fail)) passed, $_fail failed)"; exit 1; }
+  echo "model-switch-audit: self-test OK ($_st_cases passed, 0 failed)"
   exit 0
 fi
 

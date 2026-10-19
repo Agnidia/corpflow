@@ -233,6 +233,7 @@ teardown() {
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'test-execution-gate: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 @test "edge: unknown tool_name is out of scope -> allow, no row (FO-10 matcher drift)" {

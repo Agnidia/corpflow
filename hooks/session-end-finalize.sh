@@ -22,14 +22,14 @@ if [ "$SELF_TEST" -eq 1 ]; then
   mkdir -p "$TMP/.context"
   echo '{"run_index":0,"tasks":{"DV0":{"status":"in_progress"}}}' > "$TMP/.context/state.json"
   printf '%s' '{"hook_event_name":"SessionEnd","reason":"clear"}' \
-    | CLAUDE_PROJECT_DIR="$TMP" "$0" > /dev/null 2>&1
+    | env -u WORKSPACE_ROOT CLAUDE_PROJECT_DIR="$TMP" "$0" > /dev/null 2>&1
   if ! grep -q '"session_end_reason":"clear"' "$TMP/.context/logs/audit.jsonl" 2> /dev/null; then
-    echo "session-end-finalize: self-test FAIL"
+    echo "session-end-finalize: self-test FAIL (0 passed, 1 failed)"
     rm -rf "$TMP"
     exit 1
   fi
   rm -rf "$TMP"
-  echo "session-end-finalize: self-test OK"
+  echo "session-end-finalize: self-test OK (1 passed, 0 failed)"
   exit 0
 fi
 

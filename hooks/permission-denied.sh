@@ -38,10 +38,10 @@ if [ "$SELF_TEST" -eq 1 ]; then
       and (.metadata | keys_unsorted) == ["tool", "dedupe_key", "command_head", "truncated"]
       and .metadata.command_head == "gh [redacted] [redacted] [redacted]" and .metadata.truncated == true' \
       "$_st_log" > /dev/null 2>&1; then
-    echo "permission-denied: self-test OK"
+    echo "permission-denied: self-test OK (1 passed, 0 failed)"
     exit 0
   fi
-  echo "permission-denied: self-test FAIL (rows=${_st_rows:-0})"
+  echo "permission-denied: self-test FAIL (rows=${_st_rows:-0}) (0 passed, 1 failed)"
   exit 1
 fi
 
