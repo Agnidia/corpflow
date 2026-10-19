@@ -21,7 +21,7 @@
 
 # Anti-execution guard — MUST be the first statement.
 if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
-  printf >&2 'effort-ladder.sh: this is a library — source it, do not execute it directly\n'
+  printf >&2 'effort-ladder.sh: this is a library — source it, do not execute it directly; for a CLI run effort-ladder-cli.sh\n'
   exit 2
 fi
 

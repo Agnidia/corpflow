@@ -796,6 +796,18 @@ Every loop-dispatched row, any stage. `turnBudget` reads the dispatched agent's 
                               source: tb.source } });
 ```
 
+##### Step 4.7 — portability banner
+
+Every loop-dispatched row, any stage, no host-OS gate: a stage agent that assumes GNU bash on Linux
+loses turns to shell errors it cannot see coming. Splice it right after the TURN BUDGET line, the
+same way.
+
+```typescript
+    // …continued: step 4.7 body, after the turn-budget banner.
+    full.description += "\n" + "PORTABILITY: the shell can be zsh on macOS; GNU `timeout` can be " +
+      "absent; unquoted $var does not word-split — quote every expansion.";
+```
+
 #### Step 4.7a
 
 AR writes design outputs — an OpenAPI contract, a schema, a generated header — into the shared
@@ -1069,6 +1081,8 @@ then `--task-status <ID> pending`. The next ready pass reaches this gate, which 
 ```
 
 ##### Step 4.9 — checkpoint and bypass paths
+
+The checkpoint STOP below is a hand-back: run § Hand-back guard (`point: checkpoint`) first.
 
 ```typescript
       if (fnGate === "checkpoint") {
@@ -1735,8 +1749,8 @@ Corrected artifact exists only now; source resumes here not at route that parked
     // 6.6a RESOLVE (commands/worktask.md § Step C.0a). Skipped for PL/FN/ST/IR, and when
     //      decision_gate != "auto". Otherwise run C.2's raise-only join FIRST, then hand the
     //      surviving effective_class == "decision" items to the emitting stage's OWN agent on
-    //      its OWN model, at effort_for_resolver(metadata.effort, metadata.model) from
-    //      scripts/effort-ladder.sh. One dispatch for the whole set. No metadata.effort on the
+    //      its OWN model, at `effort-ladder-cli.sh for-resolver <effort> <model>` (the
+    //      allow-listed CLI over scripts/effort-ladder.sh). One dispatch for the whole set. No metadata.effort on the
     //      row => audit resolver_skipped/effort_unstamped and fall through; never guess a tier.
 ```
 
@@ -1937,6 +1951,62 @@ A DV agent running several non-separable batches records each finished batch in
 `tasks.<ID>.progress` (`agents/developer.md § Budget-Aware Checkpointing`); loop step 4.7 reads it
 on re-dispatch so the run resumes from `next_batch`.
 
+### Hand-back guard
+
+A run hands back at three points: the loop exit and the megatask per-issue end at ST (both in
+§ Post-Worktask Self-Improvement), and a checkpoint return (the § Step 4.9 FN-gate STOP or a
+partial return). It never hands back while a child of this run is live, because the parent's
+stop frees the megatask track and the next turn can reassign it under the running child. The
+megatask track rule (`../megatask/SKILL.md § Starting and completing an issue`) is the second
+line of defence when this guard cannot verify liveness.
+
+#### Hand-back guard — the live check
+
+Candidates: `facts.dispatched_agents[]` entries with `status: "launched"`, plus `tasks.*` rows
+with `status: "in_progress"`. Run `claude agents --json --all`, falling back to `ListAgents`.
+`--all` also lists finished sessions, so an absent row means gone, not merely finished. Join each
+candidate with the rule that `scripts/stale-check.sh` and `references/resume.md § Live-agent rows`
+already use: `agent_id`/`id`/`sessionId`, prefix-tolerant, with `subagent_type` as a best-effort
+match when `agent_id` is absent. A row with `state: done` is not live. Liveness is defined there,
+not here.
+
+#### Hand-back guard — verdicts
+
+Every outcome of the live check maps to exactly one row. Nothing that is unclear maps to `clear`.
+
+| Live check | Action | `result` |
+|---|---|---|
+| every candidate is absent or `done` | hand back | `clear` |
+| a candidate is busy (`waitingFor` empty) | wait on its completion notification, never a poll loop, bounded by `agent-coordination § Stall Timeout`; then run the guard again | `deferred` |
+| a candidate is parked | § Hand-back guard — parked children | `parked` |
+| the CLI ran but liveness is indeterminate: non-zero exit, unparseable output, an unrecognised shape or token | hand back | `unverified` |
+| neither CLI is available | hand back | `unverified` |
+
+#### Hand-back guard — parked children
+
+Take the `resume.md` arm for the park kind. A reattach makes the child busy again, so run the
+guard again after it: the run never hands back while a reattached child runs.
+
+| Park kind | `resume.md` arm | Then |
+|---|---|---|
+| `waitingFor` is `approval` or `input` | § Live-agent rows — liveness branch — alive and responsive: `SendMessage` the ledger's answer | run the guard again |
+| `state: blocked` | § Live-agent rows — parked or gone: reattach via `SendMessage` | run the guard again |
+| "Needs input" (operator-owned) | § Live-agent rows — liveness branch — parked, awaiting input: surface the prompt, never auto-answer | attended: wait for the operator, then run the guard again; unattended: hand back |
+| a hook schema error | § Live-agent rows — broken hook configuration | hand back; the operator fixes the hook |
+
+#### Hand-back guard — the audit row
+
+Write one `handback_guard` row per evaluation through a standalone `state-patch.sh --audit-row`,
+**before** any wait: a session that dies while it waits still leaves the trace.
+
+```json
+{"actor":"orchestrator","action":"handback_guard","subject":"<worktask_id>",
+ "result":"clear|deferred|parked|unverified",
+ "metadata":{"point":"loop_exit|megatask_st|checkpoint",
+             "live":["<TASK_ID>:<agent_id|subagent_type>"],
+             "source":"claude agents --json|ListAgents|none"}}
+```
+
 ## Auto-Decision Delegation (decision_gate)
 
 Carried by `PL0.metadata.decision_gate` — `"user"` (default) or `"auto"` (`--auto=[decision]`, or
@@ -2080,7 +2150,7 @@ Per-issue HTML-marker dedup (`<!-- completion-summary:<worktask_id>:<run_index>:
 
 ## Post-Worktask Self-Improvement
 
-After the execution loop exits (all tasks completed, including ST), except in a `/megatask` per-issue run, which ends at ST (`commands/worktask.md § Phase 3`): if `.context/learnings.md` exists, Read `references/fn-gate.md § Post-Worktask Self-Improvement` and follow the Post-ST procedure (surface learnings → user checks boxes → route each checked item by its `Enforcement:` form to prompt-engineer or workflow-engineer → audit → terminate). Absent → worktask complete. Never apply unchecked proposals.
+After the execution loop exits (all tasks completed, including ST), except in a `/megatask` per-issue run, which ends at ST (`commands/worktask.md § Phase 3`). Either way, run § Hand-back guard before handing back. Then, unless the run is per-issue: if `.context/learnings.md` exists, Read `references/fn-gate.md § Post-Worktask Self-Improvement` and follow the Post-ST procedure (surface learnings → user checks boxes → route each checked item by its `Enforcement:` form to prompt-engineer or workflow-engineer → audit → terminate). Absent → worktask complete. Never apply unchecked proposals.
 
 ## Resume After Interruption
 

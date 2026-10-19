@@ -474,7 +474,7 @@ Schemas` titles, owes a sweep. No stage is exempt and there is no lower tier: a 
 the run. The default: an item is surfaced at the FN gate when non-blocking and at this stage's own
 boundary when blocking, and in an unattended lane a `decision` item is recorded, not prompted, while
 an `escalate` item still stops at its boundary unless § Unattended fallbacks gives its lane nobody
-to stop for.
+to stop for. Under `fn_gate: "bypass"` nothing is deferred to the FN gate (§ Under fn_gate: "bypass").
 
 Which side applies is decided per item by `blocks_next_stage` (§ Where an item is answered), never by
 the stage code. `commands/worktask.md § Step C` renders the non-blocking side; § Step C.0 renders the
@@ -488,8 +488,8 @@ does with it — never in whether the sweep is owed:
 | Code | Obligation | Surfaced by (non-blocking / blocking) | Unattended fallback |
 |---|---|---|---|
 | PL | Required | plan gate / plan gate (PL's boundary IS the plan gate) | auto-decided at § Step A.4, else recorded — unresolved `escalate` items still force the checkpoint stop |
-| FN | Required | recorded for ST / FN's own boundary, before ST | `decision` items recorded, not prompted; `escalate` items stop at FN's boundary unless their lane parks or records (§ Unattended fallbacks) |
-| ST | Required | recorded as follow-ups / ST's own boundary | `decision` items recorded, not prompted; `escalate` items as FN |
+| FN | Required | recorded for ST / FN's own boundary, before ST | `fn_gate: "bypass"` ⇒ `[]` (below); else `decision` items recorded, not prompted; `escalate` items stop at FN's boundary unless their lane parks or records (§ Unattended fallbacks) |
+| ST | Required | recorded as follow-ups / ST's own boundary | as FN, the bypass rule included |
 | IR | Required | FN gate / this stage's own boundary | `--emergency` bypasses both gates: `decision` items recorded; `escalate` items still stop |
 
 #### Why those four depart
@@ -497,6 +497,14 @@ does with it — never in whether the sweep is owed:
 PL, FN and ST differ because they have no *later* gate to defer to — PL's own boundary is the plan
 gate, and FN and ST sit at or past the FN gate — so "surface at the FN gate" is not a destination
 they can name. IR differs because `--emergency` bypasses both gates by design.
+
+#### Under fn_gate: "bypass"
+
+The FN gate never shows, so an item deferred to it stalls the run. FN and ST emit
+`open_questions: []`. A non-blocking observation goes in the artifact body instead: FN's
+`complete-summary-N.md` follow-ups, ST's `## followups`. A `decision` FN must take uses the
+`recommended` option, and FN records it under its decisions with the resolution `(auto-recorded)`.
+`escalate` items are unchanged (§ Unattended fallbacks).
 
 Every other code — AR, TL, DV, DR, SR, QA, DC, RE, ET — takes the default sentence above
 unmodified, and a new stage code joins them by saying nothing here.

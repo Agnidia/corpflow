@@ -64,6 +64,8 @@ Read `state.json` facts first. Then, with N from `task.metadata.run_index`:
 
 Mark each `<plan_file>` criterion PASS, PARTIAL, or FAIL against the implementation; for PARTIAL/FAIL document the specific gap.
 
+When `state.json → metadata.ci` is `"disabled"`, a criterion whose only gap is a missing CI run is not PARTIAL: record the flag in its line instead (`skills/shared/state-ledger.md § CI field`).
+
 ### Step 3: Decision
 
 `retrospective-N.md` takes the H2 set in § Artifact anchors: the decision and each criterion's PASS/PARTIAL/FAIL under `## decision`; business value, what went well and what to improve as H3s under `## learnings`; every carried item under `## followups`.
@@ -109,6 +111,10 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage ST --p
 ```
 
 Omitting it loses the fact silently: a stub that reaches only the frontmatter never reaches the FN gate's render, so the question is never asked. Union by `.id`, last writer wins. Canonical: `handoff-protocol.md#facts-union`.
+
+#### Under fn_gate: "bypass"
+
+Under `fn_gate: "bypass"` no later gate exists, so ST emits `open_questions: []` and puts every non-blocking observation under `## followups` (`stage-contracts.md § Under fn_gate: "bypass"`).
 
 <!-- output-sections:begin stage=ST -->
 ### Artifact anchors

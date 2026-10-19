@@ -133,9 +133,6 @@ repo_body() {
   done < <(awk 'NR==1 && $0!="---"{exit} NR>1 && /^---[[:space:]]*$/{exit} /^related:/{r=1;next} r && /^  - skills\/[^ ]+\/SKILL\.md[[:space:]]*$/{print $2;next} r && !/^  - /{r=0}' "$PLUGIN_ROOT/$file")
 }
 
-# Sourced helpers are granted but never executed, so no invocation line can exist.
-REPO_SOURCE_ONLY_GRANTS="skills/worktask/scripts/effort-ladder.sh"
-
 # repo_file_grants <file> — this suite's own grant collector, over the seam API only
 # (corpflow_grant_rule_ok): reads frontmatter Bash(...) tokens with a local awk pass and
 # emits "<interp>\t<path>" per anchored grant, mirroring grant-lint.sh's own scan without
@@ -182,7 +179,6 @@ repo_file_grants() {
     local interp path prefix rule cmd
     while IFS="$(printf '\t')" read -r interp path; do
       [ -n "$path" ] || continue
-      case " $REPO_SOURCE_ONLY_GRANTS " in *" $path "*) continue ;; esac
       checked=$((checked + 1))
       prefix="$(repo_grant_prefix "$interp" "$path")"
       # Frontmatter is stripped so a grant cannot pass by matching its own text.

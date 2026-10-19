@@ -273,7 +273,25 @@ worktask (PL→…→ST) with gates pre-bypassed.
 `execution.status: "completed"` + `execution.pr` into `workspace.json` (completion contract:
 `references/schemas.md`). The monitor hook reads that, marks the issue `completed` in
 `orchestrator.json`, **unblocks dependents**, and frees the track. A `failed` issue writes
-`execution.status: "failed"` — its dependents stay `blocked`.
+`execution.status: "failed"` — its dependents stay `blocked`. A freed track is not reassigned
+while a live child of that issue's worktask runs (§ Track hold before reassignment).
+
+#### Track hold before reassignment
+
+Before reassigning a freed track, run the live check of `../worktask/SKILL.md § Hand-back guard`
+on that issue's `<worktree>/.context/state.json`. Every row writes `handback_guard` with
+`point: track_reassign`, except `clear`:
+
+| Outcome | Track | `result` |
+|---|---|---|
+| a live child | hold it this turn | `deferred` |
+| clear | reassign; no row | — |
+| the check cannot run here (`/megatask` grants `ListAgents`, not `Bash(claude:*)`, and `ListAgents` is unavailable), or its answer is indeterminate | release it | `unverified` |
+
+So this backstop is best-effort: it holds a track only where the lane can see liveness. The hold
+is bounded by `agent-coordination § Stall Timeout`. With no other track in flight, no later turn is
+guaranteed, so wait out that bound once in this turn, never in a poll loop, and check again. A child
+still live then releases the track with `result: unverified`.
 
 #### Post-merge settle
 
@@ -411,8 +429,8 @@ issues. Step-by-step procedure: `../../commands/megatask.md § Phase 1`.
 1. **On per-issue completion** — the hook marks the issue `completed` in `orchestrator.json`,
    removes it from every dependent's `blocked_by[]`, promotes now-unblocked dependents to `ready`,
    frees the track, and writes a `megatask_progress` audit row (+ optional notification).
-2. **Orchestrator turn** — re-read `orchestrator.json`, re-derive `parallel_tracks`, assign freed
-   tracks to ready issues (topological + priority order), launch their worktasks, each a
+2. **Orchestrator turn** — re-read `orchestrator.json`, re-derive `parallel_tracks`, assign freed,
+   unheld tracks to ready issues (topological + priority order), launch their worktasks, each a
    background `general-purpose` subagent whose stop fires this hook
    (`../../commands/megatask.md § Phase 2 loop · Step 3`).
 3. **Errors** — a `failed` issue frees its track but keeps its dependents permanently `blocked`;

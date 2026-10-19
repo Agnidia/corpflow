@@ -468,6 +468,12 @@ The `/worktask` option flags are not here: they land on PL0's task metadata (§ 
 |-------|-----------------|-------------|
 | `release_tag` | `state-patch.sh --ledger-meta --set '{"release_tag":"<tag>"}'` → release engineer (`changelog-from-git.sh --tag`) | The tag this release is cut under. Absent or empty ⇒ no changelog, PR or summary text names a tag |
 
+### CI field
+
+| Field | Writer → Reader | Description |
+|-------|-----------------|-------------|
+| `ci` | orchestrator, only on an explicit operator or megatask-brief instruction: `state-patch.sh --ledger-meta --set '{"ci":"disabled"}'` → FN, ST | `enabled` or `disabled`. Only the literal `"disabled"` turns CI off; absent or any other value means on, so a typo keeps CI on. Under `disabled`, FN skips `gh run watch` and writes "CI wait skipped: metadata.ci disabled" in `complete-summary-N.md`; ST marks no criterion PARTIAL for a missing CI run alone and records the flag instead. Revert with `{"ci":"enabled"}`: the merge cannot delete a key. The seed does not carry it, so a re-seeded run (new `run_index`) writes it again |
+
 ### Issue publishing field
 
 `metadata.github_issue_url` — issue URL written by `publish-pl-issue.sh` on the run that creates the issue; it short-circuits (`already_published`) on a resume of that same run. Readers: `publish-pl-issue.sh` (idempotency), FN PR-issue-link validator (rank-1). Pattern: `^https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/issues/[0-9]+(#issuecomment-[0-9]+)?$`.
