@@ -15,7 +15,7 @@
 #                           Required unless --artifact is given with parseable frontmatter.
 # @arg --artifact <path>    Explicit artifact path.  When omitted, resolved from
 #                           --stage + run_index from state.json.
-# @arg --prev <CODE>        Previous stage code, or USER for the documented USER→PL /
+# @arg --prev <CODE|ID>     Previous stage code (AR), indexed task id (AR0), or USER for the USER→PL /
 #                           USER→IR origin edges.  When present, ALSO writes
 #                           handoffs["<PREV>→<TASK_ID>"] = "<summary> ref:<artifact basename>"
 #                           from the parsed frontmatter summary — the ledger edge every stage
@@ -59,6 +59,8 @@
 #                           `git diff --name-only <base>...HEAD` to files_modified; the base
 #                           comes from the row's base_ref, then the ledger mirror, and an
 #                           unresolvable input adds nothing (§ DV-settle fill below).
+#                           decisions items accept objects with string .id or non-empty strings;
+#                           strings get a deterministic str-<base64> id and the writer stage.
 #                           open_questions items must be FULL sweep stubs (string .id, .class
 #                           and .ref, boolean .blocks_next_stage); a partial one exits 2 with
 #                           state.json untouched.  branch is a string matching
@@ -198,8 +200,12 @@
 #                                             Both sides are normalised: a leading ./, a
 #                                             trailing #anchor and a trailing :N are stripped.
 #                                             A change set that is absent, unreadable or empty
-#                                             BEFORE that exclusion, or an empty cited set,
-#                                             fails safe to `pending`; one left empty only BY
+#                                             BEFORE that exclusion fails safe to `pending`.
+#                                             With an empty cited set, the dependent's own
+#                                             files_touched gives own-file-changed (pending)
+#                                             or no-own-file-changed (completed); absent,
+#                                             unparsed or empty own files yield cited-set-empty
+#                                             (pending). One left empty only BY
 #                                             the exclusion is a known change set that touched
 #                                             no cited file, so the dependent completes.
 #                                             --changed is a TEST SEAM, not an orchestrator
@@ -358,6 +364,7 @@
 
 set -Eeuo pipefail
 IFS=$'\n\t'
+unset ATOMIC_APPLY_PROBE ATOMIC_APPLY_PROBE_OUT _FACTS_SPILL_PATH
 trap 'printf >&2 "error: %s:%d: exit %d\n" "${BASH_SOURCE[0]}" "$LINENO" "$?"' ERR
 
 # ---------- Constants ----------
@@ -1298,7 +1305,7 @@ _STATE_BOUNDS_FILTER='
 # `class` is raise-only on `decision < escalate`: labellers are indistinguishable here, so
 # a re-run lowering another labeller's `escalate` would route it to an unattended answer. An
 # absent or null class keeps the incumbent's. A third SWEEP_CLASS_ENUM value means revisiting
-# this arm. An `escalate` already evicted to the spill has no incumbent and is not guarded.
+# this arm. The spill incumbent is read inside the same lock as the ledger.
 #
 # Object-merge (`. * $patch`) REPLACES arrays, so without this a downstream patch would drop
 # every entry an upstream stage recorded. Identity is `.id`, or the string itself for the
@@ -1341,11 +1348,19 @@ _FACTS_UNION_FILTER='
                then { stage: $slot } else {} end);
       def _dec_defaults:
         (($ARGS.named.decision_task // "") | if . == "" then null else . end) as $tid
+        | (if type == "string" then {id: ("str-" + @base64), summary: .} else . end)
         | . + (if (.stage // null) == null and $tid != null
                then { stage: $tid } else {} end);
       def _union_sweep:
         reduce (.[] | _sweep_defaults) as $e ([];
-          ((map(select(.id == $e.id)) | first) // null) as $prev
+          ((map(select(.id == $e.id)) | first) // null) as $ledger
+          | (reduce ($ARGS.named.sweep_spill // [])[] as $s (null;
+               if $s.id != $e.id then .
+               elif . == null then $s
+               else _sweep_join(.; $s) end)) as $spilled
+          | (if $ledger != null and $spilled != null
+             then _sweep_join($spilled; $ledger)
+             else ($ledger // $spilled) end) as $prev
           | map(select(.id != $e.id)) + [ _sweep_join($prev; $e) ]);
       .facts = ((.facts // {})
         | (if ($f.decisions // null) != null
@@ -1413,8 +1428,9 @@ _FACTS_PARTITION_FILTER='
           then "ref is not an optional <artifact>.md path plus one non-empty #anchor"
         else "" end;
       def _dec_bad:
-        if type != "object" then "not an object"
-        elif (.id | type) != "string" then "missing string .id"
+        if type == "string" and length > 0 then ""
+        elif type != "object" then "expected {id, summary, ref} or a non-empty string"
+        elif (.id | type) != "string" then "expected {id, summary, ref}: missing string .id"
         else "" end;
       def _fatal($m): {fatal: $m, clean: {}, rejects: []};
       if type != "object" then _fatal("must be a JSON object")
@@ -1577,7 +1593,7 @@ _spill_evicted() {
 # (blocked_by union/subtraction) MUST come through here rather than precomputing from an
 # unlocked read: a pre-lock read races a sibling writer and silently drops its edges.
 #
-# Opt-in observer: a caller that sets ATOMIC_APPLY_PROBE (jq text, same args) gets its
+# Opt-in observer: an internal caller that sets ATOMIC_APPLY_PROBE (jq text, same args) gets its
 # output over the about-to-commit state in ATOMIC_APPLY_PROBE_OUT. A probe failure only
 # loses the report, never the write.
 atomic_apply() {
@@ -1600,14 +1616,29 @@ atomic_apply() {
     _lock_audit state_write_unlocked "lock=${state}.lock.d" "waited_s=${_LOCK_WAITED:-0}" "reason=timeout"
   fi
 
+  if [[ -n "${_FACTS_SPILL_PATH:-}" ]]; then
+    local sweep_spill='[]'
+    if [[ -e "$_FACTS_SPILL_PATH" || -L "$_FACTS_SPILL_PATH" ]]; then
+      if [[ ! -f "$_FACTS_SPILL_PATH" || -L "$_FACTS_SPILL_PATH" || ! -r "$_FACTS_SPILL_PATH" ]] \
+        || ! sweep_spill=$(jq -sc 'if all(.[]; type == "object" and (.id | type) == "string")
+          then . else error("invalid sweep spill") end' "$_FACTS_SPILL_PATH" 2>> "$LOG_FILE"); then
+        printf >&2 'invalid --facts: sweep spill unreadable or malformed; state.json unchanged\n'
+        log_msg ERROR "sweep spill unreadable or malformed; facts union refused"
+        _lock_release
+        return 1
+      fi
+    fi
+    set -- "$@" --argjson sweep_spill "$sweep_spill"
+  fi
+
   local rc=0
   if jq "$@" "( ${filter} ) | ${_STATE_BOUNDS_FILTER}" "$state" > "$tmp" 2>> "$LOG_FILE"; then
     _spill_evicted "$state" "$tmp" "$filter" "$@"
     if [[ -n "${ATOMIC_APPLY_PROBE:-}" ]]; then
       ATOMIC_APPLY_PROBE_OUT=$(jq -c "$@" "$ATOMIC_APPLY_PROBE" "$tmp" 2>> "$LOG_FILE") || {
         ATOMIC_APPLY_PROBE_OUT=""
-        printf >&2 'warn: class-downgrade detection failed; join still enforced (merge unaffected)\n'
-        log_msg WARN "class-downgrade detection failed; join still enforced (merge unaffected)"
+        printf >&2 'warn: atomic apply probe failed; merge unaffected\n'
+        log_msg WARN "atomic apply probe failed; merge unaffected"
       }
     fi
     sync "$tmp" 2> /dev/null || sync 2> /dev/null || true
@@ -2130,10 +2161,16 @@ if [[ -n "$VIA_ARG" && "$VIA_ARG" != "hook" && "$VIA_ARG" != "step6_5" ]]; then
   usage
 fi
 
-# Validate --prev (must be a known stage code or USER). Unknown ⇒ caller bug — surface it.
-if [[ -n "$PREV_ARG" ]] && ! is_valid_prev "$PREV_ARG"; then
-  printf >&2 'invalid --prev value: %s (expected a stage code: PL AR TL DV DR SR QA DC RE FN ST IR ET — or USER)\n' "$PREV_ARG"
-  usage
+# Validate --prev after removing an optional task index; USER has no indexed form.
+if [[ -n "$PREV_ARG" ]]; then
+  if [[ "$PREV_ARG" =~ ^([A-Z]+)[0-9]+$ ]]; then
+    PREV_ARG="${BASH_REMATCH[1]}"
+    [[ "$PREV_ARG" != "USER" ]] || PREV_ARG="USER0"
+  fi
+  if ! is_valid_prev "$PREV_ARG"; then
+    printf >&2 'invalid --prev value: %s (expected a stage code such as AR or task id such as AR0; USER has no index)\n' "$PREV_ARG"
+    usage
+  fi
 fi
 
 # ENOSPC guard (optional — only when caller requests it).
@@ -3066,7 +3103,32 @@ if [[ -n "$TASK_OP" ]]; then
       # Planned pre-lock and re-asserted under it, the way replay surveys then applies: the
       # decision needs the cited sets of every stale row, and the printed line must name the
       # same rows the write moved.
-      SETTLE_PLAN=$(jq -c --arg cstate "$_SETTLE_STATE" \
+      _SETTLE_OWN='{}'
+      _SETTLE_FM_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/frontmatter-lib.sh"
+      if ! command -v corpflow_fm_block > /dev/null 2>&1 && [ -r "$_SETTLE_FM_LIB" ]; then
+        . "$_SETTLE_FM_LIB"
+      fi
+      while IFS=$'\t' read -r _SETTLE_ID _SETTLE_OWN_ART; do
+        [[ -n "$_SETTLE_OWN_ART" ]] || continue
+        case "$_SETTLE_OWN_ART" in
+          /*) _SETTLE_OWN_PATH="$_SETTLE_OWN_ART" ;;
+          *)
+            if [[ -n "$CTX" && "$CTX" != "." ]]; then
+              _SETTLE_CTX_PARENT="${CTX%/*}"
+              [[ "$_SETTLE_CTX_PARENT" == "$CTX" ]] && _SETTLE_CTX_PARENT="."
+              _SETTLE_OWN_PATH="${_SETTLE_CTX_PARENT}/$_SETTLE_OWN_ART"
+            else
+              _SETTLE_OWN_PATH="$_SETTLE_OWN_ART"
+            fi ;;
+        esac
+        parse_files_touched "$_SETTLE_OWN_PATH"
+        if [[ "$PARSED_FT_STATE" == "list" ]]; then
+          _SETTLE_OWN=$(jq -c --arg id "$_SETTLE_ID" --argjson files "$PARSED_FT_JSON" \
+            '. + {($id): $files}' <<< "$_SETTLE_OWN")
+        fi
+      done < <(jq -r '.tasks | to_entries[] | select(.value.status == "stale")
+        | [.key, (.value.artifact // .value.metadata.artifact // "")] | @tsv' "$STATE_PATH")
+      SETTLE_PLAN=$(jq -c --arg cstate "$_SETTLE_STATE" --argjson own "$_SETTLE_OWN" \
         --argjson changed "$_SETTLE_CHANGED_JSON" '
         # D2 normalisation, applied to BOTH sides: a citation reads `docs/x.md#anchor` or
         # `src/y.sh:42` where files_touched records the bare path, and an unnormalised
@@ -3090,7 +3152,14 @@ if [[ -n "$TASK_OP" ]]; then
                 + [ ($st.tasks[$t].metadata.consumes // [])[] | (.paths // [])[] ]
                 | map(select(type == "string") | norm) | unique ) as $cited
             | (if $cstate != "known" then ["pending", "change-set-unknown"]
-               elif ($cited | length) == 0 then ["pending", "cited-set-empty"]
+               elif ($cited | length) == 0 then
+                 ([ ($own[$t] // [])[] | select(type == "string")
+                    | select(test("^\\+ [0-9]+ more$") | not) | norm
+                    | select(startswith(".context/") | not) | select(length > 0) ] | unique) as $own_files
+                 | if ($own_files | length) == 0 then ["pending", "cited-set-empty"]
+                   elif any($chg[]; . as $p | ($own_files | index($p)) != null)
+                   then ["pending", "own-file-changed"]
+                   else ["completed", "no-own-file-changed"] end
                elif any($chg[]; . as $p | ($cited | index($p)) != null)
                then ["pending", "cited-file-changed"]
                else ["completed", "no-cited-file-changed"] end) as $d
@@ -3608,14 +3677,18 @@ ${list}"
     log_msg ERROR "no ledger at ${STATE_PATH}; --facts landed nothing"
     exit 1
   elif {
-    # Read-after-release would misreport a sibling's concurrent raise; so the probe runs in-lock.
+    # The spill and ledger must be read under one lock to retain a concurrent eviction.
+    _FACTS_SPILL_DIR="${STATE_PATH%/*}"
+    [[ "$_FACTS_SPILL_DIR" == "$STATE_PATH" ]] && _FACTS_SPILL_DIR="."
+    _FACTS_RUN_IDX=$(jq -r '.run_index // 0' "$STATE_PATH")
+    _FACTS_SPILL_PATH="$_FACTS_SPILL_DIR/open-questions-${_FACTS_RUN_IDX}.jsonl"
     [[ "$(printf '%s' "$FACTS_ARG" | jq -r '(.open_questions // []) | length')" -gt 0 ]] \
       && ATOMIC_APPLY_PROBE="$_FACTS_CLASS_REFUSAL_PROBE"
     _facts_apply_rc=0
     atomic_apply "$STATE_PATH" "$_FACTS_UNION_FILTER" \
       --argjson f "$FACTS_ARG" --arg sweep_stage "$SWEEP_STAGE_FALLBACK" \
       --arg decision_task "$DECISION_TASK_ID" || _facts_apply_rc=$?
-    unset ATOMIC_APPLY_PROBE
+    unset ATOMIC_APPLY_PROBE _FACTS_SPILL_PATH
     [[ "$_facts_apply_rc" -eq 0 ]]
   }; then
     log_msg INFO "facts union: $(printf '%s' "$FACTS_ARG" | jq -r 'keys | join(",")')"
@@ -3629,7 +3702,8 @@ ${list}"
     # in and is not there afterwards was evicted by a clamp, which is exactly the silent loss
     # this stage exists to remove. Loud on stderr; the merge itself stands.
     FACTS_LOST=$(jq -r --argjson f "$FACTS_ARG" '
-        (([ ($f.decisions // [])[].id ] - [ (.facts.decisions // [])[].id ])
+        def dec_id: if type == "string" then "str-" + @base64 else .id end;
+        (([ ($f.decisions // [])[] | dec_id ] - [ (.facts.decisions // [])[].id ])
        + ([ ($f.open_questions // [])[].id ] - [ (.facts.open_questions // [])[].id ]))
        | join(", ")' "$STATE_PATH" 2> /dev/null || printf '')
     if [[ -n "$FACTS_LOST" ]]; then

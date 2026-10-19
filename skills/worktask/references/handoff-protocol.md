@@ -1345,12 +1345,14 @@ Every consumer: `stale`. Transitive set reachable downstream through `blocked_by
 
 ##### tasks — settle, the cited set and the change set — invocation and table
 
-`--task-settle-stale <TARGET>` runs at the target's own completion boundary, after completion patch, before next ready-filter pass (`skills/worktask/SKILL.md § Step 6.5d`). For each `stale` task, decides one direction and prints `{"settled":[{"task","to","reason"}]}`:
+`--task-settle-stale <TARGET>` runs after target completion and before the ready filter (`skills/worktask/SKILL.md § Step 6.5d`). It settles each `stale` task and prints `{"settled":[{"task","to","reason"}]}`:
 
 | Case | `status` | `reason` |
 |---|---|---|
 | change set unreadable: no path, unreadable artifact, no parser, or absent `files_touched` | `pending` | `change-set-unknown` |
-| cited set empty after normalisation | `pending` | `cited-set-empty` |
+| cited set empty; dependent files_touched absent, unparsed or empty | `pending` | `cited-set-empty` |
+| cited set empty; dependent's own files_touched intersects the change set | `pending` | `own-file-changed` |
+| cited set empty; dependent's own files_touched is disjoint from the change set | `completed` | `no-own-file-changed` |
 | cited and change sets intersect | `pending` | `cited-file-changed` |
 | cited is not in change set (or `.context/` emptied it) | `completed` | `no-cited-file-changed` |
 
