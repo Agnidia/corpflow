@@ -193,8 +193,8 @@ under `## elicitation-sweep`. Resolve questions existing artifacts answer; cost 
   lowers it. `blocks_next_stage` is REQUIRED on every stub and on BOTH stub transports —
   `handoff.open_questions[]` **and** the `state-patch.sh --facts` payload — and the two copies must
   agree — `true` costs a round trip at your own boundary, `false` batches at the final gate.
-- On rework or retry, preserve `status` and `resolution`. Raise only: `decision < escalate` and
-  `false < true` for `blocks_next_stage`; `state-patch.sh` refuses a downgrade with exit 2.
+- On rework or retry, preserve `status` and `resolution`. Ledger `class` is raise-only:
+  `decision < escalate` (downgrade exits 2); explicit `blocks_next_stage: false` clears prior `true`.
 - An option to accept a known vulnerability, CVE, or security finding requires `class: escalate`.
 - You never ask — no plugin agent holds an ask tool; the orchestrator renders every item.
 - Not the sweep, each already has a channel: runtime evidence (`requests_test_evidence:`), a skipped
