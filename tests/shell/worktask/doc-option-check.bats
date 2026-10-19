@@ -270,6 +270,72 @@ check() {
   assert_output 'docs/a"b\c/d.md'
 }
 
+@test "integrity hash tokens are not paths, even under an existing first segment" {
+  tree_with 'docs/a.md:Pins `sha512-AbC+dEf/GhI/jKl==`, `sha384-x/y+z=` and `sha256-q/r`.\n' \
+    'sha256-q/keep.md:k\n'
+  check --tree "$T" "$T/docs/a.md"
+  assert_success
+  assert_output ""
+}
+
+@test "first segment absent everywhere: a vendored token is skipped; a deeper segment keeps the check" {
+  tree_with 'vendor/pkg/PROVENANCE.md:Built from `package/bundles/app.js`.\n'
+  check --tree "$T" "$T/vendor/pkg/PROVENANCE.md"
+  assert_success
+  assert_output ""
+  mkdir -p "$T/lib/package"
+  printf 'x\n' > "$T/lib/package/x.js"
+  git -C "$T" add -- lib/package/x.js
+  check --tree "$T" "$T/vendor/pkg/PROVENANCE.md"
+  assert_failure 1
+  [ "${#lines[@]}" -eq 1 ]
+  jq -e '.name == "package/bundles/app.js" and .reason == "missing"' <<< "$output"
+}
+
+@test "first segment absent: a link target is still checked, and docs/gone.md under docs/ is missing" {
+  tree_with 'docs/a.md:See [x](package/bundles/app.js).\n' 'docs/b.md:See `docs/gone.md`.\n'
+  check --tree "$T" "$T/docs/a.md"
+  assert_failure 1
+  [ "${#lines[@]}" -eq 1 ]
+  jq -e '.name == "package/bundles/app.js" and .reason == "missing"' <<< "$output"
+  check --tree "$T" "$T/docs/b.md"
+  assert_failure 1
+  [ "${#lines[@]}" -eq 1 ]
+  jq -e '.name == "docs/gone.md" and .reason == "missing"' <<< "$output"
+}
+
+# --- CHANGELOG.md scope --------------------------------------------------------
+
+@test "CHANGELOG.md: only the [Unreleased] block is scanned, at file line numbers" {
+  tree_with 'docs/index.md:# docs\n' \
+    'CHANGELOG.md:# Changelog\n\n## [Unreleased]\n- See `docs/gone.md`.\n\n## [1.0.0]\n- See `docs/old-gone.md`.\n'
+  check --tree "$T" "$T/CHANGELOG.md"
+  assert_failure 1
+  [ "${#lines[@]}" -eq 1 ]
+  jq -e '.name == "docs/gone.md" and .line == 4 and .doc == "CHANGELOG.md"' <<< "$output"
+}
+
+@test "CHANGELOG.md with no [Unreleased] heading yields no finding for a path, env var or flag" {
+  local body='# Changelog\n\n## [1.0.0]\n- `docs/gone.md`, `API_BIND_X` and `bash scripts/run.sh --bogus-flag`.\n'
+  tree_with 'docs/index.md:# docs\n' 'scripts/run.sh:echo --real-flag\n' "CHANGELOG.md:$body" "docs/old.md:$body"
+  check --tree "$T" "$T/CHANGELOG.md"
+  assert_success
+  assert_output ""
+  # The same text under another basename is scanned in full, so the fixture is not inert. Both
+  # are checked together because a doc outside the <doc> set is evidence for the other.
+  check --tree "$T" "$T/CHANGELOG.md" "$T/docs/old.md"
+  assert_failure 1
+  jq -se 'map(.doc) == ["docs/old.md", "docs/old.md", "docs/old.md"]
+    and (map(.kind) | sort) == ["env", "flag", "path"]' <<< "$output"
+}
+
+@test "only CHANGELOG.md is scoped: another doc with the same blocks is scanned in full" {
+  tree_with 'docs/notes.md:# Notes\n\n## [Unreleased]\n- See `docs/gone.md`.\n\n## [1.0.0]\n- See `docs/old-gone.md`.\n'
+  check --tree "$T" "$T/docs/notes.md"
+  assert_failure 1
+  jq -se 'map(.line) == [4, 7]' <<< "$output"
+}
+
 # --- trees, allow-list, exit codes ---------------------------------------------
 
 @test "two trees: a name defined only in the second passes" {
@@ -291,7 +357,7 @@ check() {
 # --- --allow-path ------------------------------------------------------------
 
 @test "--allow-path exempts an exact runtime path; another missing path is still one finding" {
-  tree_with 'README.md:Saves under `./.tictactoe/`.\n'
+  tree_with 'README.md:Saves under `./.tictactoe/`.\n' 'docs/index.md:# docs\n'
   check --tree "$T" --allow-path .tictactoe "$T/README.md"
   assert_success
   assert_output ""
@@ -303,14 +369,14 @@ check() {
 }
 
 @test "--allow-path exempts a descendant and normalizes ./ and a trailing /" {
-  tree_with 'README.md:See `var/cache/run.db` and [log](var/log/a.txt).\n'
+  tree_with 'README.md:See `var/cache/run.db` and [log](var/log/a.txt).\n' 'var/keep.md:k\n'
   check --tree "$T" --allow-path ./var/ "$T/README.md"
   assert_success
   assert_output ""
 }
 
 @test "--allow-path is a path prefix by segment, not by string" {
-  tree_with 'README.md:See `variant/x.md`.\n'
+  tree_with 'README.md:See `variant/x.md`.\n' 'variant/keep.md:k\n'
   check --tree "$T" --allow-path var "$T/README.md"
   assert_failure 1
   jq -e '.name == "variant/x.md"' <<< "$output"
@@ -332,7 +398,7 @@ check() {
 }
 
 @test "--allow-path canonicalizes inner // and /./, so a//b and a/./b match a/b" {
-  tree_with 'README.md:See `a/b/run.db`.\n'
+  tree_with 'README.md:See `a/b/run.db`.\n' 'a/keep.md:k\n'
   local v
   for v in a//b a/./b a/.//b/. ; do
     check --tree "$T" --allow-path "$v" "$T/README.md"
@@ -352,6 +418,37 @@ check() {
   assert_failure 2
 }
 
+# --- --exclude -----------------------------------------------------------------
+
+@test "--exclude skips a vendored doc by tree-relative prefix and says so on stderr" {
+  tree_with 'docs/index.md:# docs\n' 'vendor/pkg/PROVENANCE.md:See `docs/gone.md`.\n' \
+    'docs/a.md:See `docs/also-gone.md`.\n'
+  check --tree "$T" --exclude vendor/pkg "$T/vendor/pkg/PROVENANCE.md" "$T/docs/a.md"
+  assert_failure 1
+  [ "${#lines[@]}" -eq 1 ]
+  jq -e '.doc == "docs/a.md" and .name == "docs/also-gone.md"' <<< "$output"
+  printf '%s\n' "$stderr" | grep -Fxq 'doc-option-check: excluded: vendor/pkg/PROVENANCE.md'
+  check --tree "$T" --exclude vendor/pkg/PROVENANCE.md --exclude docs/a.md \
+    "$T/vendor/pkg/PROVENANCE.md" "$T/docs/a.md"
+  assert_success
+  assert_output ""
+  check --tree "$T" --exclude vendor/pk "$T/vendor/pkg/PROVENANCE.md" "$T/docs/a.md"
+  assert_failure 1
+  [ "${#lines[@]}" -eq 2 ]
+  [[ "$stderr" != *"excluded:"* ]]
+}
+
+@test "--exclude rejects a broad value with exit 2" {
+  tree_with 'docs/a.md:x\n'
+  local v
+  for v in '' . ./ /abs a/../b ..; do
+    check --tree "$T" --exclude "$v" "$T/docs/a.md"
+    assert_failure 2
+  done
+  check --tree "$T" --exclude
+  assert_failure 2
+}
+
 @test "a missing git-ignored path keeps its finding and gets the runtime hint on stderr" {
   tree_with '.gitignore:.tictactoe/\n' 'README.md:Saves under `./.tictactoe/`.\n'
   check --tree "$T" "$T/README.md"
@@ -361,8 +458,20 @@ check() {
   [[ "$stderr" == *"README.md:1: path ./.tictactoe/ is git-ignored; if the code creates it at runtime, re-run with --allow-path .tictactoe"* ]]
 }
 
+@test "the runtime hint names the tree-root path for a doc in a subdirectory, which --allow-path accepts" {
+  tree_with '.gitignore:dist/\n' 'vendor/pkg/README.md:See `dist/app.js`.\n'
+  mkdir -p "$T/dist"
+  printf 'x\n' > "$T/dist/other.js"
+  check --tree "$T" "$T/vendor/pkg/README.md"
+  assert_failure 1
+  printf '%s\n' "$stderr" | grep -Fxq 'doc-option-check: vendor/pkg/README.md:1: path dist/app.js is git-ignored; if the code creates it at runtime, re-run with --allow-path dist/app.js'
+  check --tree "$T" --allow-path dist/app.js "$T/vendor/pkg/README.md"
+  assert_success
+  assert_output ""
+}
+
 @test "a missing path that is not ignored gets no runtime hint" {
-  tree_with 'README.md:See `docs/gone.md`.\n'
+  tree_with 'README.md:See `docs/gone.md`.\n' 'docs/index.md:# docs\n'
   check --tree "$T" "$T/README.md"
   assert_failure 1
   [[ "$stderr" != *"git-ignored"* ]]
@@ -406,6 +515,8 @@ check() {
   assert_success
   assert_output --partial "doc-option-check.sh"
   assert_output --partial "--tree"
+  assert_output --partial "--exclude <path>"
+  assert_output --partial "[Unreleased]"
 }
 
 @test "no --tree: state.json .metadata.workspace_path names the tree" {
@@ -473,6 +584,10 @@ check() {
   assert_success
   assert_output --partial "S1: undefined env var is a finding: ok"
   assert_output --partial "S5: unresolved tree exits 3: ok"
+  assert_output --partial "S9: CHANGELOG.md [Unreleased] block is scanned: ok"
+  assert_output --partial "S11: integrity hashes are not paths: ok"
+  assert_output --partial "S12: an unknown first segment is not a path: ok"
+  assert_output --partial "S13: --exclude skips a doc: ok"
   assert_output --partial "self-test: ALL PASS"
   assert_output --regexp 'ALL PASS \([1-9][0-9]* passed, 0 failed\)'
 }
