@@ -100,6 +100,13 @@ section() {
   assert_output --partial "**before** any wait"
 }
 
+@test "REQ-4: /megatask grants ListAgents, not Bash(claude:*), for the track hold" {
+  run grep -m1 '^allowed-tools:' "commands/megatask.md"
+  assert_success
+  assert_output --partial "ListAgents"
+  refute_output --partial "Bash(claude:"
+}
+
 @test "REQ-4: an indeterminate live check is unverified, never clear" {
   run section "$SKILL" "#### Hand-back guard — verdicts"
   assert_output --partial "Nothing that is unclear maps to \`clear\`"

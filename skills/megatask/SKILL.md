@@ -286,7 +286,7 @@ on that issue's `<worktree>/.context/state.json`. Every row writes `handback_gua
 |---|---|---|
 | a live child | hold it this turn | `deferred` |
 | clear | reassign; no row | — |
-| the check cannot run here (`/megatask` grants neither `Bash(claude:*)` nor `ListAgents`, or the CLI is unavailable), or its answer is indeterminate | release it | `unverified` |
+| the check cannot run here (`/megatask` grants `ListAgents`, not `Bash(claude:*)`, and `ListAgents` is unavailable), or its answer is indeterminate | release it | `unverified` |
 
 So this backstop is best-effort: it holds a track only where the lane can see liveness. The hold
 is bounded by `agent-coordination § Stall Timeout`. With no other track in flight, no later turn is
