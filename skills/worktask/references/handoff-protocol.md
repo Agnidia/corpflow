@@ -1944,12 +1944,18 @@ Retries are per row (`retry_count`); every row appends to the shared
 Every DV row carries `metadata.workspace_path` from creation (`state-patch.sh --task-create` refuses
 one without it; a TL stream clones DV0's), and the row's agent enters that path and no other.
 
-At dispatch the orchestrator pins a DV row to its own stream worktree when the row carries
-`metadata.stream` AND its `metadata.workspace_path` is also held by another DV row that can run
-concurrently with it (neither row reaches the other through `blocked_by`). The orchestrator creates
-the worktree, re-stamps that row's `metadata.workspace_path` with `state-patch.sh --task-meta`, and
-only then renders the banner. Rows whose streams are serialized by `blocked_by` may share one tree.
-That is legal and is not re-pinned. It is the mode a /megatask per-issue run uses.
+An explicit `WORKSPACE_ROOT` that resolves to the orchestrator root marks a pinned session. A
+linked worktree alone does not. In that mode, shared-tree DV streams run in numeric row order.
+Before dispatch, the orchestrator blocks each later independent row on the nearest earlier row,
+then rechecks the row's readiness because the ready list predates the block. It keeps both rows on
+the assigned session tree and does not create stream worktrees. Existing transitive ordering stays
+intact, and repeat dispatch adds no dependency.
+
+Without that session pin, a DV row with `metadata.stream` gets its own stream worktree when another
+DV row holds the same `metadata.workspace_path` and neither row reaches the other through `blocked_by`.
+The orchestrator creates the tree, re-stamps `metadata.workspace_path` through
+`state-patch.sh --task-meta`, and then renders the banner. Already serialized streams may share
+one tree. Landing of declared `consumes` runs after either path selects its final tree.
 
 #### Artifact naming (S1)
 

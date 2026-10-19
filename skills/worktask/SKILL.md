@@ -895,6 +895,9 @@ Step 6's composer emits that as [7]'s first line from the same script, after the
 
 The row's tree is fixed here, before `Agent()`, so this banner and the Step 6 dispatch read one path.
 The code implements `references/handoff-protocol.md § Pinning a row's tree`.
+An explicit `WORKSPACE_ROOT` matching the orchestrator root pins the host session. A linked
+worktree alone does not establish this mode. In a pinned session, serialize shared-tree DV streams
+before dispatch; the ready list was computed earlier and must be checked again after a block.
 
 ```typescript
       // …continued: step 4.8 body. Concurrent = no transitive blocked_by path either way.
@@ -911,13 +914,31 @@ The code implements `references/handoff-protocol.md § Pinning a row's tree`.
         id !== task.id && t.metadata?.stage === "DV" &&
         t.metadata?.workspace_path === full.metadata.workspace_path &&
         !reaches(task.id, id) && !reaches(id, task.id));
+      const sessionPinned = !!process.env.WORKSPACE_ROOT &&
+        fs.realpathSync(process.env.WORKSPACE_ROOT) === fs.realpathSync(_orch_root);
+      if (sessionPinned && full.metadata.stream) {
+        const earlier = Object.entries(state.tasks ?? {})
+          .filter(([id, t]) => /^DV[0-9]+$/.test(id) &&
+            Number(id.slice(2)) < Number(task.id.slice(2)) &&
+            t.metadata?.stage === "DV" && t.metadata?.stream &&
+            t.metadata?.workspace_path === full.metadata.workspace_path &&
+            !reaches(task.id, id) && !reaches(id, task.id))
+          .sort(([a], [b]) => Number(b.slice(2)) - Number(a.slice(2)));
+        if (earlier.length > 0) {
+          execFileSync("bash", ["skills/worktask/scripts/state-patch.sh", "--task-block",
+                                task.id, "--on", earlier[0][0]]);
+          state = JSON.parse(fs.readFileSync(".context/state.json", "utf8"));
+        }
+        if ((state.tasks[task.id]?.blocked_by ?? []).some(id =>
+              !SETTLED.has(state.tasks[id]?.status))) continue;
+      }
 ```
 
 ##### Step 4.8 — re-stamp, then read the banner path
 
 ```typescript
       // …continued: step 4.8 body. Argv form, never a shell string: a path may contain `'`.
-      if (full.metadata.stream && sharedWithConcurrent) {
+      if (!sessionPinned && full.metadata.stream && sharedWithConcurrent) {
         const tree = ensureStreamWorktree(task);  // this stream's own worktree, off metadata.base_ref
         execFileSync("bash", ["skills/worktask/scripts/state-patch.sh", "--task-meta", task.id,
                               "--set", JSON.stringify({ workspace_path: tree })]);
