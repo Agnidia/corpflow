@@ -141,6 +141,14 @@ The match ignores case. Every other runner only warns and writes one `count_corr
 row: a `bash-*` live script, `xcodebuild`, `swift`, and unknown names. `xcodebuild` stays at warn
 because a mixed XCTest + Swift Testing scheme prints one tally per framework and no total.
 
+### xcodebuild: the total comes from the result bundle
+
+For a total, read the result bundle: capture `xcrun xcresulttool get test-results summary --path
+<bundle>.xcresult` to `.context/logs/` as a `.json` file and name it in the artifact. An
+`xcodebuild` entry whose line carries `count` is then corroborated when the capture's
+`totalTestCount` equals `count`, even though no runner printed that line
+(`skills/shared/stage-contracts.md § An xcresult summary corroborates an xcodebuild line`).
+
 ### A failing pytest run: the outcome sum
 
 pytest prints a total only when every case passed. A failing run prints a list of outcome counts,

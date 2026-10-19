@@ -16,7 +16,8 @@
 #   Symbols: corpflow_workspace_root, corpflow_context_root, corpflow_active_stage,
 #   corpflow_resolve_pin, corpflow_stage_and_pin, corpflow_model_family,
 #   corpflow_switch_dest, corpflow_switch_origin, corpflow_switch_fields,
-#   corpflow_audit_task_id, corpflow_hook_audit_row, corpflow_bind_payload.
+#   corpflow_audit_task_id, corpflow_hook_audit_row, corpflow_bind_payload,
+#   corpflow_first_user_text.
 #
 # Minimum shell: bash 3.2+ (macOS default). Correct under the union of its
 # consumers' option sets, `set -euf -o pipefail`, while setting none of them.
@@ -94,6 +95,23 @@ _cf_issue_root_of() {
   return 0
 }
 
+# corpflow_first_user_text <transcript_path> — echoes the text of the first user record
+# within the first 40 lines of a JSONL transcript: the acting agent's dispatch prompt.
+# Array content joins its text parts with newlines. Empty for a missing or unreadable
+# file, no jq, or no user record. The single place that assumes the transcript schema, so
+# the bind and the audit stage rung drift together if it changes.
+corpflow_first_user_text() {
+  local _u_tp="${1:-}"
+  [ -n "$_u_tp" ] && [ -f "$_u_tp" ] && [ -r "$_u_tp" ] || return 0
+  command -v jq > /dev/null 2>&1 || return 0
+  head -n 40 "$_u_tp" 2> /dev/null | jq -rn '
+      first(inputs | select(.type? == "user")) | .message.content
+      | if type == "string" then . elif type == "array"
+        then (map(select(.type? == "text") | .text | strings) | join("\n")) else empty end
+    ' 2> /dev/null || :
+  return 0
+}
+
 # corpflow_bind_payload <hook-stdin-json> — binds THIS hook process to the
 # /megatask per-issue worktree the payload belongs to, so corpflow_workspace_root
 # answers the issue's ledger ahead of WORKSPACE_ROOT/CLAUDE_PROJECT_DIR, which a
@@ -135,12 +153,9 @@ corpflow_bind_payload() {
       IFS= read -r _b_cmd || :
     } <<< "$_b_fields"
   fi
-  if [ -n "$_b_tp" ] && [ -f "$_b_tp" ] && [ -r "$_b_tp" ]; then
-    _b_cand=$(head -n 40 "$_b_tp" 2> /dev/null | jq -rn '
-        first(inputs | select(.type? == "user")) | .message.content
-        | if type == "string" then . elif type == "array"
-          then (map(select(.type? == "text") | .text | strings) | join("\n")) else empty end
-      ' 2> /dev/null | sed -n 's/^WORKSPACE_ROOT=\(\/.*\)$/\1/p' | head -n 1) || _b_cand=""
+  if [ -n "$_b_tp" ]; then
+    _b_cand=$(corpflow_first_user_text "$_b_tp" \
+      | sed -n 's/^WORKSPACE_ROOT=\(\/.*\)$/\1/p' | head -n 1) || _b_cand=""
     _b_wt=$(_cf_issue_root_of "$_b_cand")
   fi
   [ -n "$_b_wt" ] || _b_wt=$(_cf_issue_root_of "$_b_cmd")
@@ -548,4 +563,4 @@ readonly -f corpflow_workspace_root corpflow_context_root corpflow_active_stage 
   corpflow_resolve_pin corpflow_stage_and_pin corpflow_model_family \
   corpflow_switch_dest corpflow_switch_origin corpflow_switch_fields \
   corpflow_audit_task_id corpflow_hook_audit_row _cf_rank6_owns \
-  _cf_issue_root_of corpflow_bind_payload
+  _cf_issue_root_of corpflow_bind_payload corpflow_first_user_text

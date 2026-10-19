@@ -786,6 +786,15 @@ the artifact body nor in a `.context/logs/` capture the artifact names, one `fai
 a single run. It also fails an entry from a strict runner when the line does not carry that
 entry's `count` as a whole-number token (§ Strict runners fail a count-less line).
 
+##### An xcresult summary corroborates an xcodebuild line (tpl-dv, tpl-qa)
+
+An `xcodebuild` line composed from `xcrun xcresulttool get test-results summary` JSON is printed
+by no runner, so it has a third home: a `.context/logs/*.json` capture of that JSON, named in the
+artifact body, whose `totalTestCount` equals the entry's `count`, with `count` a whole-number token
+of the line. A missing capture, a file that is not that JSON, or an unequal total stays a fail. The
+validator reads the capture only and never runs `xcresulttool`. Suggested name:
+`.context/logs/qa0-xcresult-summary.json`.
+
 ##### Strict runners fail a count-less line (tpl-dv, tpl-qa)
 
 The strict runners are listed once, in `skills/shared/testing-strategy.md § Strict-count runners`,

@@ -489,6 +489,33 @@ _ab_trees() {
   assert_output "$WD"
 }
 
+# --- corpflow_first_user_text: the one transcript read ---------------------------
+
+@test "first_user_text: string and array content of the first user record, and empty on a miss" {
+  local t="$WD/t.jsonl"
+  { jq -cn '{type:"system",content:"x"}'
+    jq -cn '{type:"user",message:{content:"line one\nstage: QA"}}'
+    jq -cn '{type:"user",message:{content:"second"}}'; } > "$t"
+  run_script_env --cwd "$WD" --source "$LIB" corpflow_first_user_text "$t"
+  assert_success
+  assert_output "$(printf 'line one\nstage: QA')"
+
+  jq -cn '{type:"user",message:{content:[{type:"text",text:"a"},{type:"image"},{type:"text",text:"b"}]}}' > "$t"
+  run_script_env --cwd "$WD" --source "$LIB" corpflow_first_user_text "$t"
+  assert_output "$(printf 'a\nb')"
+
+  run_script_env --cwd "$WD" --source "$LIB" corpflow_first_user_text "$WD/missing.jsonl"
+  assert_success
+  assert_output ""
+
+  # Only the first 40 lines are read: a brief sits at the head of a transcript.
+  for _ in $(seq 1 40); do jq -cn '{type:"system"}'; done > "$t"
+  jq -cn '{type:"user",message:{content:"late"}}' >> "$t"
+  run_script_env --cwd "$WD" --source "$LIB" corpflow_first_user_text "$t"
+  assert_success
+  assert_output ""
+}
+
 # --- corpflow_switch_fields ---------------------------------------------------
 
 @test "switch_fields: a parseable payload yields agent_id, dest, origin, trigger" {
@@ -683,7 +710,7 @@ _row_of() { tail -n 1 "$WD/.context/logs/audit.jsonl"; }
   local fns="corpflow_workspace_root corpflow_context_root corpflow_active_stage
     corpflow_resolve_pin corpflow_stage_and_pin corpflow_model_family
     corpflow_switch_dest corpflow_switch_origin corpflow_switch_fields corpflow_audit_task_id
-    corpflow_hook_audit_row corpflow_bind_payload"
+    corpflow_hook_audit_row corpflow_bind_payload corpflow_first_user_text"
   for opts in 'set -eu' 'set -u; set -f' 'set -euo pipefail'; do
     for fn in $fns; do
       run bash -c "cd '$WD'; $opts; . '$PLUGIN_ROOT/$LIB'; $fn" 

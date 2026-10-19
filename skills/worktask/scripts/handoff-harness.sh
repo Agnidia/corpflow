@@ -1298,7 +1298,7 @@ te_strict_fix() {  # <runner>
 # each assumes the one before it held.
 check_summary_line_list() {  # <artifact> <fmfile> <stage>
   local artifact="$1" fmfile="$2" stage="$3" rc=0 i=0
-  local row etag rtag ctag stag cval runner count line
+  local row etag rtag ctag stag cval runner count line xc_hint
 
   # fd 3, not stdin: the loop body runs yq and the audit appender, and neither may drain
   # the rows still to be read.
@@ -1347,8 +1347,11 @@ check_summary_line_list() {  # <artifact> <fmfile> <stage>
       echo "fail: stage=$stage tests_executed[$i] runner=$runner summary_line carries no digit: \"$line\" — a runner's summary line reports numbers; a label is not evidence" >&2
       rc=1; i=$((i + 1)); continue
     fi
-    if ! summary_line_corroborated "$artifact" "$line"; then
-      echo "fail: stage=$stage tests_executed[$i] runner=$runner summary_line is uncorroborated: \"$line\" appears neither in $(basename "$artifact") nor in a .context/logs/ capture it names — an excerpt nobody can check is the unverifiable claim this arm refuses" >&2
+    if ! summary_line_corroborated "$artifact" "$line" "$count" "$runner"; then
+      xc_hint=""
+      te_runner_xcodebuild "$runner" \
+        && xc_hint=" — for xcodebuild, or a named .context/logs/*.json xcresulttool summary whose totalTestCount is $count"
+      echo "fail: stage=$stage tests_executed[$i] runner=$runner summary_line is uncorroborated: \"$line\" appears neither in $(basename "$artifact") nor in a .context/logs/ capture it names — an excerpt nobody can check is the unverifiable claim this arm refuses$xc_hint" >&2
       rc=1; i=$((i + 1)); continue
     fi
     if ! te_count_is_token "$line" "$count"; then
@@ -1415,32 +1418,63 @@ check_summary_line_legacy() {  # <artifact> <fmfile> <stage>
   return 0
 }
 
+te_runner_xcodebuild() {  # <runner>
+  [[ "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" == xcodebuild* ]]
+}
+
+# named_log_captures <artifact> <body> -> each existing file that a .context/logs/ path in
+# the body resolves to, glob included. Three resolutions, because an artifact names its
+# capture from the repo root as often as from beside itself, and neither spelling is wrong.
+named_log_captures() {
+  local dir cand path f
+  dir=$(cd "$(dirname "$1")" && pwd)
+  while IFS= read -r cand; do
+    [[ -n "$cand" ]] || continue
+    for path in "$cand" "$dir/${cand#.context/}" "$dir/../$cand"; do
+      for f in $path; do
+        [[ -f "$f" ]] && printf '%s\n' "$f"
+      done
+    done
+  done < <(printf '%s\n' "$2" | grep -oE '[A-Za-z0-9._/*-]*logs/[A-Za-z0-9._/*-]+' | sort -u)
+  return 0
+}
+
 # The excerpt must exist in something durable. Body first; then any .context/logs/
-# path the body names, glob included — a scoped bats run is captured as
-# `dv0-bats-*.log`, and a stage that names its capture that way has still put the
-# line somewhere a reader can open.
-summary_line_corroborated() {  # <artifact> <line>
-  local artifact="$1" line="$2" body dir cand path f
+# path the body names — a scoped bats run is captured as `dv0-bats-*.log`, and a stage
+# that names its capture that way has still put the line somewhere a reader can open.
+#
+# Third, for xcodebuild only: QA composes its line from `xcresulttool get test-results
+# summary` JSON, which no runner prints, so the line cannot be found verbatim anywhere.
+# A named *.json capture of that summary corroborates it when its total equals count and
+# the line carries count as a token. The arm reads the file and never runs xcresulttool;
+# a drifted JSON shape fails closed. The legacy scalar passes no count and gets no arm 3.
+summary_line_corroborated() {  # <artifact> <line> [count] [runner]
+  local artifact="$1" line="$2" count="${3-}" runner="${4-}" body f
   body=$(awk 'NR==1 && /^---[[:space:]]*$/ { fm=1; next }
               fm==1 && /^---[[:space:]]*$/ { fm=0; next }
               fm!=1' "$artifact")
   if printf '%s\n' "$body" | grep -Fq -- "$line"; then
     return 0
   fi
-  dir=$(cd "$(dirname "$artifact")" && pwd)
-  while IFS= read -r cand; do
-    [[ -n "$cand" ]] || continue
-    # Three resolutions, because an artifact names its capture from the repo root
-    # as often as from beside itself, and neither spelling is wrong.
-    for path in "$cand" "$dir/${cand#.context/}" "$dir/../$cand"; do
-      for f in $path; do
-        [[ -f "$f" ]] || continue
-        if grep -Fq -- "$line" "$f"; then
-          return 0
-        fi
-      done
-    done
-  done < <(printf '%s\n' "$body" | grep -oE '[A-Za-z0-9._/*-]*logs/[A-Za-z0-9._/*-]+' | sort -u)
+  while IFS= read -r f; do
+    if grep -Fq -- "$line" "$f"; then
+      return 0
+    fi
+  done < <(named_log_captures "$artifact" "$body")
+
+  [[ -n "$count" ]] && te_runner_xcodebuild "$runner" || return 1
+  te_count_is_token "$line" "$count" || return 1
+  command -v jq > /dev/null 2>&1 || return 1
+  while IFS= read -r f; do
+    [[ "$f" == *.json ]] || continue
+    if jq -e --argjson c "$((10#$count))" '
+        if type == "object" then
+          ([.totalTestCount, .passedTests, .failedTests] | all(type == "number"))
+          and .totalTestCount == $c
+        else false end' "$f" > /dev/null 2>&1; then
+      return 0
+    fi
+  done < <(named_log_captures "$artifact" "$body")
   return 1
 }
 
@@ -1702,13 +1736,13 @@ validate_frontmatter() {
   #
   # Each exclusion is capped (four stubs; four runner entries, a verbatim Xcode line being
   # about 19 tokens), so neither can be gamed by inflating strings or emitting extra items:
-  # 360 is a deterministic ceiling. Both shape checks have already run above, so only a
-  # shape-valid block is ever excluded — that ordering is what makes the caps safe.
+  # 360 is a deterministic ceiling. The cap is what makes an exclusion safe, not the order of
+  # the shape checks.
   #
-  # Under collect-all a shape check may have FAILED above, and its exclusion is only sound
-  # once it passes. The block is then counted in full and the failure says so, rather than
-  # skipping: a skip lets a broken block hide an over-budget frontmatter for a round, which
-  # is the cost collect-all exists to remove.
+  # So an invalid tests_executed block is excluded at the same cap and the note says so:
+  # its fault is reported once, by check_summary_line, and the check still runs, so a
+  # broken block cannot hide an over-budget frontmatter. A broken stub block is counted
+  # in full.
   local tcount stubtoks tetoks=0 discretionary budget_note="" te_shape
   tcount=$(toks "$fmfile")
   if [[ "$stub_shape_ok" -eq 1 ]]; then
@@ -1720,11 +1754,13 @@ validate_frontmatter() {
   fi
   if [[ "$stage" == "DV" || "$stage" == "QA" ]]; then
     te_shape=$(te_tag "$fmfile")
-    if [[ "$te_shape" == '!!seq' && "$te_arm_ok" -eq 1 ]]; then
+    # A valid legacy scalar keeps no exclusion: it is a one-line, two-token key.
+    if [[ ("$te_shape" == '!!seq' && "$te_arm_ok" -eq 1) \
+      || ("$te_shape" != '!!null' && "$te_arm_ok" -eq 0) ]]; then
       tetoks=$(toks_key_block "$fmfile" tests_executed)
       [[ "$tetoks" -le 96 ]] || tetoks=96
-    elif [[ "$te_shape" != '!!null' && "$te_arm_ok" -eq 0 ]]; then
-      budget_note="${budget_note}(tests_executed invalid: counted in full) "
+      [[ "$te_arm_ok" -eq 1 ]] \
+        || budget_note="${budget_note}(tests_executed invalid: excluded at the 96-token cap) "
     fi
   fi
   discretionary=$((tcount - stubtoks - tetoks))

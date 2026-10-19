@@ -621,9 +621,141 @@ strip_nonselecting_flags() {
 # are consumed before the single-character passes can split them. A bare `&`
 # (background) splits too, as in the scanner; the redirect forms `>&`, `<&`
 # and `&>` are parked on control bytes first so `2>&1` stays one segment.
+#
+# Here-doc bodies are dropped first, because this split is mostly reached through
+# an apostrophe in a body (`it's`), and the body's lines would then classify as
+# commands. Fail-closed: a body ends at the first line whose trimmed text is the
+# delimiter, which is never after bash's terminator, so only lines bash reads as
+# data are dropped. Every doubt aborts the strip and splits the original string:
+# an unquoted-word miss (`<<\EOF`, `<<E"O"F`), an all-digit word (`$((1<<2))`), a
+# continued operator line, a newline inside quotes while a body waits, an open
+# body or quote at the end. `#` at a word start skips its line. Known blind spots,
+# each needing a crafted later line and a balanced end state to hide a runner:
+# ANSI-C `$'…\'…'` quotes and quotes nested in `$(…)` or in a backtick substitution
+# spanning lines mislead the quote scan; a word-start `#` inside `${…}` (`${x/ #/}`)
+# reads as a comment bash does not have; arithmetic `<<` with an identifier operand
+# (`$((1<<n))`, `(( a << b ))`) reads as a here-doc operator.
 # ---------------------------------------------------------------------------
 _gate_split_legacy() {
   local _norm="$1" _seg
+  case "$_norm" in
+    *'<<'*)
+      # Byte indexing, as in gate_head_tokens: every character acted on is ASCII.
+      # Linear in the input: every read is a window of at most _win bytes at offset _i,
+      # never the rest of the string, and text outside bodies is copied to _out in
+      # slices (at each body start and at the end) rather than chunk by chunk. A
+      # chunk cut at a window edge resumes in the same state on the next pass.
+      local _lc_had=0 _lc_old="" _s="$1" _n _i=0 _ch _w _j _qc _q="" _out="" _from=0 _pend="" \
+        _hd="" _ok=1 _prev=$'\n' _ln _win=1024
+      local _re_plain=$'^[^\\\'"#<\n]+' _re_sq="^[^']+" _re_dq='^[^"\]+' _re_word='^[A-Za-z0-9_]+'
+      [ -n "${LC_ALL+x}" ] && { _lc_had=1; _lc_old="$LC_ALL"; }
+      LC_ALL=C
+      _n=${#_s}
+      while [ "$_i" -lt "$_n" ]; do
+        if [ -n "$_hd" ]; then
+          # The whole body in one pass: the rest is copied once per body, not once per
+          # line, and read line by line to the terminator. Body lines are dropped, not
+          # blanked: the split below skips empty lines, so the segments are the same.
+          # Only a line holding the delimiter can trim to it, so most lines skip _trim.
+          while IFS= read -r _ln; do
+            _i=$((_i + ${#_ln} + 1))
+            case "$_ln" in
+              *"$_hd"*)
+                _trim "$_ln"
+                [ "$TRIMMED" != "$_hd" ] || { _hd=""; break; }
+                ;;
+            esac
+          done <<< "${_s:$_i}"
+          # The here-string adds a newline the input may not end with.
+          [ "$_i" -le "$_n" ] || _i=$_n
+          [ -z "$_hd" ] || _i=$_n
+          _from=$_i
+          continue
+        fi
+        if [ -n "$_q" ]; then
+          if [ "$_q" = "'" ]; then
+            if [[ ${_s:$_i:$_win} =~ $_re_sq ]]; then _w="${BASH_REMATCH[0]}"; else _w="'"; _q=""; fi
+          elif [[ ${_s:$_i:$_win} =~ $_re_dq ]]; then
+            _w="${BASH_REMATCH[0]}"
+          elif [ "${_s:$_i:1}" = '"' ]; then
+            _w='"'; _q=""
+          else
+            _w="${_s:$_i:2}"
+          fi
+          if [ -n "$_pend" ]; then
+            case "$_w" in *$'\n'*) _ok=0; break ;; esac
+          fi
+          _i=$((_i + ${#_w})); _prev=x
+          continue
+        fi
+        if [[ ${_s:$_i:$_win} =~ $_re_plain ]]; then
+          _w="${BASH_REMATCH[0]}"; _i=$((_i + ${#_w})); _prev="${_w: -1}"
+          continue
+        fi
+        _ch="${_s:$_i:1}"
+        case "$_ch" in
+          \\)
+            _w="${_s:$_i:2}"
+            if [ "$_w" = $'\\\n' ] && [ -n "$_pend" ]; then _ok=0; break; fi
+            _i=$((_i + ${#_w})); _prev=x
+            ;;
+          \'|\") _q="$_ch"; _i=$((_i + 1)); _prev=x ;;
+          '#')
+            case "$_prev" in
+              $'\n'|' '|$'\t'|';'|'|'|'&'|'(')
+                # Skip to the end of the line; the newline arm then takes the newline.
+                while [ "$_i" -lt "$_n" ]; do
+                  _w="${_s:$_i:$_win}"
+                  case "$_w" in *$'\n'*) _w="${_w%%$'\n'*}"; _i=$((_i + ${#_w})); break ;; esac
+                  _i=$((_i + ${#_w}))
+                done
+                ;;
+              *) _i=$((_i + 1)); _prev=x ;;
+            esac
+            ;;
+          '<')
+            if [ "${_s:$_i:3}" = '<<<' ]; then
+              _i=$((_i + 3)); _prev=x
+            elif [ "${_s:$_i:2}" = '<<' ]; then
+              _j=$((_i + 2))
+              [ "${_s:$_j:1}" != '-' ] || _j=$((_j + 1))
+              while :; do
+                case "${_s:$_j:1}" in ' '|$'\t') _j=$((_j + 1)) ;; *) break ;; esac
+              done
+              _qc=""
+              case "${_s:$_j:1}" in \'|\") _qc="${_s:$_j:1}"; _j=$((_j + 1)) ;; esac
+              if [[ ${_s:$_j:$_win} =~ $_re_word ]]; then _w="${BASH_REMATCH[0]}"; else _ok=0; break; fi
+              case "$_w" in *[!0-9]*) ;; *) _ok=0; break ;; esac
+              _j=$((_j + ${#_w}))
+              if [ -n "$_qc" ]; then
+                [ "${_s:$_j:1}" = "$_qc" ] || { _ok=0; break; }
+                _j=$((_j + 1))
+              fi
+              case "${_s:$_j:1}" in
+                '' | ' ' | $'\t' | $'\n' | ';' | '|' | '&' | '<' | '>' | ')') ;;
+                *) _ok=0; break ;;
+              esac
+              # The last operator on a line names the delimiter tracked.
+              _pend="$_w"
+              _i=$_j; _prev=x
+            else
+              _i=$((_i + 1)); _prev=x
+            fi
+            ;;
+          *)
+            _i=$((_i + 1)); _prev=$'\n'
+            if [ -n "$_pend" ]; then
+              _hd="$_pend"; _pend=""
+              _out="$_out${_s:$_from:$((_i - _from))}"
+            fi
+            ;;
+        esac
+      done
+      [ -z "$_hd$_pend$_q" ] || _ok=0
+      if [ "$_lc_had" -eq 1 ]; then LC_ALL="$_lc_old"; else unset LC_ALL; fi
+      [ "$_ok" -eq 0 ] || _norm="$_out${_s:$_from}"
+      ;;
+  esac
   _norm="${_norm//&&/$'\n'}"
   _norm="${_norm//||/$'\n'}"
   _norm="${_norm//;/$'\n'}"
