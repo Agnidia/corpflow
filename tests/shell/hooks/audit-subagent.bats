@@ -93,10 +93,11 @@ setup() {
   [ ! -s "$WD/.context/logs/audit.jsonl" ]
 }
 
-@test "contract: --self-test passes (smoke, NON-counting)" {
+@test "contract: --self-test passes (counted summary)" {
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'audit-subagent: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 # The last three direct audit.jsonl writers in the hook tree carried no symlink
@@ -490,7 +491,8 @@ _stage_run() {
   assert_output "unknown"
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
-  assert_output "audit-subagent: self-test OK"
+  assert_output --partial "audit-subagent: self-test OK"
+  assert_output --regexp 'audit-subagent: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 @test "stage: an agent_id on rows of two stages is ambiguous and falls to the brief, then to unknown" {

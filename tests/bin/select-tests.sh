@@ -179,7 +179,7 @@ render() {
 }
 
 self_test() {
-  local wd rc=0 out
+  local wd rc=0 out passed=0 failed=0
   wd="$(mktemp -d "${TMPDIR:-/tmp}/selst.XXXXXX")" || return 3
   mkdir -p "$wd/tests/shell/hooks" "$wd/tests/shell/meta" "$wd/tests/selection" "$wd/agents" "$wd/hooks"
   printf '@test "a" {\n :\n}\n' > "$wd/tests/shell/hooks/widget.bats"
@@ -192,31 +192,31 @@ self_test() {
   sel_context_init "$wd" || return 3
 
   out="$(sel_select_for_path "agents/designer.md" M)"
-  case "$out" in *"tests/shell/hooks/widget.bats"*) ;; *) echo "self-test: L2 row did not select its target" >&2; rc=1 ;; esac
+  case "$out" in *"tests/shell/hooks/widget.bats"*) passed=$((passed + 1)) ;; *) echo "self-test: L2 row did not select its target" >&2; failed=$((failed + 1)); rc=1 ;; esac
 
   out="$(sel_select_for_path "hooks/widget.sh" M)"
-  case "$out" in *"L1	CONV"*) ;; *) echo "self-test: convention resolution failed" >&2; rc=1 ;; esac
+  case "$out" in *"L1	CONV"*) passed=$((passed + 1)) ;; *) echo "self-test: convention resolution failed" >&2; failed=$((failed + 1)); rc=1 ;; esac
 
   out="$(sel_select_for_path "docs/new.md" M)"
-  case "$out" in "FULL	F3	"*) ;; *) echo "self-test: unmatched path did not fail closed to F3" >&2; rc=1 ;; esac
+  case "$out" in "FULL	F3	"*) passed=$((passed + 1)) ;; *) echo "self-test: unmatched path did not fail closed to F3" >&2; failed=$((failed + 1)); rc=1 ;; esac
 
   out="$(sel_select_for_path "hooks/widget.sh" D)"
-  case "$out" in "FULL	F4	"*) ;; *) echo "self-test: delete under a fail-closed root did not yield F4" >&2; rc=1 ;; esac
+  case "$out" in "FULL	F4	"*) passed=$((passed + 1)) ;; *) echo "self-test: delete under a fail-closed root did not yield F4" >&2; failed=$((failed + 1)); rc=1 ;; esac
 
   out="$(sel_select_for_path "agents/designer.md" D)"
-  case "$out" in "FULL	"*) echo "self-test: agent-doc delete wrongly widened to FULL" >&2; rc=1 ;; esac
+  case "$out" in "FULL	"*) echo "self-test: agent-doc delete wrongly widened to FULL" >&2; failed=$((failed + 1)); rc=1 ;; *) passed=$((passed + 1)) ;; esac
 
   out="$(sel_select_for_path "run-tests.sh" M)"
-  case "$out" in "FULL	F5	"*) ;; *) echo "self-test: foundation path did not yield F5" >&2; rc=1 ;; esac
+  case "$out" in "FULL	F5	"*) passed=$((passed + 1)) ;; *) echo "self-test: foundation path did not yield F5" >&2; failed=$((failed + 1)); rc=1 ;; esac
 
   printf 'a\tb\tR02\tfive field row with a long enough rationale\textra\n' >> "$wd/tests/selection/matrix.tsv"
   out="$(sel_matrix_rows)"
-  case "$out" in *"FULL	F7	"*) ;; *) echo "self-test: a 5-field row was not rejected as F7" >&2; rc=1 ;; esac
+  case "$out" in *"FULL	F7	"*) passed=$((passed + 1)) ;; *) echo "self-test: a 5-field row was not rejected as F7" >&2; failed=$((failed + 1)); rc=1 ;; esac
 
   sel_context_free
   rm -rf "$wd"
-  [ "$rc" -eq 0 ] || return 3
-  echo "select-tests.sh: self-test OK"
+  [ "$rc" -eq 0 ] || { echo "select-tests.sh: self-test FAIL ($passed passed, $failed failed)"; return 3; }
+  echo "select-tests.sh: self-test OK ($passed passed, $failed failed)"
   return 0
 }
 

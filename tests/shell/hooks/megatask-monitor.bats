@@ -84,10 +84,11 @@ EOF
   [ ! -f "$WD/.context/logs/audit.jsonl" ]
 }
 
-@test "contract: --self-test passes (smoke, NON-counting)" {
+@test "contract: --self-test passes (counted summary)" {
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'megatask-monitor: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 @test "concurrency: simultaneous sweeps leave valid JSON and no lost update" {

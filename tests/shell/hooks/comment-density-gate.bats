@@ -240,6 +240,7 @@ mk_lean_swift() {
   run_script_env "$HOOK" --self-test
   assert_success
   assert_output --partial 'self-test OK'
+  assert_output --regexp 'dv-comment-density-gate: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 # ---------------------------------------------------------------------------

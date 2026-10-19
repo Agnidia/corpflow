@@ -228,10 +228,11 @@ _run_gate() {
   assert_audit_row model_switch_blocked --absent
 }
 
-@test "contract: --self-test passes (smoke, NON-counting)" {
+@test "contract: --self-test passes (counted summary)" {
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'model-switch-gate: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 @test "unresolved root exits 0, no block, no .context under cwd" {

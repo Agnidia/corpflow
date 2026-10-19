@@ -16,9 +16,9 @@ if [ "$SELF_TEST" -eq 1 ]; then
   TMP=$(mktemp -d)
   echo '{"run_index":0,"tasks":{}}' > "$TMP/state.json"
   cp "$TMP/state.json" "$TMP/state.checkpoint-test.json"
-  [ -f "$TMP/state.checkpoint-test.json" ] || { echo "precompact-checkpoint: self-test FAIL"; exit 1; }
+  [ -f "$TMP/state.checkpoint-test.json" ] || { echo "precompact-checkpoint: self-test FAIL (0 passed, 1 failed)"; exit 1; }
   rm -rf "$TMP"
-  echo "precompact-checkpoint: self-test OK"
+  echo "precompact-checkpoint: self-test OK (1 passed, 0 failed)"
   exit 0
 fi
 
