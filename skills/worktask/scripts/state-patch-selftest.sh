@@ -1946,6 +1946,23 @@ EOART
   fi
   rm -f .context/state.json.snapb
 
+  make_state
+  local tprobe_out
+  tprobe_out=$(trap - ERR; LOG_FILE=.context/logs/probe.log \
+    ATOMIC_APPLY_PROBE='error("forced probe failure")' \
+    atomic_apply .context/state.json '.' 2>&1) || {
+    printf 'T-probe: a failed observer changed the merge result: FAIL (%s)\n' "$tprobe_out" >&2
+    exit 1
+  }
+  if [[ "$tprobe_out" == 'warn: atomic apply probe failed; merge unaffected' ]] \
+    && [[ "$tprobe_out" != *class* ]]; then
+    printf 'T-probe: failed observer warns once without naming a probe user: ok\n'
+    _SELFTEST_PASSED=$((_SELFTEST_PASSED + 1))
+  else
+    printf 'T-probe: generic warning: FAIL (%s)\n' "$tprobe_out" >&2
+    exit 1
+  fi
+
   printf 'self-test: ALL PASS (%d passed, 0 failed)\n' "$_SELFTEST_PASSED"
   exit 0
 }
