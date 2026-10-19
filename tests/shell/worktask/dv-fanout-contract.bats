@@ -226,3 +226,64 @@ EOF
   assert_success
   assert_output ""
 }
+
+dispatch_step48() {
+  env -u WORKSPACE_ROOT -u MILESTONE_MODE -u CONTEXT_DIR -u CLAUDE_PROJECT_DIR \
+    node "$PLUGIN_ROOT/$DV_FIX/dispatch-step48.js" \
+    "$PLUGIN_ROOT/skills/worktask/SKILL.md" "$1" "$2" "$3"
+}
+
+@test "pinned session serializes a later stream on its assigned tree" {
+  run dispatch_step48 "$PLUGIN_ROOT/$DV_FIX/state.pin.json" DV1 pinned
+  assert_success
+  printf '%s\n' "$output" | jq -e '
+    .state.tasks.DV1.blocked_by == ["PL0", "DV0"] and
+    .state.tasks.DV1.metadata.workspace_path == "/wt/shared" and
+    .skipped == true and
+    ([.calls[][0]] | index("skills/worktask/scripts/state-patch.sh")) != null and
+    ([.calls[] | select(.[1] == "--task-meta" or (.[0] | endswith("workspace-root-banner.sh")))] | length) == 0
+  ' >/dev/null
+}
+
+@test "three pinned streams chain by numeric row id" {
+  jq '.tasks.DV2.metadata.workspace_path = "/wt/shared" |
+      .tasks.DV2.blocked_by = ["PL0"]' "$PLUGIN_ROOT/$DV_FIX/state.pin.json" \
+    > "$WD/three.json"
+  run dispatch_step48 "$WD/three.json" DV2 pinned
+  assert_success
+  printf '%s\n' "$output" | jq -e '
+    .state.tasks.DV2.blocked_by == ["PL0", "DV1"] and
+    .state.tasks.DV2.metadata.workspace_path == "/wt/shared" and
+    .skipped == true
+  ' >/dev/null
+}
+
+@test "unpinned session gives an independent stream its own tree" {
+  run dispatch_step48 "$PLUGIN_ROOT/$DV_FIX/state.pin.json" DV1 unpinned
+  assert_success
+  printf '%s\n' "$output" | jq -e '
+    .state.tasks.DV1.blocked_by == ["PL0"] and
+    .state.tasks.DV1.metadata.workspace_path == "/wt/stream-DV1" and
+    .skipped == false and
+    ([.calls[] | select(.[1] == "--task-block")] | length) == 0
+  ' >/dev/null
+}
+
+@test "existing transitive order remains unchanged on repeat pinned dispatch" {
+  run dispatch_step48 "$PLUGIN_ROOT/$DV_FIX/state.pin.json" DV4 pinned
+  assert_success
+  printf '%s\n' "$output" | jq -e '
+    .state.tasks.DV4.blocked_by == ["DV3"] and
+    .state.tasks.DV4.metadata.workspace_path == "/wt/serial" and
+    ([.calls[] | select(.[1] == "--task-block" or .[1] == "--task-meta")] | length) == 0
+  ' >/dev/null
+
+  jq '.tasks.DV1.blocked_by += ["DV0"]' "$PLUGIN_ROOT/$DV_FIX/state.pin.json" \
+    > "$WD/ordered.json"
+  run dispatch_step48 "$WD/ordered.json" DV1 pinned
+  assert_success
+  printf '%s\n' "$output" | jq -e '
+    .state.tasks.DV1.blocked_by == ["PL0", "DV0"] and
+    ([.calls[] | select(.[1] == "--task-block" or .[1] == "--task-meta")] | length) == 0
+  ' >/dev/null
+}

@@ -137,8 +137,8 @@ Score = new patterns + integration points + cross-cutting concerns + risk + docs
 | Score | Tier | Stages created |
 |-------|------|----------------|
 | 0–10 | Low | DV0, DR0, QA0 |
-| 11–20 | Medium | AR0*, DV0, DR0, QA0 |
-| 21–30 | Moderate | AR0*, DV0, DR0, QA0 |
+| 11–20 | Medium | AR0*, DV0, DR0, QA0, FN0, ST0 |
+| 21–30 | Moderate | AR0*, DV0, DR0, QA0, FN0, ST0 |
 | 31–40 | High | AR0*, DV0, DR0, QA0, DC0, FN0, ST0 |
 | 41–50 | Critical | AR0*, DV0, DR0, SR0, QA0, DC0, RE0, FN0, ST0 |
 

@@ -22,6 +22,8 @@ PL0_DOC="skills/worktask/references/pl0-procedure.md"
 LEDGER_DOC="skills/shared/state-ledger.md"
 PATCH_SCRIPT="skills/worktask/scripts/state-patch.sh"
 RESOLVER="skills/worktask/scripts/model-matrix.sh"
+ESTIMATE_DOC="skills/estimation-methodology/SKILL.md"
+PRODUCT_DOC="agents/product-manager.md"
 
 setup() {
   WD="$(mk_tmpworkdir)"
@@ -35,6 +37,18 @@ setup() {
 # section <file> <heading> — the heading line plus its body up to the next heading.
 section() {
   awk -v h="$2" '$0 == h {f=1; print; next} f && /^#/ {exit} f {print}' "$PLUGIN_ROOT/$1"
+}
+
+@test "Medium and Moderate defaults include canonical FN and ST finalization" {
+  local expected row source
+  expected='| 11–20 | Medium | AR0*, DV0, DR0, QA0, FN0, ST0 |'
+  for source in "$ESTIMATE_DOC" "$PRODUCT_DOC"; do
+    row="$(grep -F '| 11–20 | Medium |' "$PLUGIN_ROOT/$source")"
+    [ "$row" = "$expected" ] || fail "$source has a divergent Medium stage set: $row"
+    row="$(grep -F '| 21–30 | Moderate |' "$PLUGIN_ROOT/$source")"
+    [ "$row" = '| 21–30 | Moderate | AR0*, DV0, DR0, QA0, FN0, ST0 |' ] \
+      || fail "$source has a divergent Moderate stage set: $row"
+  done
 }
 
 # The Step 4 payload with placeholders left in; empty when the stamp is gone.
