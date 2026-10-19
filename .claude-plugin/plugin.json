@@ -30,7 +30,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/test-execution-gate.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/test-execution-gate.sh",
+            "onFailure": "block"
           }
         ]
       },
@@ -53,7 +54,8 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/user-decision-record.sh",
-            "timeout": 15
+            "timeout": 15,
+            "onFailure": "block"
           }
         ]
       }
@@ -135,7 +137,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/model-switch-gate.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/model-switch-gate.sh",
+            "onFailure": "block"
           }
         ]
       }

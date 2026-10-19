@@ -402,3 +402,14 @@ the mailbox alone, and must not read an absent decision row as a decision never 
 7. Write a `resume` audit entry: `{actor: "orchestrator", action: "resume", subject: "<worktask_id>", result: "ok"}`
 
 See `skills/context-compression/SKILL.md § PostCompact Recovery` for the compaction-specific flow.
+
+## Claude Code 2.1.303 resume compatibility
+
+Use the stored agent ID across restart and compaction. Name lookup after restart is fixed in 2.1.299,
+but names assigned before the last compaction still require the ID. Do not dispatch a replacement on name lookup failure alone.
+Repeated resumes retain SendMessage reachability from 2.1.295. Completion messages can describe an agent waiting
+on its own background work, receiving a late message, or stopping at a usage limit (2.1.299).
+A waiting notice is not a completed stage. Duplicate result/message delivery is also fixed in 2.1.299;
+continue to reconcile by task and agent ID before applying completion once.
+Stopping the agents service can stop live sessions after about one minute. Recheck discovery before redispatching.
+Resumed headless dispatches carry the same optional compaction and retry controls; do not substitute an in-process run.

@@ -1313,11 +1313,18 @@ its runtime environment; the ledger has no orchestrator row.
 ##### Step 6 — route before every dispatch, headless or in-process
 
 Every dispatch surface calls this router: main loop, DV fan-out, Step 6.6a/C.0a and C.3 resolvers.
-A row with no stamped `metadata.effort` skips it and dispatches with no `effort`.
+A row without `metadata.effort` may skip the router only when it has no optional dispatch controls.
+Pass the complete task metadata as `--dispatch-controls` on every routing surface, including resolver redispatches.
+Configured controls require `CORPFLOW_HEADLESS_ROUTE=on`; refuse unsupported Codex or in-process dispatches before launching.
+Controlled rows without stamped effort must also reach the router and escalate its refusal; stamp the missing effort before retrying.
 
 ```typescript
-    const routed = full.metadata.effort && spawnSync("bash", ["skills/worktask/scripts/effort-route.sh",
-      "--agent", subagentType, "--model", effectiveModel, "--requested", full.metadata.effort],
+    const hasDispatchControls = ["auto_compact_window", "retry_watchdog", "retry_watchdog_max_wait_ms",
+      "retry_watchdog_max_usage_limit_wait_ms", "overloaded_retry_max_delay_ms"]
+      .some(key => Object.prototype.hasOwnProperty.call(full.metadata, key));
+    const routed = (full.metadata.effort || hasDispatchControls) && spawnSync("bash", ["skills/worktask/scripts/effort-route.sh",
+      "--agent", subagentType, "--model", effectiveModel, "--requested", full.metadata.effort ?? "",
+      "--dispatch-controls", JSON.stringify(full.metadata)],
       { encoding: "utf8" });
     // A refused route (exit 2, no line) must not fall through to a dispatch without the tier.
     if (routed && routed.status !== 0) { escalate(task.id, "effort_route_refused"); continue; }

@@ -3262,3 +3262,36 @@ _fill_dv() { # $@ = extra args
   run jq -c '.facts.files_modified' "$WD/.context/state.json"
   assert_output '["a.sh","c1.sh","c2.sh","c3.sh"]'
 }
+
+@test "dispatch controls validate merged metadata and preserve the ledger on refusal" {
+  cd "$WD"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --set '{"retry_watchdog":true,"retry_watchdog_max_wait_ms":100}'
+  assert_success
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --set '{"retry_watchdog_max_wait_ms":200}'
+  assert_success
+  cp .context/state.json .context/before.json
+  for patch in '{"retry_watchdog":false}' '{"auto_compact_window":"200000"}' '{"overloaded_retry_max_delay_ms":0}' '{"retry_watchdog":null}'; do
+    run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --set "$patch"
+    assert_failure 2
+    cmp .context/state.json .context/before.json
+  done
+}
+
+@test "batch task creation refuses every row when one dispatch control is invalid" {
+  cd "$WD"
+  cp .context/state.json .context/before.json
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-create PL8 --metadata '{"auto_compact_window":200000}' \
+    --task-create PL9 --metadata '{"retry_watchdog_max_wait_ms":100}'
+  assert_failure 2
+  cmp .context/state.json .context/before.json
+}
+
+@test "unsetting watchdog alone refuses but removing its dependent limits succeeds" {
+  cd "$WD"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --set '{"retry_watchdog":true,"retry_watchdog_max_wait_ms":100}'
+  assert_success
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --unset retry_watchdog
+  assert_failure 2
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --set '{"retry_watchdog":false}' --unset retry_watchdog_max_wait_ms
+  assert_success
+}

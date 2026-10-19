@@ -50,6 +50,20 @@ The route decision lives in `skills/worktask/scripts/effort-route.sh` (architect
 | `dangerously_skip_permissions` | `--dangerously-skip-permissions` | bool | Advisory; orchestrator may refuse | CI batch only, with a deny-list in `settings.json` |
 | `settings_path` | `--settings <path>` | string | N/A | provider / org config swap |
 
+### Translation table — compaction and retry
+
+The optional fields in `skills/shared/state-ledger.md § Compaction and retry controls` are enforced headless controls, not advisory hints.
+`headless-dispatch.sh` accepts matching hyphenated arguments, such as `--auto-compact-window 200000` and `--retry-watchdog true`.
+Explicit arguments override ledger values; otherwise the child inherits runtime defaults and its existing environment.
+A configured compaction window also pins the child environment, so an inherited window cannot defeat the task setting.
+Environment overrides apply only to the child, including a resumed child. No parent or sibling environment changes.
+
+Pass the complete metadata object to `effort-route.sh --dispatch-controls`. Configured controls require `CORPFLOW_HEADLESS_ROUTE=on`, including haiku stages.
+The headless dispatcher refuses an in-process fallback when any control is configured. Codex routes without an equivalent transport must refuse before spawning.
+
+`autoCompactWindow` in agent frontmatter or `--agents` definitions accepts integer token counts from 100000 to 1000000 (2.1.296).
+An inherited positive `CLAUDE_CODE_AUTO_COMPACT_WINDOW` overrides that frontmatter field. Fork agents ignore that field; do not substitute a fork for a configured stage.
+
 ### Advisory vs audited legend
 
 "Advisory" = recorded on the task and read by external dispatchers, but the in-process `Agent()` tool has no equivalent parameter. `effort` left this class in 2.1.292. "Audited" = the orchestrator writes an `audit.jsonl` line when the field is set, though it cannot enforce the mode on an `Agent()` child.
@@ -285,3 +299,15 @@ Two ways to spawn background shell work without occupying a foreground agent tur
 
 - **`! <command>`** — inside a running session, prefixing a shell command with `!` (e.g. `! swift build 2>&1 | tail -20`) runs it in a background shell and delivers stdout/stderr into session context on completion. Unlike a `Bash` tool call it does not block the turn.
 - **`claude --bg --exec '<command>'`** — from outside a session, a one-shot background command that exits on completion, e.g. `claude --bg --exec 'cd "$WORKTREE" && swift build > .context/build.log 2>&1'`. For CI/cron jobs needing Claude's tool environment but no interactive agent; combine with `--model` or `--permission-mode`, and `cd` inside the command since there is no `--cwd`.
+
+## Claude Code 2.1.295–2.1.303 observations
+
+- Print and SDK sessions without an explicit permission mode have provider-dependent defaults (2.1.302). Always pass the ledger's capped mode.
+- Fork mode is enabled by default in print/SDK/IDE sessions from 2.1.302; `CLAUDE_CODE_FORK_SUBAGENT=0` disables it.
+- Main-conversation subagents run in the background; their own Agent calls default to the foreground. Keep waiting for completion evidence.
+- `CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL` affects workflow agents only. It refines existing `model`/`model_resolved` auditing; it needs no new ledger field.
+- CLI 2.1.303 returned `[]` during the integration probe. This does not confirm, rename, or remove any baseline row key.
+- A stopped `claude agents` service can end running sessions after about one minute (macOS and Linux without an installed service, 2.1.295).
+- New watchdog limits bound retry waits; overload backoff uses `CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS`. Do not increase pipeline retry counts implicitly.
+- `CLAUDE_CODE_AUTO_MODE_MODEL` selects the client-side classifier model only. It does not select the stage or server-side classifier model.
+- Advisor flags and plugin-eval tool restrictions remain operator-only controls; they introduce no task metadata.

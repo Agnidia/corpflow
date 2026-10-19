@@ -198,6 +198,11 @@ Full propagation contract: `skills/agent-coordination/SKILL.md § metadata.skip_
 
 PL0 may set the remaining optional dispatch fields (`skills/shared/state-ledger.md § Dispatch metadata`); they map 1:1 to the headless `claude -p --agent` recipe's flags (`skills/agent-coordination/references/headless-dispatch.md`), honoured in-process for `model` (always) and `permission_mode` (audited), advisory otherwise. `effort` is not in this set: it is a required ledger field (above). Every agent file also carries a static `effort:` key next to `maxTurns:` (`skills/shared/stage-codes.md § Model alias notes`), which Claude Code applies only when a call passes no `effort`. The stamped value always rides the in-process `Agent()` call's `effort` parameter (2.1.292), which outranks that key; it goes headless only under the operator opt-in `CORPFLOW_HEADLESS_ROUTE=on`.
 
+For compaction and retry controls, copy only explicit operator choices into the five fields in
+`skills/shared/state-ledger.md § Compaction and retry controls`. Leave them unset by default.
+Require the headless opt-in before stamping them. Watchdog wait limits require `retry_watchdog: true`.
+Do not infer a compaction threshold or retry duration from task complexity.
+
 ##### Default writer rules
 
 Apply on trigger match; otherwise leave unset and keep PL0's own resolution (above):
