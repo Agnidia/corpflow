@@ -275,6 +275,29 @@ worktask (PL→…→ST) with gates pre-bypassed.
 `orchestrator.json`, **unblocks dependents**, and frees the track. A `failed` issue writes
 `execution.status: "failed"` — its dependents stay `blocked`.
 
+#### Post-merge settle
+
+GitHub honours `Closes #{issue}` only on a merge into the repository default branch, so a PR
+merged into any other base (e.g. `develop`) leaves its issue open. FN opens the PR and does not
+merge it, so FN only records the close. The issue worktree is gone by then, and its `.context/`
+is archived at PR-created (`references/git-integration.md § Cleanup`). So after an issue PR
+merges, the merger runs the check from its own checkout against the archived ledger:
+
+```bash
+A=<repo>/.context.archive/<timestamp>   # the issue's archived .context/
+bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh \
+  --state "$A/state.json" --context "$A" issue-close-required
+```
+
+On `yes`, run the `gh issue close <N>` it printed; on `no`, do nothing.
+
+##### No archived ledger
+
+Build the close from the batch ledger, which outlives the worktree. When `orchestrator.json .base_branch`
+is not `git symbolic-ref --short refs/remotes/origin/HEAD` (minus `origin/`), run
+`gh issue close <N> --repo "$(gh repo view --json nameWithOwner -q .nameWithOwner)"` from the
+merger's checkout, `<N>` the issue's number in `orchestrator.json`. No new issue status.
+
 ## Per-Track Task IDs
 
 Every track uses the same plain `<STAGE>0` ledger keys (`PL0`, `AR0`, `DV0`, `DR0`, `QA0`). The

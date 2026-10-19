@@ -23,12 +23,13 @@
 #                    that finds, errors or cannot run blocks with a `pr_body_gate`
 #                    `blocked` row (reason pr_body_lint_findings | pr_body_lint_error |
 #                    pr_body_lint_unavailable).
-#     continuity     the worktree HEAD is an ancestor of the integration branch, else
-#                    log a diverged→cherry-pick diagnostic + audit row (never blocks).
-#                    It does NOT discriminate a wrong base: `diverged` is the normal state
-#                    of every feature branch about to merge, so the signal reads the same
-#                    whether the base is right or wrong. `base-sanity` is the check that
-#                    discriminates a wrong base, and it blocks.
+#     continuity     the integration branch is an ancestor of the worktree HEAD
+#                    (`git merge-base --is-ancestor <base> HEAD`), so merging HEAD into it
+#                    is a fast-forward; else log a diverged→cherry-pick diagnostic + audit
+#                    row (never blocks). Diverged means the base holds commits HEAD lacks.
+#                    It does NOT discriminate a wrong base: a branch stacked on another
+#                    feature branch still contains its base and passes the same way.
+#                    `base-sanity` is the check that discriminates a wrong base, and it blocks.
 #                    Per-stream mode, entered only when facts.stream_branches holds >=2
 #                    keys: every stream branch must be an ancestor of HEAD (one
 #                    `branch_continuity` row each, `stream_merged` | `stream_unmerged`);
@@ -44,13 +45,20 @@
 #     issue-close-required
 #                    is the integration branch something other than the repository
 #                    default? If so the `Closes #N` merge trailer will never fire, so
-#                    print the explicit `gh issue close` command FN must run post-merge.
+#                    print the explicit `gh issue close` command to run post-merge. FN
+#                    records it; whoever merges the PR runs it after the merge.
 #                    Read-only, exit 0 always; unresolved inputs report, never guess.
 #     base-sanity    does the diff a PR against the resolved base would carry resemble
 #                    what this run recorded changing? Fails when the PR file count is
 #                    over 3x the ledger's AND over 20 files larger — the signature of a
 #                    base this work never forked from. Warns when HEAD is >25 commits
 #                    ahead. Every unresolvable input degrades to a warning + exit 0.
+#                    Git evidence caps the ledger: when HEAD's fork candidate (the remote
+#                    `fork_base`, else the closest local branch) is not the base, the
+#                    count compared is min(ledger, files committed since that candidate +
+#                    dirty files), and the under-recording rung counts both. When the
+#                    remote fork candidate IS the base, a firing rule warns
+#                    (`fork_confirms_base`) and exits 0.
 #     unresolved-decisions
 #                    list the escalation-class questions this run shipped without a decision
 #                    (its `sweep_escalation_unprompted` audit rows, one per metadata.id) in a
@@ -108,6 +116,8 @@
 # @env CORPFLOW_PR_BODY_STRICT
 #                         1 => same as --strict; also read by pr-body-lint.sh itself.
 # @env FN_BASE_REF        Highest-priority integration-branch override (see resolve_base_ref).
+# @env BASE_REF_TASK_ID   Ignored: every base resolution reads the ledger row FN<run_index>
+#                         (rank 2a), then the ledger mirror. An inherited value is cleared.
 # @env FN_BASE_SANITY_OVERRIDE
 #                         The one sanctioned downgrade: any value other than unset/empty/
 #                         `0`/`false`/`no` turns `base-sanity`'s hard fail into a warning and
@@ -258,6 +268,18 @@ done
 if [[ "$UD_PRINT" == 1 && "$COMMAND" != unresolved-decisions ]]; then
   printf >&2 -- '--print applies only to unresolved-decisions\n'
   usage
+fi
+
+# Process-wide, not exported: every resolver call in every check reads this run's FN row
+# first. A value inherited from a DV- or PL-scoped caller would point FN at another row's base.
+unset BASE_REF_TASK_ID
+if command -v jq > /dev/null 2>&1; then
+  _fn_run_index=$(jq -r '.run_index | numbers | floor | tostring' "$STATE_PATH" 2> /dev/null || printf '')
+  # shellcheck disable=SC2034  # read by _base_ref_ranked in branch-lib.sh
+  case "$_fn_run_index" in
+    '' | *[!0-9]*) ;;
+    *) BASE_REF_TASK_ID="FN${_fn_run_index}" ;;
+  esac
 fi
 
 case "$COMMAND" in

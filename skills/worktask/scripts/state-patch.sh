@@ -55,6 +55,10 @@
 #                           stage, missing state.json, or a refused verdict) drops the paired
 #                           --facts payload too; standalone it exits 0 after the merge.
 #                           Union, never replace — identity rule at § Facts union below.
+#                           A DV settle (--stage with a DV task id) also adds the paths of
+#                           `git diff --name-only <base>...HEAD` to files_modified; the base
+#                           comes from the row's base_ref, then the ledger mirror, and an
+#                           unresolvable input adds nothing (§ DV-settle fill below).
 #                           open_questions items must be FULL sweep stubs (string .id, .class
 #                           and .ref, boolean .blocks_next_stage); a partial one exits 2 with
 #                           state.json untouched.  branch is a string matching
@@ -3417,6 +3421,57 @@ if [[ -n "$STAGE_ARG" || -n "$ARTIFACT_ARG" ]]; then
 elif [[ -z "$FACTS_ARG" ]]; then
   log_msg WARN "no artifact resolved (stage= artifact=) — no-op"
   exit 0
+fi
+
+# ---------- DV-settle fill of facts.files_modified ----------
+# A DV row self-reports files_modified, and base-sanity reads that list as its denominator,
+# so an incomplete list blocks a correct base. The branch diff is the complete record, so a
+# DV settle adds it. Prints a JSON array of repo-relative paths or nothing and
+# always returns 0: any input it cannot trust means no fill, never a changed exit status.
+# The tree is the row's workspace_path, so a call made from another cwd diffs the right tree;
+# a named path that is not a work tree means no fill rather than a diff of the caller's cwd.
+_dv_settle_git_paths() {
+  local lib
+  lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/branch-lib.sh"
+  (
+    trap - ERR EXIT
+    set +e
+    st="$STATE_PATH"
+    case "$st" in /*) ;; *) st="$PWD/$st" ;; esac
+    tree=$(jq -r --arg id "$TASK_ID" \
+      '(.tasks[$id].metadata.workspace_path // .metadata.workspace_path // empty) | strings' "$st")
+    if [ -n "$tree" ]; then cd "$tree" || exit 0; fi
+    [ "$(git rev-parse --is-inside-work-tree)" = "true" ] || exit 0
+    [ -r "$lib" ] || exit 0
+    # shellcheck source=branch-lib.sh
+    . "$lib"
+    STATE_PATH="$st"
+    BASE_REF_TASK_ID="$TASK_ID"
+    # origin_head is a default, not a configured base: a fill against it inflates the ledger
+    # to the PR count of whatever the default happens to be.
+    case "$(base_ref_source)" in env | task | state | workspace) ;; *) exit 0 ;; esac
+    base=$(resolve_base_ref)
+    [ -n "$base" ] || exit 0
+    ref=$(resolve_git_ref "$base") || exit 0
+    # Piped, not captured first: bash drops the NUL bytes -z emits from a variable.
+    set -o pipefail
+    out=$(git diff --name-only -z "${ref}...HEAD" | jq -Rsc 'split("\u0000") | map(select(length > 0))') || exit 0
+    printf '%s' "$out"
+  ) 2> /dev/null || true
+}
+
+_DV_CODE="${TASK_ID:-}"
+if [[ -n "$STAGE_ARG" && -n "$FACTS_ARG" && "${_DV_CODE%%[0-9]*}" == "DV" && -f "$STATE_PATH" ]] \
+  && command -v jq > /dev/null 2>&1; then
+  _DV_GIT_PATHS=$(_dv_settle_git_paths)
+  if [[ -n "$_DV_GIT_PATHS" ]]; then
+    # Appended, never substituted: the union below dedupes and keeps self-reported order.
+    # A payload this cannot merge stays as given, for the partition below to judge.
+    _DV_FILLED=$(printf '%s' "$FACTS_ARG" | jq -c --argjson g "$_DV_GIT_PATHS" '
+      if type == "object" and ((.files_modified // []) | type) == "array"
+      then .files_modified = ((.files_modified // []) + $g) else . end' 2> /dev/null) || _DV_FILLED=""
+    if [[ -n "$_DV_FILLED" ]]; then FACTS_ARG="$_DV_FILLED"; fi
+  fi
 fi
 
 # ---------- Facts union ----------
