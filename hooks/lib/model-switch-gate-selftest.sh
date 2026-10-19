@@ -18,16 +18,16 @@
   _bctx="$_tmp/block/.context"
   _mkledger "$_bctx"
   _bout=$(run_gate '{"session_id":"s1","agent_id":"agt_dv","to_model":"sonnet","reason":"quantum_flux"}' "$_bctx")
-  printf '%s' "$_bout" | jq -e '.decision == "block"' > /dev/null 2>&1 \
+  printf '%s' "$_bout" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' > /dev/null 2>&1 \
     || { echo "model-switch-gate: self-test FAIL (block: no block decision)"; _fail=$((_fail + 1)); }
   _st_cases=$((_st_cases + 1))
   printf '%s' "$_bout" | jq -e '
     .hookSpecificOutput.hookEventName == "PreModelSwitch"
-    and (.hookSpecificOutput.additionalContext | test("DV0"))
-    and (.hookSpecificOutput.additionalContext | test("opus"))
-    and (.hookSpecificOutput.additionalContext | test("sonnet"))
+    and (.hookSpecificOutput.permissionDecisionReason | test("DV0"))
+    and (.hookSpecificOutput.permissionDecisionReason | test("opus"))
+    and (.hookSpecificOutput.permissionDecisionReason | test("sonnet"))
   ' > /dev/null 2>&1 \
-    || { echo "model-switch-gate: self-test FAIL (block: additionalContext)"; _fail=$((_fail + 1)); }
+    || { echo "model-switch-gate: self-test FAIL (block: permissionDecisionReason)"; _fail=$((_fail + 1)); }
   _st_cases=$((_st_cases + 1))
   tail -n 1 "$_bctx/logs/audit.jsonl" | jq -e '
     .action == "model_switch_blocked" and .result == "block"
@@ -40,7 +40,7 @@
   _uctx="$_tmp/trigger-unobserved/.context"
   _mkledger "$_uctx"
   _uout=$(run_gate '{"session_id":"s5","agent_id":"agt_dv","to_model":"sonnet"}' "$_uctx")
-  printf '%s' "$_uout" | jq -e '.decision == "annotate"' > /dev/null 2>&1 \
+  printf '%s' "$_uout" | jq -e 'has("systemMessage")' > /dev/null 2>&1 \
     || { echo "model-switch-gate: self-test FAIL (trigger-unobserved: expected annotate)"; _fail=$((_fail + 1)); }
   _st_cases=$((_st_cases + 1))
   tail -n 1 "$_uctx/logs/audit.jsonl" | jq -e '
@@ -62,7 +62,7 @@
   _dctx="$_tmp/drift/.context"
   _mkledger "$_dctx"
   _dout=$(run_gate '{"session_id":"s3","agent_id":"agt_dv"}' "$_dctx")
-  printf '%s' "$_dout" | jq -e '.decision == "annotate"' > /dev/null 2>&1 \
+  printf '%s' "$_dout" | jq -e 'has("systemMessage")' > /dev/null 2>&1 \
     || { echo "model-switch-gate: self-test FAIL (drift: expected annotate)"; _fail=$((_fail + 1)); }
   _st_cases=$((_st_cases + 1))
 

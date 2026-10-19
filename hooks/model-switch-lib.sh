@@ -356,13 +356,10 @@ corpflow_model_family() {
   esac
 }
 
-# The three ASSUMED-field coalesces (see model-switch-gate.sh's CONFIRMED/ASSUMED
-# split), each written exactly once. The per-field accessors and the combined
-# reader below all interpolate these, so the gate's decision and the audit row can
-# never disagree about what a payload said, and a schema-drift fix is one edit.
+# Shared coalesces keep gate decisions and audit rows consistent across schema variants.
 _CORPFLOW_JQ_DEST='.to_model // .toModel // .requested_model // .requestedModel // .new_model // .newModel // ""'
 _CORPFLOW_JQ_ORIGIN='.from_model // .fromModel // .current_model // .currentModel // ""'
-_CORPFLOW_JQ_TRIGGER='.reason // .trigger // .source // ""'
+_CORPFLOW_JQ_TRIGGER='.source // .reason // .trigger // ""'
 
 # corpflow_switch_dest <payload> — echoes the destination model, or empty.
 # corpflow_switch_origin <payload> — echoes the origin model, or empty.

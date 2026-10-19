@@ -2566,6 +2566,13 @@ if [[ -n "$TASK_OP" ]]; then
   # _ledger_effort_gate <metadata-json> — exits on an off-ladder effort; a batched
   # --task-create runs it once per row so one bad row refuses the whole call before any write.
   _ledger_effort_gate() {
+    if [[ "$TASK_OP" == "create" ]]; then
+      . "$(dirname "${BASH_SOURCE[0]}")/dispatch-controls.sh"
+      if ! dispatch_controls_validate "$1"; then
+        printf >&2 'invalid dispatch controls; state.json unchanged\n'
+        exit 2
+      fi
+    fi
     # `has` + `tostring`, not `//`: the alternative operator reads JSON null and false as
     # absent, and a required field must not be erasable through its own gate.
     _TASK_EFFORT=$(printf '%s' "$1" \
@@ -2856,6 +2863,14 @@ if [[ -n "$TASK_OP" ]]; then
           exit 0
         fi
       fi
+      . "$(dirname "${BASH_SOURCE[0]}")/dispatch-controls.sh"
+      _CONTROL_META=$(jq -c --arg id "$TASK_OP_ID" --argjson patch "${TASK_OP_VALUE:-null}" \
+        --argjson unset "$_UNSET_JSON" '((.tasks[$id].metadata // {}) * ($patch // {}))
+          | delpaths($unset | map([.]))' "$STATE_PATH") || exit 2
+      if ! dispatch_controls_validate "$_CONTROL_META"; then
+        printf >&2 'invalid dispatch controls; state.json unchanged\n'
+        exit 2
+      fi
       # Read before the lock: it only words the notice, the cap itself runs inside the write.
       DESC_TRUNCATED=$(jq -r --arg id "$TASK_OP_ID" --argjson meta "${TASK_OP_VALUE:-null}" \
         --argjson u "$_UNSET_JSON" '((.tasks[$id].metadata // {}) * ($meta // {})) as $m
@@ -2866,6 +2881,9 @@ if [[ -n "$TASK_OP" ]]; then
       # --unset runs after it, so it wins over a key the same --set names.
       TASK_FILTER="${_DESC_CAP}"'.tasks[$id].metadata = ((((.tasks[$id].metadata // {}) * ($meta // {})) | _cap_desc)
         | delpaths($unset | map([.])))'
+      TASK_FILTER="${_CF_DISPATCH_CONTROLS_JQ} ${TASK_FILTER}"' |
+        if (.tasks[$id].metadata | dispatch_controls_valid) then .
+        else error("invalid dispatch controls after concurrent metadata update") end'
       TASK_JQ_ARGS=(--arg id "$TASK_OP_ID" --argjson meta "${TASK_OP_VALUE:-null}" --argjson unset "$_UNSET_JSON")
       ;;
     replay)

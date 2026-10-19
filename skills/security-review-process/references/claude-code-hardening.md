@@ -77,3 +77,13 @@ backslash, or points outside the plugin directory is refused as path traversal; 
 entry paths get the same check. This repo is both a marketplace and the plugin it publishes, so every
 `commands[]`, `agents[]` and `skills[]` entry in `.claude-plugin/marketplace.json` stays
 `./`-relative — no `../`, absolute path, or external URL.
+
+## Claude Code 2.1.295–2.1.303 hardening
+
+The 2.1.303 floor includes late-registered tool restriction enforcement (2.1.295), protection against sandbox writes
+to reloadable `--plugin-dir` code (2.1.299), safe-mode persistence on restart, and managed hook/MCP policy enforcement.
+Review explicit MCP server wildcards: tools lists no longer admit neighboring servers with similar names.
+PreToolUse and PermissionRequest `updatedInput` undergo tool-schema validation from 2.1.300.
+A hook that permits a write cannot override plan mode (fixed in 2.1.299).
+The Read tool refuses image sources above 128 MB and avoids reading image-named pipes/devices wholesale (2.1.302).
+Keep explicit permission ceilings; third-party print sessions can default to the CLI's default mode from 2.1.302.

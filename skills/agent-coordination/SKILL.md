@@ -657,3 +657,12 @@ The `/config` "Dynamic workflow size" setting (`workflowSizeGuideline`; default 
 #### Gate prompts — idle behaviour
 
 These dialogs do not auto-continue on idle, so a PL/FN gate park holds until the operator answers. Idle-timeout auto-continue is an explicit `/config` opt-in; keep it off on hosts running gated worktasks.
+
+## Claude Code 2.1.303 coordination compatibility
+
+Main-conversation Agent calls run in the background across terminal, print/SDK, desktop, and IDE sessions from 2.1.302.
+A subagent's own calls default to the foreground. Wait for completion evidence before settling the stage.
+The first in-process teammate SendMessage call no longer requires prior tool-search loading (2.1.295).
+Subagents preload at most 32 distinct skills; use the Skill tool for additional skills.
+MCP descriptions loaded through tool search allow 16384 characters. Agent tool lists match only the named MCP server;
+use `mcp__<whole name>__*` when its name contains `__` (2.1.299).

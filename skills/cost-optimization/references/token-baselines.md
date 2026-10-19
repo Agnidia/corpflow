@@ -124,3 +124,14 @@ Ethics work runs on opus. Costs are the opus rate at the default split of `SKILL
 ### Constitutional Budget Allocation
 
 Share of worktask budget to reserve for ethics: standard 10% (ad-hoc consultation) · high-risk features 20% (mandatory review) · user data handling 15% (privacy and consent) · AI/ML features 25% (fairness and bias).
+
+## Claude Code 2.1.303 cost observations
+
+Sonnet 5.5 cache reads cost $0.10 per million tokens in CLI accounting from 2.1.296; the canonical model-selection table already matches.
+OpenTelemetry `api_request` events split cache writes into `cache_creation_5m_tokens` and `cache_creation_1h_tokens` from 2.1.300.
+Use those counters to distinguish cache lifetimes rather than treating every write as five minutes.
+Tool decisions add `classifier_verdict`, `permission_mode`, and optional `classifier_category` from 2.1.301.
+The category requires `OTEL_LOG_TOOL_DETAILS=1`; 2.1.302 fixes missing category values and preserves tool identity under low attribute limits.
+Idle compaction can compact conversations above 200K tokens after about 54 minutes (2.1.299).
+`idleCompaction: false` disables it; `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` changes the threshold.
+The 2.1.302 config UI exposes the toggle. These operator controls do not change stage token budgets.

@@ -5,12 +5,8 @@
 #   nothing. headless-dispatch.sh consumes its `route` field; the orchestrator's Step 6 loop,
 #   Step C.0a resolver and Step C.3 batch resolver all call this before choosing a surface.
 #
-#   Rule, first match wins:
-#     1. haiku ignores effort tiers outright (model-selection.md § xhigh routing neighbours),
-#        so the call passes no `effort` — transport "none".
-#     2. CORPFLOW_HEADLESS_ROUTE=on routes headless (`claude -p --agent … --effort`) — the
-#        opt-in for runs that want a separate process per stage.
-#     3. Everything else stays in-process with `effort` set — "agent-param".
+#   Explicit dispatch controls require the headless opt-in; they cannot survive an
+#   in-process fallback. Without controls, haiku skips effort and other models follow the opt-in.
 #   The agent's own `effort:` frontmatter plays no part: the Agent call's `effort` outranks it,
 #   so there is no baseline to compare against.
 #
@@ -36,7 +32,7 @@ _ER_AGENT_ID_RE='^[a-z0-9-]+:[a-z0-9-]+$'
 usage() {
   cat >&2 << 'EOF2'
 usage:
-  effort-route.sh --agent <plugin:agent> --model <alias> --requested <tier>
+  effort-route.sh --agent <plugin:agent> --model <alias> --requested <tier> [--dispatch-controls <metadata-json>]
 
 Prints one JSON route-decision line and exits 0, or exits 2 with an
 error on stderr before printing anything. CORPFLOW_HEADLESS_ROUTE=on
@@ -49,11 +45,14 @@ EOF2
 AGENT=""
 MODEL=""
 REQUESTED=""
+CONTROLS='{}'
+. "${_ER_DIR}/dispatch-controls.sh"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --agent) AGENT="${2:-}"; shift 2 ;;
     --model) MODEL="${2:-}"; shift 2 ;;
+    --dispatch-controls) CONTROLS="${2:-}"; shift 2 ;;
     --requested) REQUESTED="${2:-}"; shift 2 ;;
     -h | --help) usage ;;
     *)
@@ -79,7 +78,13 @@ if ! effort_rank "$REQUESTED" > /dev/null 2>&1; then
   exit 2
 fi
 
-if [ "$MODEL" = "haiku" ]; then
+dispatch_controls_validate "$CONTROLS" || { printf >&2 'invalid dispatch controls\n'; exit 2; }
+if dispatch_controls_present "$CONTROLS"; then
+  [ "${CORPFLOW_HEADLESS_ROUTE:-}" = "on" ] || { printf >&2 'dispatch controls require CORPFLOW_HEADLESS_ROUTE=on\n'; exit 2; }
+  ROUTE="headless"
+  TRANSPORT="dispatch-flag"
+  REASON="dispatch_controls"
+elif [ "$MODEL" = "haiku" ]; then
   ROUTE="inproc"
   TRANSPORT="none"
   REASON="model_ignores_effort"

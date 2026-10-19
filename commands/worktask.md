@@ -1216,7 +1216,9 @@ surface: in-process with `Agent({ effort })` by default; headless through
 
 This same call happens at every stage-dispatch surface, not only here: the main loop's own
 Step 6 `Agent()` dispatch, a headless-eligible DV row's fan-out dispatch, and Step C.3's batch
-resolver all call `effort-route.sh` before choosing a surface, and each writes its own
+resolver all call `effort-route.sh` before choosing a surface, passing the full task metadata
+as `--dispatch-controls`. Configured compaction or retry controls require the headless opt-in;
+a refused route or fallback escalates before an in-process launch. Each call writes its own
 `effort_route` audit row (`action: "effort_route"`) carrying the route line's fields plus
 `effort_resolved`/`effort_resolved_reason`, `session_id`, `argv[]` and the cost/usage fields —
 this section is not a special case, it is the one place the shared contract is spelled out.

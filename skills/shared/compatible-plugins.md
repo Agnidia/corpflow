@@ -118,3 +118,11 @@ worktask.
 
 See `skills/cross-plugin-handoff/references/plugin-contract.md` — the normative contract plus
 the ordered touchpoint checklist.
+
+## Claude Code 2.1.303 plugin compatibility
+
+Agent MCP allowlists match one server, including names containing `__`; spell the complete server as `mcp__<whole name>__*`.
+SessionStart output from late-loaded plugins no longer leaks across `/clear`, and duplicate plugin names receive a hooks warning (2.1.296).
+A plugin name collision still needs operator remediation; do not treat missing hook output as successful sibling initialization.
+Plugin hooks under `--worktree` run from 2.1.300; this fix does not cover `--tmux`.
+The shared CORPFLOW.md template remains unchanged, so this integration requires no sibling template migration.
