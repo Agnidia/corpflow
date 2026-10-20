@@ -607,9 +607,9 @@ _write_n_decisions() {  # <count> [id-prefix]
 @test "facts: wrong array shape is rejected before the merge lock" {
   cd "$WD"
   cp .context/state.json snap
-  run bash "$PLUGIN_ROOT/$SCRIPT" --facts '{"decisions":["not-an-object"]}'
+  run bash "$PLUGIN_ROOT/$SCRIPT" --facts '{"decisions":[42]}'
   assert_failure
-  assert_output --partial 'decisions "not-an-object": not an object'
+  assert_output --partial 'decisions 42: expected {id, summary, ref}'
   run bash "$PLUGIN_ROOT/$SCRIPT" --facts '{"files_modified":[7]}'
   assert_failure
   assert_output --partial "files_modified 7: not a string"
@@ -1805,6 +1805,47 @@ seed_questions() {
 add_question() {
   bash "$PLUGIN_ROOT/$SCRIPT" --task-id DV1 --facts \
     "{\"open_questions\":[{\"id\":\"$1\",\"class\":\"decision\",\"ref\":\"development-1.md#elicitation-sweep\",\"blocks_next_stage\":false}]}"
+}
+
+@test "spill: an earlier escalate snapshot prevents a class downgrade" {
+  cd "$WD"
+  seed_questions 0 0
+  printf '%s\n' \
+    '{"id":"sw-DR0-1","class":"escalate","ref":"developer-review-0.md#elicitation-sweep"}' \
+    '{"id":"sw-DR0-1","class":"decision","ref":"developer-review-0.md#elicitation-sweep"}' \
+    > .context/open-questions-3.jsonl
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-id DV1 --facts \
+    '{"open_questions":[{"id":"sw-DR0-1","class":"decision","ref":"development-1.md#elicitation-sweep","blocks_next_stage":false}]}'
+  assert_failure 2
+  assert_output --partial 'class downgrade escalate -> decision refused'
+  run jq -r '[.facts.open_questions[] | select(.id == "sw-DR0-1")][0].class' .context/state.json
+  assert_output escalate
+}
+
+@test "spill: class raises across a spill incumbent" {
+  cd "$WD"
+  seed_questions 0 0
+  printf '%s\n' '{"id":"sw-DR0-2","class":"decision","ref":"developer-review-0.md#elicitation-sweep"}' \
+    > .context/open-questions-3.jsonl
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-id DV1 --facts \
+    '{"open_questions":[{"id":"sw-DR0-2","class":"escalate","ref":"development-1.md#elicitation-sweep","blocks_next_stage":false}]}'
+  assert_success
+  refute_output --partial 'class downgrade'
+  run jq -r '[.facts.open_questions[] | select(.id == "sw-DR0-2")][0].class' .context/state.json
+  assert_output escalate
+}
+
+@test "spill: a malformed spill refuses the facts write" {
+  cd "$WD"
+  seed_questions 0 0
+  printf 'broken json\n' > .context/open-questions-3.jsonl
+  cp .context/state.json snap
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-id DV1 --facts \
+    '{"open_questions":[{"id":"sw-DR0-1","class":"decision","ref":"development-1.md#elicitation-sweep","blocks_next_stage":false}]}'
+  assert_failure
+  assert_output --partial 'sweep spill unreadable or malformed'
+  run cmp .context/state.json snap
+  assert_success
 }
 
 @test "spill: an array inside the bound writes no spill file" {
@@ -3049,6 +3090,69 @@ EOART
   assert_output --partial '{"task":"DR0","to":"pending","reason":"cited-file-changed"}'
 }
 
+@test "settle: empty citations compare the dependent's own files" {
+  local w; w="$(mk_reopen_wd)"; cd "$w"; export WORKSPACE_ROOT="$w"
+  jq '.tasks.QA0.artifact = ".context/qa-0.md"' .context/state.json > state.next
+  mv state.next .context/state.json
+  printf '%s\n' '---' 'handoff:' '  files_touched: [./skills/worktask/scripts/a.sh#section]' '---' > .context/qa-0.md
+  bash "$PLUGIN_ROOT/$SCRIPT" --task-reopen DV0 --from DC0 --finding-file finding.txt > /dev/null
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-settle-stale DV0 --changed skills/worktask/scripts/a.sh
+  assert_success
+  assert_output --partial '"task":"QA0","to":"pending","reason":"own-file-changed"'
+}
+
+@test "settle: disjoint own files retain the dependent result" {
+  local w; w="$(mk_reopen_wd)"; cd "$w"; export WORKSPACE_ROOT="$w"
+  jq '.tasks.QA0.artifact = ".context/qa-0.md"' .context/state.json > state.next
+  mv state.next .context/state.json
+  printf '%s\n' '---' 'handoff:' '  files_touched: [tests/b.bats]' '---' > .context/qa-0.md
+  bash "$PLUGIN_ROOT/$SCRIPT" --task-reopen DV0 --from DC0 --finding-file finding.txt > /dev/null
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-settle-stale DV0 --changed skills/worktask/scripts/a.sh
+  assert_success
+  assert_output --partial '"task":"QA0","to":"completed","reason":"no-own-file-changed"'
+}
+
+@test "facts: string decisions dedupe and partial rejects name the object schema" {
+  cd "$WD"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-id DV0 --facts '{"decisions":["chose the spill union"]}'
+  assert_success
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-id DV0 --facts '{"decisions":["chose the spill union"]}'
+  assert_success
+  run jq -e '[.facts.decisions[] | select(.summary == "chose the spill union")]
+    | length == 1 and .[0].stage == "DV0" and (.[0].id | type) == "string"' .context/state.json
+  assert_success
+  run bash "$PLUGIN_ROOT/$SCRIPT" --facts '{"decisions":[42,{"id":"d1","summary":"ok"}]}'
+  assert_failure 2
+  assert_output --partial '{id, summary, ref}'
+  run jq -e '[.facts.decisions[] | select(.id == "d1")] | length == 1' .context/state.json
+  assert_success
+}
+
+@test "facts: caller probe environment is ignored" {
+  cd "$WD"
+  run env ATOMIC_APPLY_PROBE='error("boom")' ATOMIC_APPLY_PROBE_OUT=junk \
+    bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --set '{"x":1}'
+  assert_success
+  refute_output --partial 'warn: atomic apply probe failed'
+  run jq -e '.tasks.PL0.metadata.x == 1' .context/state.json
+  assert_success
+}
+
+@test "prev: indexed task id writes the stage edge and invalid forms fail" {
+  cd "$WD"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --stage DV --prev AR0 --artifact .context/development-0.md
+  assert_success
+  run jq -e '.handoffs | has("AR→DV0")' .context/state.json
+  assert_success
+  run bash "$PLUGIN_ROOT/$SCRIPT" --stage DV --prev XX0 --artifact .context/development-0.md
+  assert_failure 2
+  assert_output --partial 'stage code'
+  assert_output --partial 'task id'
+  run bash "$PLUGIN_ROOT/$SCRIPT" --stage DV --prev USER0 --artifact .context/development-0.md
+  assert_failure 2
+  assert_output --partial 'invalid --prev value'
+}
+
 @test "correction modifiers: --from, --finding-file and --changed are refused on other ops" {
   local w; w="$(mk_reopen_wd)"; cd "$w"; export WORKSPACE_ROOT="$w"
   run bash "$PLUGIN_ROOT/$SCRIPT" --task-status DV0 pending --from DC0
@@ -3059,4 +3163,135 @@ EOART
   assert_failure 2
   assert_output --partial "--changed applies to --task-settle-stale only"
   assert_ledger_unchanged "$w"
+}
+
+# --- REQ-1: a DV settle adds the branch diff to facts.files_modified ---------------------
+# Base-sanity reads files_modified as its denominator, so an incomplete self-reported list
+# blocks a correct base. Real git fixtures: the fill is a function of refs.
+
+_fill_repo() {
+  cd "$WD"
+  git init -q -b develop .
+  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m base
+  git checkout -q -b feature/work
+  printf 'x\n' > c1.sh
+  printf 'x\n' > c2.sh
+  printf 'x\n' > c3.sh
+  git add c1.sh c2.sh c3.sh
+  git -c user.email=a@b.c -c user.name=t commit -q -m work
+}
+
+_fill_row() { # $1 = DV0 metadata object
+  jq --argjson m "$1" '.tasks.DV0 = {status: "in_progress", metadata: $m}' \
+    .context/state.json > s && mv s .context/state.json
+}
+
+_fill_dv() { # $@ = extra args
+  bash "$PLUGIN_ROOT/$SCRIPT" --stage DV --task-id DV0 --artifact .context/development-0.md \
+    --facts '{"files_modified":["a.sh"]}' "$@"
+}
+
+@test "files_modified: a DV settle adds the committed diff against the row base, each path once (REQ-1, AC-1)" {
+  _fill_repo
+  _fill_row '{"base_ref":"develop"}'
+  run _fill_dv
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh","c1.sh","c2.sh","c3.sh"]'
+  # A second settle that self-reports a git path adds no duplicate.
+  run bash "$PLUGIN_ROOT/$SCRIPT" --stage DV --task-id DV0 --artifact .context/development-0.md \
+    --facts '{"files_modified":["c1.sh"]}'
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh","c1.sh","c2.sh","c3.sh"]'
+}
+
+@test "files_modified: an unresolvable base leaves the self-reported list and exit 0 (REQ-1, AC-2)" {
+  _fill_repo
+  # No row base_ref, no mirror, no workspace.json, no origin/HEAD.
+  _fill_row '{}'
+  run _fill_dv
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh"]'
+}
+
+@test "files_modified: a QA settle adds no git path (REQ-1, AC-3)" {
+  _fill_repo
+  _fill_row '{"base_ref":"develop"}'
+  jq '.metadata = {base_ref: "develop"} | .tasks.QA0 = {status: "in_progress", metadata: {base_ref: "develop"}}' \
+    .context/state.json > s && mv s .context/state.json
+  printf -- '---\nhandoff:\n  stage: QA\n  verdict: go\n  summary: "fixture"\n---\n\n# Testing\n' \
+    > .context/testing-0.md
+  run bash "$PLUGIN_ROOT/$SCRIPT" --stage QA --task-id QA0 --artifact .context/testing-0.md \
+    --facts '{"files_modified":["a.sh"]}'
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh"]'
+}
+
+@test "files_modified: an origin/HEAD-only base is a default, not a configured base, so nothing is added" {
+  _fill_repo
+  git update-ref refs/remotes/origin/develop develop
+  git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/develop
+  _fill_row '{}'
+  run _fill_dv
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh"]'
+}
+
+@test "files_modified: a named workspace_path that is not a work tree adds nothing" {
+  _fill_repo
+  _fill_row "$(jq -cn --arg p "$WD/no-such-tree" '{base_ref: "develop", workspace_path: $p}')"
+  run _fill_dv
+  assert_success
+  run jq -c '.facts.files_modified' .context/state.json
+  assert_output '["a.sh"]'
+}
+
+@test "files_modified: a settle made from another cwd diffs the row's workspace_path" {
+  _fill_repo
+  _fill_row "$(jq -cn --arg p "$WD" '{base_ref: "develop", workspace_path: $p}')"
+  local elsewhere
+  elsewhere="$(mk_tmpworkdir)"
+  cd "$elsewhere"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --state "$WD/.context/state.json" --stage DV --task-id DV0 \
+    --artifact "$WD/.context/development-0.md" --facts '{"files_modified":["a.sh"]}'
+  assert_success
+  run jq -c '.facts.files_modified' "$WD/.context/state.json"
+  assert_output '["a.sh","c1.sh","c2.sh","c3.sh"]'
+}
+
+@test "dispatch controls validate merged metadata and preserve the ledger on refusal" {
+  cd "$WD"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --set '{"retry_watchdog":true,"retry_watchdog_max_wait_ms":100}'
+  assert_success
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --set '{"retry_watchdog_max_wait_ms":200}'
+  assert_success
+  cp .context/state.json .context/before.json
+  for patch in '{"retry_watchdog":false}' '{"auto_compact_window":"200000"}' '{"overloaded_retry_max_delay_ms":0}' '{"retry_watchdog":null}'; do
+    run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --set "$patch"
+    assert_failure 2
+    cmp .context/state.json .context/before.json
+  done
+}
+
+@test "batch task creation refuses every row when one dispatch control is invalid" {
+  cd "$WD"
+  cp .context/state.json .context/before.json
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-create PL8 --metadata '{"auto_compact_window":200000}' \
+    --task-create PL9 --metadata '{"retry_watchdog_max_wait_ms":100}'
+  assert_failure 2
+  cmp .context/state.json .context/before.json
+}
+
+@test "unsetting watchdog alone refuses but removing its dependent limits succeeds" {
+  cd "$WD"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --set '{"retry_watchdog":true,"retry_watchdog_max_wait_ms":100}'
+  assert_success
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --unset retry_watchdog
+  assert_failure 2
+  run bash "$PLUGIN_ROOT/$SCRIPT" --task-meta PL0 --set '{"retry_watchdog":false}' --unset retry_watchdog_max_wait_ms
+  assert_success
 }

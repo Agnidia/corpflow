@@ -9,7 +9,7 @@
 # Contract: defines `run_self_test`, which owns the exit for this invocation.
 
 _st_fail() {
-  printf >&2 'self-test FAIL: %s\n' "$1"
+  printf >&2 'self-test FAIL: %s (%d passed, 1 failed)\n' "$1" "${_st_passed:-0}"
   exit 1
 }
 
@@ -34,10 +34,12 @@ _st_expect_reject() {
     "reject: $2: "*) ;;
     *) _st_fail "$1: expected reject: $2, got: $_st_err" ;;
   esac
+  _st_passed=$((_st_passed + 1))
 }
 
 run_self_test() {
   trap - ERR
+  _st_passed=0
   WORK_DIR="$(mktemp -d)" || _st_fail "cannot create a temporary directory"
   local counts='"severity_counts":{"low":0,"medium":0,"high":1,"critical":0}'
   local findings='"findings":[{"summary":"Unquoted expansion","id":"F1","location":"a.sh:3","severity":"high"}]'
@@ -47,6 +49,7 @@ run_self_test() {
   [ "$_st_rc" -eq 0 ] || _st_fail "valid: expected exit 0, got $_st_rc ($_st_err)"
   [ "$_st_out" = "$expected" ] || _st_fail "valid: normalized output differs: $_st_out"
   [ -z "$_st_err" ] || _st_fail "valid: unexpected stderr: $_st_err"
+  _st_passed=$((_st_passed + 1))
 
   _st_run needs_changes "{\"schema_version\":\"consultant-return.v1\",\"verdict\":\"needs_changes\",$counts,$findings}"
   [ "$_st_rc" -eq 0 ] || _st_fail "needs_changes: expected exit 0, got $_st_rc ($_st_err)"
@@ -59,12 +62,14 @@ run_self_test() {
     *) _st_fail "needs_changes: expected warn needs_changes_normalized, got: $_st_err" ;;
   esac
 
+  _st_passed=$((_st_passed + 1))
+
   _st_run version_v2 "{\"schema_version\":\"consultant-return.v2\",\"verdict\":\"pass\",$counts,$findings}"
   _st_expect_reject version_v2 version_mismatch
 
   _st_run no_counts "{\"schema_version\":\"consultant-return.v1\",\"verdict\":\"fail\",$findings}"
   _st_expect_reject no_counts missing_severity_counts
 
-  printf 'self-test OK\n'
+  printf 'self-test OK (%d passed, 0 failed)\n' "$_st_passed"
   exit 0
 }

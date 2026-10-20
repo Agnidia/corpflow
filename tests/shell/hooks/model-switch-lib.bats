@@ -390,6 +390,96 @@ _bind() {
   assert_output "$WD"
 }
 
+# _bind_in <hook cwd> <payload> — _bind with the hook process itself inside <hook cwd>.
+_bind_in() {
+  run env -u WORKSPACE_ROOT -u _CORPFLOW_ISSUE_ROOT CLAUDE_PROJECT_DIR="$WD" bash -c \
+    "cd \"\$2\" && . '$PLUGIN_ROOT/$LIB' && corpflow_bind_payload \"\$1\" && corpflow_workspace_root" _ "$2" "$1"
+}
+
+# _banner <wt> — a transcript whose first user record carries the stage brief's banner line.
+_banner() {
+  jq -cn --arg c "[3] brief
+WORKSPACE_ROOT=$1
+Run the stage." '{type:"user",message:{role:"user",content:[{type:"text",text:$c}]}}' > "$WD/agent.jsonl"
+  printf '%s' "$WD/agent.jsonl"
+}
+
+# Session cwd in worktree A (g/1), the agent's issue is worktree B (g/2).
+_ab_trees() {
+  _ledger
+  _issue_tree "$WD" g 1
+  _issue_tree "$WD" g 2
+  A="$WD/.worktrees/g/1"
+  B="$WD/.worktrees/g/2"
+  B_PHYS="$(cd "$B" && pwd -P)"
+}
+
+@test "bind_payload: a session cwd in worktree A yields to the banner naming worktree B" {
+  _ab_trees
+  _bind_in "$A" "$(jq -cn --arg c "$A" --arg t "$(_banner "$B")" '{cwd:$c, agent_transcript_path:$t}')"
+  assert_success
+  assert_output "$B_PHYS"
+}
+
+@test "bind_payload: a tool event's transcript_path banner outranks a cwd in another issue" {
+  _ab_trees
+  _bind_in "$A" "$(jq -cn --arg c "$A" --arg t "$(_banner "$B")" \
+    '{tool_name:"Bash", tool_input:{command:"true"}, cwd:$c, transcript_path:$t}')"
+  assert_success
+  assert_output "$B_PHYS"
+}
+
+@test "bind_payload: the command export names the issue when no banner is readable" {
+  local cmd
+  _ab_trees
+  for cmd in "cd \"$B\" && export WORKSPACE_ROOT=\"$B\" MILESTONE_MODE=1 && bats x.bats" \
+    "WORKSPACE_ROOT=$B bats x.bats" \
+    "cd '$B' && export WORKSPACE_ROOT='$B' && bats x.bats"; do
+    _bind_in "$A" "$(jq -cn --arg c "$A" --arg x "$cmd" '{tool_name:"Bash", tool_input:{command:$x}, cwd:$c}')"
+    assert_success
+    assert_output "$B_PHYS"
+  done
+}
+
+@test "bind_payload: the banner wins when the command export names a different issue" {
+  _ab_trees
+  _issue_tree "$WD" g 3
+  _bind_in "$A" "$(jq -cn --arg c "$A" --arg t "$(_banner "$B")" --arg x "export WORKSPACE_ROOT=\"$WD/.worktrees/g/3\" && bats x.bats" \
+    '{tool_name:"Bash", tool_input:{command:$x}, cwd:$c, transcript_path:$t}')"
+  assert_success
+  assert_output "$B_PHYS"
+}
+
+@test "bind_payload: an invalid banner falls through to a valid command export" {
+  local foreign t
+  _ab_trees
+  foreign="$(mk_tmpworkdir)"
+  _issue_tree "$foreign" g 2
+  for t in "$foreign/.worktrees/g/2" "$WD/.worktrees/g/9"; do
+    _bind_in "$A" "$(jq -cn --arg c "$A" --arg t "$(_banner "$t")" --arg x "export WORKSPACE_ROOT=\"$B\" && bats x.bats" \
+      '{tool_name:"Bash", tool_input:{command:$x}, cwd:$c, transcript_path:$t}')"
+    assert_success
+    assert_output "$B_PHYS"
+  done
+}
+
+@test "bind_payload: a command export with expansion syntax or a foreign path falls through to the cwd" {
+  local foreign cmd sentinel="$WD/sentinel"
+  _ab_trees
+  foreign="$(mk_tmpworkdir)"
+  _issue_tree "$foreign" g 2
+  for cmd in "export WORKSPACE_ROOT=\"\$(touch $sentinel)\" && bats x.bats" \
+    "WORKSPACE_ROOT=\$(touch $sentinel) bats x.bats" \
+    "export WORKSPACE_ROOT=\"$B\$(touch $sentinel)\" && bats x.bats" \
+    "export WORKSPACE_ROOT=\"$foreign/.worktrees/g/2\" && bats x.bats" \
+    "echo WORKSPACE_ROOT=$B"; do
+    _bind_in "$WD" "$(jq -cn --arg c "$A" --arg x "$cmd" '{tool_name:"Bash", tool_input:{command:$x}, cwd:$c}')"
+    assert_success
+    assert_output "$(cd "$A" && pwd -P)"
+  done
+  [ ! -e "$sentinel" ] || fail "a command export value was executed"
+}
+
 @test "bind_payload: an inherited _CORPFLOW_ISSUE_ROOT is not a global override" {
   _ledger
   _issue_tree "$WD" g 9
@@ -397,6 +487,33 @@ _bind() {
     --env "_CORPFLOW_ISSUE_ROOT=$WD/.worktrees/g/9" --source "$LIB" corpflow_workspace_root
   assert_success
   assert_output "$WD"
+}
+
+# --- corpflow_first_user_text: the one transcript read ---------------------------
+
+@test "first_user_text: string and array content of the first user record, and empty on a miss" {
+  local t="$WD/t.jsonl"
+  { jq -cn '{type:"system",content:"x"}'
+    jq -cn '{type:"user",message:{content:"line one\nstage: QA"}}'
+    jq -cn '{type:"user",message:{content:"second"}}'; } > "$t"
+  run_script_env --cwd "$WD" --source "$LIB" corpflow_first_user_text "$t"
+  assert_success
+  assert_output "$(printf 'line one\nstage: QA')"
+
+  jq -cn '{type:"user",message:{content:[{type:"text",text:"a"},{type:"image"},{type:"text",text:"b"}]}}' > "$t"
+  run_script_env --cwd "$WD" --source "$LIB" corpflow_first_user_text "$t"
+  assert_output "$(printf 'a\nb')"
+
+  run_script_env --cwd "$WD" --source "$LIB" corpflow_first_user_text "$WD/missing.jsonl"
+  assert_success
+  assert_output ""
+
+  # Only the first 40 lines are read: a brief sits at the head of a transcript.
+  for _ in $(seq 1 40); do jq -cn '{type:"system"}'; done > "$t"
+  jq -cn '{type:"user",message:{content:"late"}}' >> "$t"
+  run_script_env --cwd "$WD" --source "$LIB" corpflow_first_user_text "$t"
+  assert_success
+  assert_output ""
 }
 
 # --- corpflow_switch_fields ---------------------------------------------------
@@ -593,7 +710,7 @@ _row_of() { tail -n 1 "$WD/.context/logs/audit.jsonl"; }
   local fns="corpflow_workspace_root corpflow_context_root corpflow_active_stage
     corpflow_resolve_pin corpflow_stage_and_pin corpflow_model_family
     corpflow_switch_dest corpflow_switch_origin corpflow_switch_fields corpflow_audit_task_id
-    corpflow_hook_audit_row corpflow_bind_payload"
+    corpflow_hook_audit_row corpflow_bind_payload corpflow_first_user_text"
   for opts in 'set -eu' 'set -u; set -f' 'set -euo pipefail'; do
     for fn in $fns; do
       run bash -c "cd '$WD'; $opts; . '$PLUGIN_ROOT/$LIB'; $fn" 

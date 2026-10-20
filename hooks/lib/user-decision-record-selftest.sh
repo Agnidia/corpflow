@@ -43,7 +43,8 @@ readonly ST_Q1="Ship the ledger now?"
 readonly ST_SID="sess-ud-selftest"
 
 _st_fails=0
-_st_pass() { printf '  ok   %s\n' "$1"; }
+_st_passed=0
+_st_pass() { _st_passed=$((_st_passed + 1)); printf '  ok   %s\n' "$1"; }
 _st_fail() {
   printf '  FAIL %s\n' "$1"
   _st_fails=$((_st_fails + 1))
@@ -341,8 +342,8 @@ st_normalize
 st_guard
 
 if [ "$_st_fails" -eq 0 ]; then
-  printf 'user-decision-record: self-test OK\n'
+  printf 'user-decision-record: self-test OK (%d passed, %d failed)\n' "$_st_passed" "$_st_fails"
   exit 0
 fi
-printf 'user-decision-record: self-test FAILED (%d)\n' "$_st_fails"
+printf 'user-decision-record: self-test FAILED (%d passed, %d failed)\n' "$_st_passed" "$_st_fails"
 exit 1

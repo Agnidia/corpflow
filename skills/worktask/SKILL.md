@@ -781,6 +781,33 @@ Correction re-opens a task of any stage; gate loop-back reaches DV. When `fix_ro
     }
 ```
 
+##### Step 4.7 — turn-budget banner
+
+Every loop-dispatched row, any stage. `turnBudget` reads the dispatched agent's `maxTurns`
+(default 50) and checkpoints at `floor(0.8 × cap)`: `references/return-arms.md § Turn budget — the cap`.
+
+```typescript
+    // …continued: step 4.7 body. The first [7] banner: after WORKSPACE_ROOT=, before 4.8a/4.8b.
+    const tb = turnBudget(subagentType);   // {cap, checkpoint, line, source}
+    full.description += "\n\n" + tb.line;  // TURN BUDGET: <cap> turns. Checkpoint by turn …
+    appendAudit({ actor: "orchestrator", action: "turn_budget_injected", subject: task.id,
+                  result: tb.source === "default" ? "warn" : "ok",
+                  metadata: { agent: subagentType, cap: tb.cap, checkpoint: tb.checkpoint,
+                              source: tb.source } });
+```
+
+##### Step 4.7 — portability banner
+
+Every loop-dispatched row, any stage, no host-OS gate: a stage agent that assumes GNU bash on Linux
+loses turns to shell errors it cannot see coming. Splice it right after the TURN BUDGET line, the
+same way.
+
+```typescript
+    // …continued: step 4.7 body, after the turn-budget banner.
+    full.description += "\n" + "PORTABILITY: the shell can be zsh on macOS; GNU `timeout` can be " +
+      "absent; unquoted $var does not word-split — quote every expansion.";
+```
+
 #### Step 4.7a
 
 AR writes design outputs — an OpenAPI contract, a schema, a generated header — into the shared
@@ -868,6 +895,9 @@ Step 6's composer emits that as [7]'s first line from the same script, after the
 
 The row's tree is fixed here, before `Agent()`, so this banner and the Step 6 dispatch read one path.
 The code implements `references/handoff-protocol.md § Pinning a row's tree`.
+An explicit `WORKSPACE_ROOT` matching the orchestrator root pins the host session. A linked
+worktree alone does not establish this mode. In a pinned session, serialize shared-tree DV streams
+before dispatch; the ready list was computed earlier and must be checked again after a block.
 
 ```typescript
       // …continued: step 4.8 body. Concurrent = no transitive blocked_by path either way.
@@ -884,13 +914,31 @@ The code implements `references/handoff-protocol.md § Pinning a row's tree`.
         id !== task.id && t.metadata?.stage === "DV" &&
         t.metadata?.workspace_path === full.metadata.workspace_path &&
         !reaches(task.id, id) && !reaches(id, task.id));
+      const sessionPinned = !!process.env.WORKSPACE_ROOT &&
+        fs.realpathSync(process.env.WORKSPACE_ROOT) === fs.realpathSync(_orch_root);
+      if (sessionPinned && full.metadata.stream) {
+        const earlier = Object.entries(state.tasks ?? {})
+          .filter(([id, t]) => /^DV[0-9]+$/.test(id) &&
+            Number(id.slice(2)) < Number(task.id.slice(2)) &&
+            t.metadata?.stage === "DV" && t.metadata?.stream &&
+            t.metadata?.workspace_path === full.metadata.workspace_path &&
+            !reaches(task.id, id) && !reaches(id, task.id))
+          .sort(([a], [b]) => Number(b.slice(2)) - Number(a.slice(2)));
+        if (earlier.length > 0) {
+          execFileSync("bash", ["skills/worktask/scripts/state-patch.sh", "--task-block",
+                                task.id, "--on", earlier[0][0]]);
+          state = JSON.parse(fs.readFileSync(".context/state.json", "utf8"));
+        }
+        if ((state.tasks[task.id]?.blocked_by ?? []).some(id =>
+              !SETTLED.has(state.tasks[id]?.status))) continue;
+      }
 ```
 
 ##### Step 4.8 — re-stamp, then read the banner path
 
 ```typescript
       // …continued: step 4.8 body. Argv form, never a shell string: a path may contain `'`.
-      if (full.metadata.stream && sharedWithConcurrent) {
+      if (!sessionPinned && full.metadata.stream && sharedWithConcurrent) {
         const tree = ensureStreamWorktree(task);  // this stream's own worktree, off metadata.base_ref
         execFileSync("bash", ["skills/worktask/scripts/state-patch.sh", "--task-meta", task.id,
                               "--set", JSON.stringify({ workspace_path: tree })]);
@@ -1054,6 +1102,8 @@ then `--task-status <ID> pending`. The next ready pass reaches this gate, which 
 ```
 
 ##### Step 4.9 — checkpoint and bypass paths
+
+The checkpoint STOP below is a hand-back: run § Hand-back guard (`point: checkpoint`) first.
 
 ```typescript
       if (fnGate === "checkpoint") {
@@ -1263,11 +1313,18 @@ its runtime environment; the ledger has no orchestrator row.
 ##### Step 6 — route before every dispatch, headless or in-process
 
 Every dispatch surface calls this router: main loop, DV fan-out, Step 6.6a/C.0a and C.3 resolvers.
-A row with no stamped `metadata.effort` skips it and dispatches with no `effort`.
+A row without `metadata.effort` may skip the router only when it has no optional dispatch controls.
+Pass the complete task metadata as `--dispatch-controls` on every routing surface, including resolver redispatches.
+Configured controls require `CORPFLOW_HEADLESS_ROUTE=on`; refuse unsupported Codex or in-process dispatches before launching.
+Controlled rows without stamped effort must also reach the router and escalate its refusal; stamp the missing effort before retrying.
 
 ```typescript
-    const routed = full.metadata.effort && spawnSync("bash", ["skills/worktask/scripts/effort-route.sh",
-      "--agent", subagentType, "--model", effectiveModel, "--requested", full.metadata.effort],
+    const hasDispatchControls = ["auto_compact_window", "retry_watchdog", "retry_watchdog_max_wait_ms",
+      "retry_watchdog_max_usage_limit_wait_ms", "overloaded_retry_max_delay_ms"]
+      .some(key => Object.prototype.hasOwnProperty.call(full.metadata, key));
+    const routed = (full.metadata.effort || hasDispatchControls) && spawnSync("bash", ["skills/worktask/scripts/effort-route.sh",
+      "--agent", subagentType, "--model", effectiveModel, "--requested", full.metadata.effort ?? "",
+      "--dispatch-controls", JSON.stringify(full.metadata)],
       { encoding: "utf8" });
     // A refused route (exit 2, no line) must not fall through to a dispatch without the tier.
     if (routed && routed.status !== 0) { escalate(task.id, "effort_route_refused"); continue; }
@@ -1442,16 +1499,16 @@ live in `references/return-arms.md`; read its section when the predicate holds.
 
 ```typescript
       // 6.5a2. The stage yielded without finishing its handoff. Precondition — the agent is NOT
-      //        live (Step 6.5's liveness rule forbids this block while agent_id is live).
+      //        live (Step 6.5's liveness rule bars this block while agent_id lives).
       const incArtifact = stageArtifactPath(code, full.metadata.run_index ?? 0, post.tasks?.[task.id]);
       const incHandoff = fs.existsSync(incArtifact) ? parseFrontmatter(incArtifact) : null;
       const selfPatched = post.tasks?.[task.id]?.status === "completed"
                           && Boolean(post.tasks[task.id].verdict);
-      // Incomplete even WITH a verdict: a maxTurns stop can land after the frontmatter is
-      // written. Field name unconfirmed — read defensively, re-check at the next /cc-update.
+      // Incomplete even WITH a verdict: a maxTurns stop can land after the frontmatter
+      // is written. Field name unconfirmed: read defensively, recheck at /cc-update.
       const maxTurnsPartial = Boolean(launchAck?.partial);
       const incomplete = maxTurnsPartial || (!selfPatched && !incHandoff?.verdict);
-      // incomplete → return-arms.md § Step 6.5a2 — mark & audit.
+      // incomplete → return-arms.md § Step 6.5a2: auto-resume ≤2 per row, then escalate
 ```
 
 ##### Step 6.5a3 — route every typed blocked return
@@ -1720,8 +1777,8 @@ Corrected artifact exists only now; source resumes here not at route that parked
     // 6.6a RESOLVE (commands/worktask.md § Step C.0a). Skipped for PL/FN/ST/IR, and when
     //      decision_gate != "auto". Otherwise run C.2's raise-only join FIRST, then hand the
     //      surviving effective_class == "decision" items to the emitting stage's OWN agent on
-    //      its OWN model, at effort_for_resolver(metadata.effort, metadata.model) from
-    //      scripts/effort-ladder.sh. One dispatch for the whole set. No metadata.effort on the
+    //      its OWN model, at `effort-ladder-cli.sh for-resolver <effort> <model>` (the
+    //      allow-listed CLI over scripts/effort-ladder.sh). One dispatch for the whole set. No metadata.effort on the
     //      row => audit resolver_skipped/effort_unstamped and fall through; never guess a tier.
 ```
 
@@ -1922,6 +1979,62 @@ A DV agent running several non-separable batches records each finished batch in
 `tasks.<ID>.progress` (`agents/developer.md § Budget-Aware Checkpointing`); loop step 4.7 reads it
 on re-dispatch so the run resumes from `next_batch`.
 
+### Hand-back guard
+
+A run hands back at three points: the loop exit and the megatask per-issue end at ST (both in
+§ Post-Worktask Self-Improvement), and a checkpoint return (the § Step 4.9 FN-gate STOP or a
+partial return). It never hands back while a child of this run is live, because the parent's
+stop frees the megatask track and the next turn can reassign it under the running child. The
+megatask track rule (`../megatask/SKILL.md § Starting and completing an issue`) is the second
+line of defence when this guard cannot verify liveness.
+
+#### Hand-back guard — the live check
+
+Candidates: `facts.dispatched_agents[]` entries with `status: "launched"`, plus `tasks.*` rows
+with `status: "in_progress"`. Run `claude agents --json --all`, falling back to `ListAgents`.
+`--all` also lists finished sessions, so an absent row means gone, not merely finished. Join each
+candidate with the rule that `scripts/stale-check.sh` and `references/resume.md § Live-agent rows`
+already use: `agent_id`/`id`/`sessionId`, prefix-tolerant, with `subagent_type` as a best-effort
+match when `agent_id` is absent. A row with `state: done` is not live. Liveness is defined there,
+not here.
+
+#### Hand-back guard — verdicts
+
+Every outcome of the live check maps to exactly one row. Nothing that is unclear maps to `clear`.
+
+| Live check | Action | `result` |
+|---|---|---|
+| every candidate is absent or `done` | hand back | `clear` |
+| a candidate is busy (`waitingFor` empty) | wait on its completion notification, never a poll loop, bounded by `agent-coordination § Stall Timeout`; then run the guard again | `deferred` |
+| a candidate is parked | § Hand-back guard — parked children | `parked` |
+| the CLI ran but liveness is indeterminate: non-zero exit, unparseable output, an unrecognised shape or token | hand back | `unverified` |
+| neither CLI is available | hand back | `unverified` |
+
+#### Hand-back guard — parked children
+
+Take the `resume.md` arm for the park kind. A reattach makes the child busy again, so run the
+guard again after it: the run never hands back while a reattached child runs.
+
+| Park kind | `resume.md` arm | Then |
+|---|---|---|
+| `waitingFor` is `approval` or `input` | § Live-agent rows — liveness branch — alive and responsive: `SendMessage` the ledger's answer | run the guard again |
+| `state: blocked` | § Live-agent rows — parked or gone: reattach via `SendMessage` | run the guard again |
+| "Needs input" (operator-owned) | § Live-agent rows — liveness branch — parked, awaiting input: surface the prompt, never auto-answer | attended: wait for the operator, then run the guard again; unattended: hand back |
+| a hook schema error | § Live-agent rows — broken hook configuration | hand back; the operator fixes the hook |
+
+#### Hand-back guard — the audit row
+
+Write one `handback_guard` row per evaluation through a standalone `state-patch.sh --audit-row`,
+**before** any wait: a session that dies while it waits still leaves the trace.
+
+```json
+{"actor":"orchestrator","action":"handback_guard","subject":"<worktask_id>",
+ "result":"clear|deferred|parked|unverified",
+ "metadata":{"point":"loop_exit|megatask_st|checkpoint",
+             "live":["<TASK_ID>:<agent_id|subagent_type>"],
+             "source":"claude agents --json|ListAgents|none"}}
+```
+
 ## Auto-Decision Delegation (decision_gate)
 
 Carried by `PL0.metadata.decision_gate` — `"user"` (default) or `"auto"` (`--auto=[decision]`, or
@@ -2065,7 +2178,7 @@ Per-issue HTML-marker dedup (`<!-- completion-summary:<worktask_id>:<run_index>:
 
 ## Post-Worktask Self-Improvement
 
-After the execution loop exits (all tasks completed, including ST), except in a `/megatask` per-issue run, which ends at ST (`commands/worktask.md § Phase 3`): if `.context/learnings.md` exists, Read `references/fn-gate.md § Post-Worktask Self-Improvement` and follow the Post-ST procedure (surface learnings → user checks boxes → route each checked item by its `Enforcement:` form to prompt-engineer or workflow-engineer → audit → terminate). Absent → worktask complete. Never apply unchecked proposals.
+After the execution loop exits (all tasks completed, including ST), except in a `/megatask` per-issue run, which ends at ST (`commands/worktask.md § Phase 3`). Either way, run § Hand-back guard before handing back. Then, unless the run is per-issue: if `.context/learnings.md` exists, Read `references/fn-gate.md § Post-Worktask Self-Improvement` and follow the Post-ST procedure (surface learnings → user checks boxes → route each checked item by its `Enforcement:` form to prompt-engineer or workflow-engineer → audit → terminate). Absent → worktask complete. Never apply unchecked proposals.
 
 ## Resume After Interruption
 

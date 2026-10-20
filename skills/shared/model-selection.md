@@ -48,6 +48,14 @@ Re-check the rates against the `claude-api` skill whenever an alias moves to a n
 Opus-tier stages follow the `opus` alias to each new default Opus with no plugin change. `fable` is
 a valid operator override, never a plugin default.
 
+### Workflow-only model override
+
+`CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL` selects the model for workflow agents from Claude Code 2.1.296.
+It leaves other subagents unchanged. Keep `metadata.model` explicit and reconcile the effective model through existing `model_resolved` evidence.
+The classifier-only `CLAUDE_CODE_AUTO_MODE_MODEL` does not change stage model selection.
+Fable/best can retry once on the previous Fable model when the newest is unavailable to the organization (2.1.301).
+Record observed resolution rather than assuming that the requested alias ran.
+
 ### Prefer the alias over a pinned id
 
 Frontmatter and `metadata.model` carry the alias, never a full model id. An alias tracks the

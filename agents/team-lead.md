@@ -65,7 +65,7 @@ Read `.context/state.json` before allocating work; identify blockers and unresol
 
 ### DV Task Splitting Protocol
 
-TL is the sole owner of the intra-issue async decision: whether one DV0 splits into parallel DV streams (DV0, DV1, DV2…), each in its own worktree so no files conflict. Orthogonal to the megatask cross-issue track count (`parallel_tracks`), orchestrator-derived at megatask init — TL never sets it.
+TL is the sole owner of the intra-issue async decision: whether one DV0 splits into DV streams (DV0, DV1, DV2…). The orchestrator assigns separate trees for concurrent streams in an unpinned session and serializes streams on the assigned tree in a pinned session (`handoff-protocol.md § Pinning a row's tree`). This is orthogonal to the megatask cross-issue track count (`parallel_tracks`), orchestrator-derived at megatask init — TL never sets it.
 
 | Split when | Keep a single DV0 when |
 |---|---|

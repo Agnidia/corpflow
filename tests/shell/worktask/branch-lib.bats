@@ -39,6 +39,13 @@ mk_no_jq_path() {
 # ---------------------------------------------------------------------------
 # T2 — symbol inventory: all 16 required functions defined after one source.
 # ---------------------------------------------------------------------------
+@test "executing branch-lib.sh directly is refused and names branch-name.sh" {
+  run bash "$PLUGIN_ROOT/$LIB"
+  assert_failure 2
+  assert_output --partial "source it, do not execute it directly"
+  assert_output --partial "branch-name.sh"
+}
+
 @test "T2: all 16 required symbols are defined after sourcing" {
   cd "$WD"
   run bash -c "
@@ -736,7 +743,7 @@ _pair() {
   assert_output "[release/v2][env]"
 }
 
-@test "resolve_base_ref: rank 2 — state.json outranks the repository default" {
+@test "resolve_base_ref: rank 2b — state.json outranks the repository default" {
   cd "$WD"
   git init -q -b master .
   git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m base
@@ -801,6 +808,66 @@ _mk_ranks_1_4_empty() {
   WORKSPACE_ROOT="$WD" run _pair
   assert_success
   assert_output "[develop][workspace]"
+}
+
+# Mirror and row disagree, and origin/HEAD names a third branch, so each rank that
+# answers is visible in the value as well as in the source.
+_mk_task_row_ledger() { # $1=ledger mirror value
+  cd "$WD"
+  git init -q -b master .
+  git -c user.email=a@b.c -c user.name=t commit -q --allow-empty -m base
+  git update-ref refs/remotes/origin/main HEAD
+  git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  jq --arg m "$1" '.metadata.base_ref = $m | .tasks.DV0.metadata.base_ref = "develop"
+    | .tasks.DV1.metadata = {stage: "DV"} | .tasks.DV2.metadata.base_ref = "null"
+    | .tasks.DV3.metadata.base_ref = ""' .context/state.json > s && mv s .context/state.json
+}
+
+@test "resolve_base_ref: rank 2a — the named task row outranks the ledger mirror" {
+  _mk_task_row_ledger master
+  BASE_REF_TASK_ID=DV0 run _pair
+  assert_success
+  assert_output "[develop][task]"
+}
+
+@test "resolve_base_ref: rank 1 — FN_BASE_REF still outranks the task row (rank 2a)" {
+  _mk_task_row_ledger master
+  FN_BASE_REF=release BASE_REF_TASK_ID=DV0 run _pair
+  assert_success
+  assert_output "[release][env]"
+}
+
+@test "resolve_base_ref: rank 2a falls through to rank 2b — no task, no row value, unknown id" {
+  _mk_task_row_ledger develop
+  local id
+  run _pair
+  assert_success
+  assert_output "[develop][state]"
+  # DV1 has no base_ref, DV2 holds the string "null", DV3 an empty string, DV9 is absent.
+  for id in DV1 DV2 DV3 DV9; do
+    BASE_REF_TASK_ID="$id" run _pair
+    assert_success
+    assert_output "[develop][state]"
+  done
+}
+
+@test "resolve_base_ref: hostile task id binds as data — no jq error, falls to rank 2b" {
+  _mk_task_row_ledger master
+  # `run` captures stderr with stdout, so the exact match also proves stderr is empty.
+  BASE_REF_TASK_ID='DV0") | error("x' run _pair
+  assert_success
+  assert_output "[master][state]"
+}
+
+# Spliced into a jq program, this id would evaluate to "evil" (source task); bound as data
+# it names no row, so the ladder falls through to the ledger mirror.
+@test "resolve_base_ref: hostile task id is data — a splice-style payload never yields its literal" {
+  _mk_task_row_ledger master
+  BASE_REF_TASK_ID='"] | "evil" #' run _pair
+  assert_success
+  refute_output --partial "evil"
+  refute_output --partial "[task]"
+  assert_output "[master][state]"
 }
 
 @test "actor: audit_fn keeps project-manager on FN rows and takes the ladder otherwise" {

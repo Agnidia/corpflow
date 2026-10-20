@@ -16,7 +16,8 @@
 #   Symbols: corpflow_workspace_root, corpflow_context_root, corpflow_active_stage,
 #   corpflow_resolve_pin, corpflow_stage_and_pin, corpflow_model_family,
 #   corpflow_switch_dest, corpflow_switch_origin, corpflow_switch_fields,
-#   corpflow_audit_task_id, corpflow_hook_audit_row, corpflow_bind_payload.
+#   corpflow_audit_task_id, corpflow_hook_audit_row, corpflow_bind_payload,
+#   corpflow_first_user_text.
 #
 # Minimum shell: bash 3.2+ (macOS default). Correct under the union of its
 # consumers' option sets, `set -euf -o pipefail`, while setting none of them.
@@ -94,45 +95,72 @@ _cf_issue_root_of() {
   return 0
 }
 
+# corpflow_first_user_text <transcript_path> — echoes the text of the first user record
+# within the first 40 lines of a JSONL transcript: the acting agent's dispatch prompt.
+# Array content joins its text parts with newlines. Empty for a missing or unreadable
+# file, no jq, or no user record. The single place that assumes the transcript schema, so
+# the bind and the audit stage rung drift together if it changes.
+corpflow_first_user_text() {
+  local _u_tp="${1:-}"
+  [ -n "$_u_tp" ] && [ -f "$_u_tp" ] && [ -r "$_u_tp" ] || return 0
+  command -v jq > /dev/null 2>&1 || return 0
+  head -n 40 "$_u_tp" 2> /dev/null | jq -rn '
+      first(inputs | select(.type? == "user")) | .message.content
+      | if type == "string" then . elif type == "array"
+        then (map(select(.type? == "text") | .text | strings) | join("\n")) else empty end
+    ' 2> /dev/null || :
+  return 0
+}
+
 # corpflow_bind_payload <hook-stdin-json> — binds THIS hook process to the
 # /megatask per-issue worktree the payload belongs to, so corpflow_workspace_root
 # answers the issue's ledger ahead of WORKSPACE_ROOT/CLAUDE_PROJECT_DIR, which a
 # hook inherits from the batch session, not from the per-issue Bash prefix.
 # Per-process by design: concurrent issues each get their own hook process, so no
-# shared mutable state can cross-bind them. Candidates, first match wins: the
-# payload's cwd, this process's cwd, then the `WORKSPACE_ROOT=` banner line of
-# the acting agent's own dispatch prompt (the first user record of its
-# transcript) — a subagent's cwd is the batch root, so the banner is what carries
-# its issue. No match leaves the ladder exactly as it was.
+# shared mutable state can cross-bind them. Candidates, first valid one wins: the
+# `WORKSPACE_ROOT=` banner in the acting agent's own dispatch prompt (first user
+# record of its transcript), a `WORKSPACE_ROOT=<path>` assignment in the payload's
+# command (read as text, never expanded), the payload's cwd, this process's cwd.
+# A subagent's cwd is the session's, so a session inside one issue's worktree
+# must not outrank the issue the agent names; the agent writes its command but
+# not its prompt, so the banner outranks the command. No match changes nothing.
 corpflow_bind_payload() {
-  local _b_payload="${1:-}" _b_cand _b_tp _b_wt
+  local _b_payload="${1:-}" _b_fields _b_cwd="" _b_tp="" _b_cmd="" _b_cand="" _b_wt="" _b_re
   _CORPFLOW_ISSUE_ROOT=""
   # Cheap exit for every non-megatask session: no .worktrees under a declared
-  # root means no candidate can validate, so skip the jq and transcript reads.
+  # root means no candidate can validate, so skip the payload and transcript reads.
   if { [ -z "${WORKSPACE_ROOT:-}" ] || [ ! -d "${WORKSPACE_ROOT}/.worktrees" ]; } \
     && { [ -z "${CLAUDE_PROJECT_DIR:-}" ] || [ ! -d "${CLAUDE_PROJECT_DIR}/.worktrees" ]; }; then
     return 0
   fi
-  _b_cand=""
   if [ -n "$_b_payload" ] && command -v jq > /dev/null 2>&1; then
-    _b_cand=$(printf '%s' "$_b_payload" | jq -r '.cwd // empty | strings' 2> /dev/null) || _b_cand=""
+    # Only an assignment in a position bash honours matches, and a value holding
+    # `$`, a backtick or a backslash never does. \x27 is a single quote.
+    # shellcheck disable=SC2016 # a jq regex: `$` and backticks are pattern text, never expanded
+    _b_re='(?:^|[\n;&|(])[ \t]*(?:export[ \t]+)?(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|\x27[^\x27]*\x27|[^ \t\n;&|"\x27]*)[ \t]+)*WORKSPACE_ROOT=(?:"(/[^"$`\\\n]*)"|\x27(/[^\x27\n]*)\x27|(/[^ \t\n;&|"\x27$`\\()<>]*))(?=[ \t\n;&|)]|$)'
+    # A line break would shift the fields, so such a value is dropped. On
+    # SubagentStop, transcript_path is the parent's; the agent's own is preferred.
+    _b_fields=$(printf '%s' "$_b_payload" | jq -r --arg re "$_b_re" '
+        def one: if type == "string" and ((contains("\n") or contains("\r")) | not) then . else "" end;
+        ((.cwd // "") | one),
+        (((.agent_transcript_path // .transcript_path) // "") | one),
+        ((try ((.tool_input | objects | .command | strings)
+                | [match($re).captures[] | .string | strings][0]) catch "") // "" | one)
+      ' 2> /dev/null) || _b_fields=""
+    {
+      IFS= read -r _b_cwd || :
+      IFS= read -r _b_tp || :
+      IFS= read -r _b_cmd || :
+    } <<< "$_b_fields"
   fi
-  _b_wt=$(_cf_issue_root_of "$_b_cand")
+  if [ -n "$_b_tp" ]; then
+    _b_cand=$(corpflow_first_user_text "$_b_tp" \
+      | sed -n 's/^WORKSPACE_ROOT=\(\/.*\)$/\1/p' | head -n 1) || _b_cand=""
+    _b_wt=$(_cf_issue_root_of "$_b_cand")
+  fi
+  [ -n "$_b_wt" ] || _b_wt=$(_cf_issue_root_of "$_b_cmd")
+  [ -n "$_b_wt" ] || _b_wt=$(_cf_issue_root_of "$_b_cwd")
   [ -n "$_b_wt" ] || _b_wt=$(_cf_issue_root_of "${PWD:-}")
-  if [ -z "$_b_wt" ] && [ -n "$_b_payload" ] && command -v jq > /dev/null 2>&1; then
-    # SubagentStop names the stopping agent's transcript in agent_transcript_path;
-    # transcript_path there is the parent's. Tool events carry only the latter.
-    _b_tp=$(printf '%s' "$_b_payload" \
-      | jq -r '(.agent_transcript_path // .transcript_path) // empty | strings' 2> /dev/null) || _b_tp=""
-    if [ -n "$_b_tp" ] && [ -f "$_b_tp" ] && [ -r "$_b_tp" ]; then
-      _b_cand=$(head -n 40 "$_b_tp" 2> /dev/null | jq -rn '
-          first(inputs | select(.type? == "user")) | .message.content
-          | if type == "string" then . elif type == "array"
-            then (map(select(.type? == "text") | .text | strings) | join("\n")) else empty end
-        ' 2> /dev/null | sed -n 's/^WORKSPACE_ROOT=\(\/.*\)$/\1/p' | head -n 1) || _b_cand=""
-      _b_wt=$(_cf_issue_root_of "$_b_cand")
-    fi
-  fi
   _CORPFLOW_ISSUE_ROOT="$_b_wt"
   return 0
 }
@@ -328,13 +356,10 @@ corpflow_model_family() {
   esac
 }
 
-# The three ASSUMED-field coalesces (see model-switch-gate.sh's CONFIRMED/ASSUMED
-# split), each written exactly once. The per-field accessors and the combined
-# reader below all interpolate these, so the gate's decision and the audit row can
-# never disagree about what a payload said, and a schema-drift fix is one edit.
+# Shared coalesces keep gate decisions and audit rows consistent across schema variants.
 _CORPFLOW_JQ_DEST='.to_model // .toModel // .requested_model // .requestedModel // .new_model // .newModel // ""'
 _CORPFLOW_JQ_ORIGIN='.from_model // .fromModel // .current_model // .currentModel // ""'
-_CORPFLOW_JQ_TRIGGER='.reason // .trigger // .source // ""'
+_CORPFLOW_JQ_TRIGGER='.source // .reason // .trigger // ""'
 
 # corpflow_switch_dest <payload> — echoes the destination model, or empty.
 # corpflow_switch_origin <payload> — echoes the origin model, or empty.
@@ -535,4 +560,4 @@ readonly -f corpflow_workspace_root corpflow_context_root corpflow_active_stage 
   corpflow_resolve_pin corpflow_stage_and_pin corpflow_model_family \
   corpflow_switch_dest corpflow_switch_origin corpflow_switch_fields \
   corpflow_audit_task_id corpflow_hook_audit_row _cf_rank6_owns \
-  _cf_issue_root_of corpflow_bind_payload
+  _cf_issue_root_of corpflow_bind_payload corpflow_first_user_text

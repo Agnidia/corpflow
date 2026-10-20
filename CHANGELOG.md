@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [4.1.3] — 2026-10-19
+
+### Changed
+
+- Medium and Moderate worktasks include finalization and stakeholder verification (#489).
+- The sibling plugin template documents test-run evidence, security escalation, and class re-emission rules (#491).
+
+### Fixed
+
+- Bind parallel issue hooks to the assigned workspace and derive audit stages from dispatch evidence (#496, #500).
+- Size stage briefs to turn limits, resume partial returns, and prevent vacuous verification greps (#498).
+- Resolve the declared PR base, correct finalization preflight checks, and settle issues after non-default-base merges (#482, #497).
+- Keep unattended decisions, child-agent completion, CI settings, and portable command handling consistent (#499).
+- Preserve spilled escalation classes, normalize decision inputs and previous-stage IDs, and settle stale tasks from their touched files (#484).
+- Serialize DV streams in pinned sessions while retaining unpinned worktree isolation (#489).
+- Report measured self-test counts and corroborate runner summaries, including here-document command classification (#487, #500).
+
+- **The DC option gate no longer checks released history or vendored docs** (#475, #492).
+  `doc-option-check.sh` scans a `CHANGELOG.md` only inside its `## [Unreleased]` block. It skips
+  integrity hashes such as `sha512-<base64>` and backticked tokens whose first segment exists
+  nowhere in the tree. The new repeatable `--exclude <path>` skips a vendored doc. The git-ignored
+  runtime hint now prints a path that works as `--allow-path` from the tree root.
+
 ## [4.1.2] — 2026-10-18
 
 The suite runs green again (#483, #488), the cli-fallback render no longer needs a font registry,

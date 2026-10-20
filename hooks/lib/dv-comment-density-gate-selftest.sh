@@ -37,31 +37,36 @@
   } >"$_tmp/Lean.swift"
 
   _fail=0
+  _st_cases=0
 
   # 1. Bloated present -> must block, with remediation text.
   _out=$(run_gate "$(read_stdin)" "$_tmp/.context" "$_tmp")
   printf '%s' "$_out" | jq -e '
     .decision == "block"
     and (.hookSpecificOutput.additionalContext | length > 0)
-  ' >/dev/null 2>&1 || { echo "dv-comment-density-gate: self-test FAIL (bloated file did not block)"; _fail=1; }
+  ' >/dev/null 2>&1 || { echo "dv-comment-density-gate: self-test FAIL (bloated file did not block)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   # 2. Lean only -> must pass silently.
   rm -f "$_tmp/Bloated.swift"
   _out=$(run_gate "$(read_stdin)" "$_tmp/.context" "$_tmp")
-  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (lean file blocked)"; _fail=1; }
+  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (lean file blocked)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   # 3. Reviewer agent with the bloated file back -> must stay silent (a reviewer
   #    is never blocked for the writer's bloat).
   printf '/// essay %s\n' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 >"$_tmp/Bloated.swift"
   printf 'struct B%s { let v: Int }\n' 1 2 3 4 5 >>"$_tmp/Bloated.swift"
   _out=$(run_gate '{"agent_type":"corpflow:technical-lead"}' "$_tmp/.context" "$_tmp")
-  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (reviewer agent was blocked)"; _fail=1; }
+  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (reviewer agent was blocked)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   # 4. Small edit under the floor -> must stay silent even at high density.
   printf '/// doc %s\n' 1 2 3 >"$_tmp/Tiny.swift"
   echo 'struct Tiny { let v: Int }' >>"$_tmp/Tiny.swift"
   _out=$(run_gate "$(read_stdin)" "$_tmp/.context" "$_tmp")
-  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (small edit blocked)"; _fail=1; }
+  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (small edit blocked)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   rm -f "$_tmp/Bloated.swift" "$_tmp/Tiny.swift"
 
@@ -79,7 +84,8 @@
   _out=$(run_gate "$(read_stdin)" "$_tmp/.context" "$_tmp")
   printf '%s' "$_out" | jq -e '
     .decision == "block" and (.reason | test("bloated\\.py"))
-  ' >/dev/null 2>&1 || { echo "dv-comment-density-gate: self-test FAIL (bloated .py did not block)"; _fail=1; }
+  ' >/dev/null 2>&1 || { echo "dv-comment-density-gate: self-test FAIL (bloated .py did not block)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   # 6. Lean .py -> must pass. Guards the other direction: Python code lines must
   #    not be miscounted as comments.
@@ -93,7 +99,8 @@
     printf '    def extra%s(self): pass\n' 1 2 3
   } >"$_tmp/lean.py"
   _out=$(run_gate "$(read_stdin)" "$_tmp/.context" "$_tmp")
-  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (lean .py blocked)"; _fail=1; }
+  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (lean .py blocked)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   # 7. Shell: a bloated .sh must block. Shell fell to the C-family regex, so it
   #    scored 0% no matter how much of it was comment.
@@ -109,7 +116,8 @@
   _out=$(run_gate "$(read_stdin)" "$_tmp/.context" "$_tmp")
   printf '%s' "$_out" | jq -e '
     .decision == "block" and (.reason | test("bloated\\.sh"))
-  ' >/dev/null 2>&1 || { echo "dv-comment-density-gate: self-test FAIL (bloated .sh did not block)"; _fail=1; }
+  ' >/dev/null 2>&1 || { echo "dv-comment-density-gate: self-test FAIL (bloated .sh did not block)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   # 8. Lean .sh -> must pass. It carries a real shebang and a conventional header
   #    because shell's mandatory preamble is counted as comment: a fixture
@@ -131,12 +139,14 @@
     printf 'extra%s() { :; }\n' 1 2 3 4 5 6 7 8
   } >"$_tmp/lean.sh"
   _out=$(run_gate "$(read_stdin)" "$_tmp/.context" "$_tmp")
-  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (lean .sh blocked)"; _fail=1; }
+  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (lean .sh blocked)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
   # Silence alone cannot separate a measured pass from a file the extension
   # filter never looked at, so pin the count the audit row reports.
   _checked_after=$(tail -n 1 "$_tmp/.context/logs/audit.jsonl" | jq -r '.metadata.files_checked')
   [ "$_checked_after" -eq $((_checked_before + 1)) ] ||
-    { echo "dv-comment-density-gate: self-test FAIL (lean .sh was never measured)"; _fail=1; }
+    { echo "dv-comment-density-gate: self-test FAIL (lean .sh was never measured)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   # 9. Vendored third-party shell must never block: on a dependency refresh the
   #    added lines are code the agent did not write.
@@ -151,13 +161,15 @@
   _out=$(run_gate "$(read_stdin)" "$_tmp/.context" "$_tmp")
   printf '%s' "$_out" | jq -e '
     .decision == "block" and (.reason | test("dep\\.sh"))
-  ' >/dev/null 2>&1 || { echo "dv-comment-density-gate: self-test FAIL (vendor control fixture did not block)"; _fail=1; }
+  ' >/dev/null 2>&1 || { echo "dv-comment-density-gate: self-test FAIL (vendor control fixture did not block)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   rm -f "$_tmp/dep.sh"
   mkdir -p "$_tmp/vendor"
   printf '%s\n' "$_vendor_body" >"$_tmp/vendor/dep.sh"
   _out=$(run_gate "$(read_stdin)" "$_tmp/.context" "$_tmp")
-  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (vendored .sh blocked)"; _fail=1; }
+  [ -z "$_out" ] || { echo "dv-comment-density-gate: self-test FAIL (vendored .sh blocked)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   # 10. One budget-compliant /// per one-line case: 48% aggregate, every comment
   #     run one line long. The aggregate ratio alone blocked this.
@@ -174,13 +186,15 @@
   } >"$_tmp/RequestState.swift"
   _out=$(run_gate "$(read_stdin)" "$_tmp/.context" "$_tmp")
   [ -z "$_out" ] ||
-    { echo "dv-comment-density-gate: self-test FAIL (per-declaration one-liners blocked)"; _fail=1; }
+    { echo "dv-comment-density-gate: self-test FAIL (per-declaration one-liners blocked)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
   # Silence must be a measured pass, not a file the filters skipped.
   tail -n 1 "$_tmp/.context/logs/audit.jsonl" | jq -e '
     .action == "comment_density_pass" and .metadata.files_checked == 1
     and .metadata.worst_pct > 40 and .metadata.worst_essay_pct == 0
   ' >/dev/null 2>&1 ||
-    { echo "dv-comment-density-gate: self-test FAIL (per-declaration case was never measured)"; _fail=1; }
+    { echo "dv-comment-density-gate: self-test FAIL (per-declaration case was never measured)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   # 11. The loophole the block-length signal opens: prose kept inside the 3-line
   #     budget but repeated for every declaration. The secondary aggregate
@@ -200,8 +214,9 @@
   printf '%s' "$_out" | jq -e '
     .decision == "block" and (.reason | test("Spread\\.swift"))
   ' >/dev/null 2>&1 ||
-    { echo "dv-comment-density-gate: self-test FAIL (essay-per-declaration did not block)"; _fail=1; }
+    { echo "dv-comment-density-gate: self-test FAIL (essay-per-declaration did not block)"; _fail=$((_fail + 1)); }
+  _st_cases=$((_st_cases + 1))
 
   [ "$_fail" -eq 0 ] || exit 1
-  echo "dv-comment-density-gate: self-test OK"
+  echo "dv-comment-density-gate: self-test OK ($_st_cases passed, 0 failed)"
   exit 0

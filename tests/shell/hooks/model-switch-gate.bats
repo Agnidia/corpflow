@@ -71,8 +71,7 @@ _run_gate() {
   _run_gate "$(switch_payload)"
   assert_success
   echo "$output" | jq -e '
-    .decision == "annotate"
-    and .hookSpecificOutput.hookEventName == "PreModelSwitch"
+    has("systemMessage") and (has("hookSpecificOutput") | not)
   '
   assert_audit_row model_switch_annotated --meta kind=destination_unresolved
 }
@@ -95,14 +94,14 @@ _run_gate() {
   _ledger
   _run_gate "$(switch_payload to_model=sonnet reason=model_404_fallback)"
   assert_success
-  echo "$output" | jq -e '.decision == "annotate"'
+  echo "$output" | jq -e 'has("systemMessage")'
   assert_audit_row model_switch_annotated --meta kind=fallback --meta requested=sonnet
 }
 
 @test "row 4: the fallback annotation names model_resolved as the cost-attribution source" {
   _ledger
   _run_gate "$(switch_payload to_model=sonnet trigger=fallback)"
-  echo "$output" | jq -e '.hookSpecificOutput.additionalContext | test("model_resolved")'
+  echo "$output" | jq -e '.systemMessage | test("model_resolved")'
 }
 
 # --- row 5: explicit user action ----------------------------------------------
@@ -112,7 +111,7 @@ _run_gate() {
   _run_gate "$(switch_payload to_model=haiku reason=user_requested)"
   assert_success
   echo "$output" | jq -e '
-    .decision == "confirm" and .hookSpecificOutput.permissionDecision == "ask"
+    .hookSpecificOutput.permissionDecision == "ask" and .hookSpecificOutput.permissionDecision == "ask"
   '
   assert_audit_row model_switch_confirm_requested --meta kind=user
 }
@@ -126,7 +125,7 @@ _run_gate() {
   _run_gate "$(switch_payload to_model=sonnet)"
   assert_success
   echo "$output" | jq -e '
-    .decision == "annotate" and (.hookSpecificOutput | has("permissionDecision") | not)
+    has("systemMessage") and (has("hookSpecificOutput") | not)
   '
   assert_audit_row model_switch_annotated --meta kind=trigger_unobserved --meta requested=sonnet
   assert_audit_row model_switch_blocked --absent
@@ -137,7 +136,7 @@ _run_gate() {
   _run_gate "$(switch_payload to_model=sonnet reason=quantum_flux)"
   assert_success   # the block travels in stdout JSON; a non-zero exit would wedge the session
   echo "$output" | jq -e '
-    .decision == "block" and .hookSpecificOutput.permissionDecision == "deny"
+    .hookSpecificOutput.permissionDecision == "deny" and .hookSpecificOutput.permissionDecision == "deny"
   '
   assert_audit_row model_switch_blocked --result block --subject DV0 --meta pinned=opus --meta requested=sonnet
 }
@@ -152,9 +151,9 @@ _run_gate() {
     > "$WD/.context/state.json"
   _run_gate "$(switch_payload to_model=fable reason=quantum_flux)"
   echo "$output" | jq -e '
-    (.hookSpecificOutput.additionalContext | test("QA7"))
-    and (.hookSpecificOutput.additionalContext | test("haiku"))
-    and (.hookSpecificOutput.additionalContext | test("fable"))
+    (.hookSpecificOutput.permissionDecisionReason | test("QA7"))
+    and (.hookSpecificOutput.permissionDecisionReason | test("haiku"))
+    and (.hookSpecificOutput.permissionDecisionReason | test("fable"))
   '
   assert_audit_row model_switch_blocked --meta stage=QA --meta task_id=QA7 --meta pinned=haiku
 }
@@ -169,7 +168,7 @@ _run_gate() {
     rm -f "$WD/.context/logs/audit.jsonl"
     _ledger
     _run_gate "$(switch_payload "$field=sonnet" reason=quantum_flux)"
-    echo "$output" | jq -e --arg f "$field" '.decision == "block"' \
+    echo "$output" | jq -e --arg f "$field" '.hookSpecificOutput.permissionDecision == "deny"' \
       || fail "destination field '$field' did not resolve"
   done
 }
@@ -217,7 +216,7 @@ _run_gate() {
   _ledger
   _run_gate '{"session_id":"s","agent_id":"agt_dv","destinationModelIdentifier":"sonnet"}'
   assert_success
-  echo "$output" | jq -e '.decision != "block"'
+  echo "$output" | jq -e '.hookSpecificOutput.permissionDecision != "deny"'
   assert_audit_row model_switch_blocked --absent
 }
 
@@ -228,10 +227,11 @@ _run_gate() {
   assert_audit_row model_switch_blocked --absent
 }
 
-@test "contract: --self-test passes (smoke, NON-counting)" {
+@test "contract: --self-test passes (counted summary)" {
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'model-switch-gate: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 @test "unresolved root exits 0, no block, no .context under cwd" {
@@ -250,4 +250,19 @@ _run_gate() {
   # contract, and the invariant keeping _task_id non-empty lives in another file.
   run grep -c -- '--subject "$_task_id"' "$PLUGIN_ROOT/hooks/model-switch-gate.sh"
   assert_output "0"
+}
+
+@test "documented sources emit only supported model-switch output fields" {
+  _ledger
+  for source in command picker sdk; do
+    _run_gate "$(switch_payload to_model=sonnet from_model=opus source=$source)"
+    assert_success
+    echo "$output" | jq -e '
+      (keys == ["hookSpecificOutput"]) and
+      (.hookSpecificOutput | keys == ["hookEventName", "permissionDecision", "permissionDecisionReason"]) and
+      .hookSpecificOutput.permissionDecision == "ask" and
+      (.hookSpecificOutput.permissionDecisionReason | length > 0)'
+  done
+  _run_gate "$(switch_payload)"
+  echo "$output" | jq -e 'keys == ["systemMessage"]'
 }

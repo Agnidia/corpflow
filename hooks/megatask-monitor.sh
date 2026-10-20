@@ -174,9 +174,9 @@ EOF
     and (.progress.completed==1 and .progress.ready==1 and .progress.blocked==0)
   ' "$out" >/dev/null && echo yes || echo no)
   if [ "$ok" = "yes" ] && grep -q megatask_progress "$td/.context/logs/audit.jsonl"; then
-    echo "megatask-monitor: self-test OK"; exit 0
+    echo "megatask-monitor: self-test OK (1 passed, 0 failed)"; exit 0
   fi
-  echo "megatask-monitor: self-test FAIL"; jq . "$out" 2>/dev/null; exit 1
+  echo "megatask-monitor: self-test FAIL (0 passed, 1 failed)"; jq . "$out" 2>/dev/null; exit 1
 fi
 
 # ---------------- Normal invocation ----------------

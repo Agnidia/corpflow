@@ -122,3 +122,65 @@ field() { jq -r --arg k "$1" '.[$k]' <<< "$output"; }
   run_script "$SCRIPT" --agent corpflow:developer
   assert_failure 2
 }
+
+@test "optional controls refuse in-process routing and allow opted-in haiku headless" {
+  run env CORPFLOW_HEADLESS_ROUTE=off bash "$PLUGIN_ROOT/$SCRIPT" --agent corpflow:developer \
+    --model haiku --requested low --dispatch-controls '{"auto_compact_window":200000}'
+  assert_failure 2
+  run env CORPFLOW_HEADLESS_ROUTE=on bash "$PLUGIN_ROOT/$SCRIPT" --agent corpflow:developer \
+    --model haiku --requested low --dispatch-controls '{"auto_compact_window":200000}'
+  assert_success
+  assert_output --partial '"route":"headless"'
+}
+
+@test "dispatch recipe refuses unstamped controlled rows before any launch" {
+  local recipe_file
+  recipe_file="$(mk_tmpworkdir)/dispatch-recipe.cjs"
+  python3 - "$PLUGIN_ROOT/skills/worktask/SKILL.md" "$recipe_file" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text().split("##### Step 6 — route before every dispatch, headless or in-process", 1)[1]
+recipe = source.split("```typescript\n", 1)[1].split("```", 1)[0]
+Path(sys.argv[2]).write_text('''const assert = require("node:assert/strict");
+const { spawnSync } = require("node:child_process");
+process.chdir(process.argv[2]);
+function dispatch(metadata, optIn) {
+  process.env.CORPFLOW_HEADLESS_ROUTE = optIn;
+  const launched = [], refused = [];
+  const escalate = (id, reason) => refused.push(reason);
+  for (const task of [{id: "DV0"}]) {
+    const full = {metadata}, subagentType = "corpflow:developer", effectiveModel = "opus";
+''' + recipe + '''
+    launched.push(route);
+  }
+  return {launched, refused};
+}
+const controls = [
+  {auto_compact_window: 200000},
+  {retry_watchdog: false},
+  {retry_watchdog_max_wait_ms: 100, retry_watchdog: true},
+  {retry_watchdog_max_usage_limit_wait_ms: 100, retry_watchdog: true},
+  {overloaded_retry_max_delay_ms: 100},
+  {auto_compact_window: null}
+];
+for (const optIn of ["off", "on"]) {
+  for (const metadata of controls) {
+    assert.deepEqual(dispatch(metadata, optIn), {
+      launched: [], refused: ["effort_route_refused"]
+    });
+  }
+  const plain = dispatch({}, optIn);
+  assert.deepEqual(plain.refused, []);
+  assert.equal(plain.launched[0].route, "inproc");
+  assert.equal(plain.launched[0].reason, "effort_unstamped");
+}
+const stamped = {effort: "high", auto_compact_window: 200000};
+assert.deepEqual(dispatch(stamped, "off"), {launched: [], refused: ["effort_route_refused"]});
+assert.equal(dispatch(stamped, "on").launched[0].route, "headless");
+console.log("16 dispatch scenarios passed");
+''')
+PY
+  run node "$recipe_file" "$PLUGIN_ROOT"
+  assert_success
+  assert_output "16 dispatch scenarios passed"
+}

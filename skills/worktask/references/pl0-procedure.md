@@ -198,6 +198,11 @@ Full propagation contract: `skills/agent-coordination/SKILL.md § metadata.skip_
 
 PL0 may set the remaining optional dispatch fields (`skills/shared/state-ledger.md § Dispatch metadata`); they map 1:1 to the headless `claude -p --agent` recipe's flags (`skills/agent-coordination/references/headless-dispatch.md`), honoured in-process for `model` (always) and `permission_mode` (audited), advisory otherwise. `effort` is not in this set: it is a required ledger field (above). Every agent file also carries a static `effort:` key next to `maxTurns:` (`skills/shared/stage-codes.md § Model alias notes`), which Claude Code applies only when a call passes no `effort`. The stamped value always rides the in-process `Agent()` call's `effort` parameter (2.1.292), which outranks that key; it goes headless only under the operator opt-in `CORPFLOW_HEADLESS_ROUTE=on`.
 
+For compaction and retry controls, copy only explicit operator choices into the five fields in
+`skills/shared/state-ledger.md § Compaction and retry controls`. Leave them unset by default.
+Require the headless opt-in before stamping them. Watchdog wait limits require `retry_watchdog: true`.
+Do not infer a compaction threshold or retry duration from task complexity.
+
 ##### Default writer rules
 
 Apply on trigger match; otherwise leave unset and keep PL0's own resolution (above):
@@ -259,7 +264,8 @@ Run once, at PL0, through the shared resolver so every reader agrees on the rank
 |---|---|
 | 0 | `fork_base()` fork point — evidence, opt-in; reconciles by sweep item rather than overriding |
 | 1 | `$FN_BASE_REF` — explicit operator/test override |
-| 2 | `state.json .metadata.base_ref` — where a host-declared target branch enters the order |
+| 2a | `state.json tasks.<ID>.metadata.base_ref` — the row named in `$BASE_REF_TASK_ID` |
+| 2b | `state.json .metadata.base_ref` — where a host-declared target branch enters the order |
 | 3 | `workspace.json .git.base_branch` — `/megatask` per-issue record |
 | 4 | `git symbolic-ref refs/remotes/origin/HEAD` — repository default branch |
 | — | unresolved — reported, never guessed |
@@ -267,9 +273,14 @@ Run once, at PL0, through the shared resolver so every reader agrees on the rank
 ##### Calling the resolver
 
 ```bash
-. skills/worktask/scripts/branch-lib.sh
-BASE=$(resolve_base_ref); BASE="${BASE#origin/}"
+. "${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/branch-lib.sh"
+BASE=$(BASE_REF_TASK_ID=PL0 resolve_base_ref); BASE="${BASE#origin/}"
 ```
+
+The snippet sources the library from the plugin root, because a cwd-relative path does not exist
+in a project checkout; that sourcing is the #482 fix. Naming `PL0` lets a `base_ref` already on the
+PL0 row (rank 2a) answer before the ledger mirror (rank 2b), which this run is about to rewrite. The
+`/megatask` stamp carries no `base_ref` key, so naming `PL0` does not make that stamp win.
 
 There is no literal fallback: an unresolved base is reported and the caller degrades
 non-blocking, because a hardcoded `master` may name a branch that does not exist. PL0 does not
@@ -300,7 +311,7 @@ would be the silent retarget this reconcile exists to prevent.
 Stamp the result in two places, unconditionally (`master` included):
 
 - `task.metadata.base_ref` on PL0 and every downstream task — `--task-create` refuses a downstream row without it. DV reads it as the per-task base override (`agents/developer.md § Worktree Mode`).
-- `state.json .metadata.base_ref`, in the step-4 reset. Shell scripts cannot read Task-System metadata, so this mirror is how `branch-lib.sh resolve_base_ref` (rank 2) sees the value. On a turn that skips the reset (`plan_revision`), write it with `state-patch.sh --ledger-meta --set '{"base_ref":"<branch>"}'`, not a hand edit — a hand edit bypasses the lock and the bounds filter.
+- `state.json .metadata.base_ref`, in the step-4 reset. Shell scripts cannot read Task-System metadata, so this mirror is how `branch-lib.sh resolve_base_ref` (rank 2b) sees the value when the caller names no task. On a turn that skips the reset (`plan_revision`), write it with `state-patch.sh --ledger-meta --set '{"base_ref":"<branch>"}'`, not a hand edit — a hand edit bypasses the lock and the bounds filter.
 
 Reader resolution order is canonical in `handoff-protocol.md § metadata.base_ref`.
 
@@ -714,7 +725,8 @@ When a worktask includes a version bump (release, tag, or `version:`/`CHANGELOG`
 
 For grep-based verification steps in `<plan_file>` (e.g. AC validation commands):
 
-- Use word-boundary anchors (`\b`) or full filename matches, not substring patterns, which false-positive on legitimate canonical names.
+- Anchor whole words with `git grep -P '\bname\b'`, or `git grep -w name` when no regex is needed, or match full filenames. Substring patterns false-positive on legitimate canonical names.
+- Never put `\b` inside `git grep -E` or a BRE: BSD regex has no `\b`, so on macOS the grep matches nothing and reads as clean. `[[:<:]]`/`[[:>:]]` are BSD/macOS-only; glibc rejects them.
 - Record each AC verification command in `<plan_file>` beside its criterion, with the output
   that passes. PL does not run it: DV runs the residual-greps before yielding and DV and QA
   execute the rest, per `skills/shared/testing-strategy.md § Test-Execution Authority`.
@@ -733,7 +745,7 @@ An enumerated edit-file list goes stale between plan authoring and DV execution,
 ##### Residual-grep authoring rules
 
 - A clean diff yields zero residuals (`grep` returns no unhandled matches) once the theme is fully applied.
-- Use word-boundary anchors (`\b`) or full-filename matches per the rule above.
+- Anchor words with `git grep -P` (fallback `git grep -w`) or full-filename matches, per the rule above.
 - Pair each residual-grep with its theme; one theme may need more than one pattern.
 
 ##### Residual-grep worked example
@@ -742,7 +754,7 @@ Example AC verification command (theme: rename a hypothetical `legacy_flag` → 
 
 ```bash
 # Completeness gate — MUST return no unhandled matches after the theme is applied.
-grep -rn '\blegacy_flag\b' --include='*.md' --include='*.sh' . || echo "clean: no residuals"
+git grep -nP '\blegacy_flag\b' -- '*.md' '*.sh' || echo "clean: no residuals"
 ```
 
 DV runs each theme's residual-grep before yielding (`agents/workflow-engineer.md § Batch-Completion Discipline`); a non-empty result means the theme is incomplete however many enumerated files were edited.

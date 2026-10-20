@@ -2,16 +2,10 @@
 # model-switch-gate — PreModelSwitch gate refusing a mid-worktask re-tier away from
 # the model a stage was dispatched with. No matcher in plugin.json; self-filters.
 #
-# PAYLOAD SCHEMA IS UNCONFIRMED. CC 2.1.251 postdates every doc in this repo and no
-# live payload has been observed. Split, per the schema-drift discipline in
-# skills/agent-coordination/references/headless-dispatch.md § Schema Versioning Watch:
-#
-#   CONFIRMED (every other hook payload in this plugin carries them):
-#     session_id, agent_id
-#   ASSUMED — read through a first-match coalesce, all equally speculative:
-#     destination  to_model / toModel / requested_model / requestedModel / new_model / newModel
-#     origin       from_model / fromModel / current_model / currentModel
-#     trigger      reason / trigger / source
+# DOCUMENTED: to_model, from_model, and source (command/picker/sdk) in the hooks reference.
+# LIVE-UNCONFIRMED: no installed-build payload was observed; alternate spellings remain defensive.
+# ASSUMED: agent_id may be present; the ledger supplies the acting stage when it is absent.
+# Output uses systemMessage for notices and permissionDecisionReason for ask/deny.
 #
 # The PIN is not assumed: it comes from this plugin's own
 # .facts.dispatched_agents[].model_requested.
@@ -85,7 +79,7 @@ classify_trigger() {
   case "$_ct_raw" in
     *fallback* | *404* | *not_found* | *notfound* | *unavailable* | *degrade* | *overload* | *error* | *retry*)
       printf 'fallback' ;;
-    *user* | *manual* | *explicit* | *interactive* | *command* | *slash*)
+    *user* | *manual* | *explicit* | *interactive* | *command* | *slash* | picker | sdk)
       printf 'user' ;;
     *) printf 'unknown' ;;
   esac
@@ -150,9 +144,7 @@ run_gate() {
   if [ -z "$_dest_family" ]; then
     _ac="Stage $_stage (task $_task_id) is pinned to '$_pin', but this PreModelSwitch payload carried no field this gate recognizes as a destination model. Passing the switch through unblocked; verify dispatched_agents[].model_resolved before attributing this stage's cost."
     jq -cn --arg r "$_ac" '{
-      decision: "annotate",
-      reason: $r,
-      hookSpecificOutput: {hookEventName: "PreModelSwitch", additionalContext: $r}
+      systemMessage: $r
     }' 2> /dev/null || return 0
     corpflow_hook_audit_row --ctx "$_ctx" --actor hook:model-switch-gate \
       --subject "${_task_id:-unknown}" --task-id "${_task_id:-unknown}" --action "model_switch_annotated" --result ok \
@@ -174,9 +166,7 @@ run_gate() {
   if [ "$_trigger" = "fallback" ]; then
     _ac="Stage $_stage (task $_task_id) pinned '$_pin' but is falling back to '$_dest'. Allowed as error recovery. This stage did not run on the model it requested — re-check dispatched_agents[].model_resolved before attributing cost."
     jq -cn --arg r "$_ac" '{
-      decision: "annotate",
-      reason: $r,
-      hookSpecificOutput: {hookEventName: "PreModelSwitch", additionalContext: $r}
+      systemMessage: $r
     }' 2> /dev/null || return 0
     corpflow_hook_audit_row --ctx "$_ctx" --actor hook:model-switch-gate \
       --subject "${_task_id:-unknown}" --task-id "${_task_id:-unknown}" --action "model_switch_annotated" --result ok \
@@ -191,9 +181,7 @@ run_gate() {
   if [ "$_trigger" = "user" ]; then
     _ac="Stage $_stage (task $_task_id) is pinned to '$_pin' via metadata.model. Switching to '$_dest' will run the rest of this stage off-tier. Confirm only if that is intended; otherwise cancel and re-dispatch the stage with an explicit metadata.model override."
     jq -cn --arg r "$_ac" '{
-      decision: "confirm",
-      reason: $r,
-      hookSpecificOutput: {hookEventName: "PreModelSwitch", permissionDecision: "ask", additionalContext: $r}
+      hookSpecificOutput: {hookEventName: "PreModelSwitch", permissionDecision: "ask", permissionDecisionReason: $r}
     }' 2> /dev/null || return 0
     corpflow_hook_audit_row --ctx "$_ctx" --actor hook:model-switch-gate \
       --subject "${_task_id:-unknown}" --task-id "${_task_id:-unknown}" --action "model_switch_confirm_requested" --result ok \
@@ -209,9 +197,7 @@ run_gate() {
   if [ -z "$_trigger_raw" ]; then
     _ac="Stage $_stage (task $_task_id) is pinned to '$_pin'; this switch would move it to '$_dest'. This PreModelSwitch payload carried no field this gate recognizes as a switch trigger, so the switch is passing through unblocked. Verify dispatched_agents[].model_resolved before attributing this stage's cost."
     jq -cn --arg r "$_ac" '{
-      decision: "annotate",
-      reason: $r,
-      hookSpecificOutput: {hookEventName: "PreModelSwitch", additionalContext: $r}
+      systemMessage: $r
     }' 2> /dev/null || return 0
     corpflow_hook_audit_row --ctx "$_ctx" --actor hook:model-switch-gate \
       --subject "${_task_id:-unknown}" --task-id "${_task_id:-unknown}" --action "model_switch_annotated" --result ok \
@@ -226,9 +212,7 @@ run_gate() {
   # that is evidence enough to deny. This is the gate's one reachable deny.
   _ac="Stage $_stage (task $_task_id) is pinned to '$_pin' via metadata.model; this switch would move it to '$_dest' with no recognized override trigger. To proceed: re-dispatch the stage with an explicit metadata.model override, or a human operator may restart with CORPFLOW_MODEL_SWITCH_GATE=off in the process environment — an agent cannot self-serve this."
   jq -cn --arg r "$_ac" '{
-    decision: "block",
-    reason: $r,
-    hookSpecificOutput: {hookEventName: "PreModelSwitch", permissionDecision: "deny", additionalContext: $r}
+    hookSpecificOutput: {hookEventName: "PreModelSwitch", permissionDecision: "deny", permissionDecisionReason: $r}
   }' 2> /dev/null || return 0
   corpflow_hook_audit_row --ctx "$_ctx" --actor hook:model-switch-gate \
     --subject "${_task_id:-unknown}" --task-id "${_task_id:-unknown}" --action "model_switch_blocked" --result block \

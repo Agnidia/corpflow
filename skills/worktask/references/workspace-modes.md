@@ -109,7 +109,7 @@ All DV operations use the worktree path prefix — isolation is always active. `
 
 ##### The tree is pinned at dispatch
 
-Each DV ledger row's tree is fixed before `Agent()`: the row's agent enters exactly `tasks.DV<k>.metadata.workspace_path`, which the orchestrator re-pins to a stream worktree at dispatch when parallel streams share it (rule: `handoff-protocol.md § Pinning a row's tree`). Nothing else selects it: not agent frontmatter `isolation`, not the Agent tool's `isolation: "worktree"`, not a glob convention. Each of those hands the stage a harness-created tree that is not the assigned one, which `dv-tree-preflight.sh --assigned` (`agents/developer.md § D0.0a`) then correctly blocks.
+Each DV ledger row's tree is fixed before `Agent()`: the row's agent enters exactly `tasks.DV<k>.metadata.workspace_path`. The orchestrator serializes shared-tree streams when `WORKSPACE_ROOT` pins its session, or re-pins concurrent streams to separate trees otherwise (rule: `handoff-protocol.md § Pinning a row's tree`). A linked worktree alone does not signal a pinned session. Agent frontmatter `isolation`, the Agent tool's `isolation: "worktree"`, and glob conventions cannot select the assigned tree. They can hand the stage a different tree, which `dv-tree-preflight.sh --assigned` (`agents/developer.md § D0.0a`) blocks.
 
 ##### Absolute-path mode when EnterWorktree is refused
 
@@ -129,7 +129,7 @@ When the merge target is not the worktask default (e.g. `origin/release/v2` inst
 
 ##### Base-ref resolution order
 
-PL0 also mirrors the detected branch to `state.json .metadata.base_ref` unconditionally, because shell helpers cannot read Task-System metadata. Every reader — DV, `fn-preflight.sh continuity`, `branch-name.sh` (via `branch-lib.sh resolve_base_ref`) — resolves through one order, highest first: `$FN_BASE_REF`, `state.json .metadata.base_ref` (the rank a host-declared target branch enters at), `workspace.json .git.base_branch`, `git symbolic-ref refs/remotes/origin/HEAD`, then unresolved. Ahead of them sits rank 0, the `fork_base()` fork point — opt-in evidence: it supplies a value only when those four are empty and the caller passed `--with-fork-point` (only `fn-preflight base-sanity` does); otherwise it reconciles through a PL0 sweep item instead of overriding. No hardcoded literal ends that chain; an unresolved base is reported and the caller degrades non-blocking. Canonical: `handoff-protocol.md § metadata.base_ref`.
+PL0 also mirrors the detected branch to `state.json .metadata.base_ref` unconditionally, because shell helpers cannot read Task-System metadata. Every reader — DV, `fn-preflight.sh continuity`, `branch-name.sh` (via `branch-lib.sh resolve_base_ref`) — resolves through one order, highest first: `$FN_BASE_REF`, `state.json tasks.<ID>.metadata.base_ref` (rank 2a, the row a caller names via `BASE_REF_TASK_ID`), `state.json .metadata.base_ref` (rank 2b, the rank a host-declared target branch enters at), `workspace.json .git.base_branch`, `git symbolic-ref refs/remotes/origin/HEAD`, then unresolved. Ahead of them sits rank 0, the `fork_base()` fork point — opt-in evidence: it supplies a value only when those ranks are empty and the caller passed `--with-fork-point` (only `fn-preflight base-sanity` does); otherwise it reconciles through a PL0 sweep item instead of overriding. No hardcoded literal ends that chain; an unresolved base is reported and the caller degrades non-blocking. Canonical: `handoff-protocol.md § metadata.base_ref`.
 
 ##### Background & shared-checkout rules
 

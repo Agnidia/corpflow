@@ -44,10 +44,11 @@ setup() {
   assert_success
 }
 
-@test "contract: --self-test passes (smoke, NON-counting)" {
+@test "contract: --self-test passes (counted summary)" {
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'precompact-checkpoint: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 # --- checkpoint fidelity ------------------------------------------------------

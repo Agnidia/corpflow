@@ -273,7 +273,7 @@ Hook JSON output accepts `terminalSequence` — `{"hookSpecificOutput": {"termin
 
 ### Payload schema — read defensively
 
-The payload shape is unconfirmed: no live payload has been observed. Only `session_id` and `agent_id` are assumed present, by analogy with the other hook payloads; destination model, origin model and trigger are each read through a first-match coalesce over candidate spellings. The reference implementation and its CONFIRMED/ASSUMED split live in `hooks/model-switch-gate.sh`'s header — update both together when a live payload pins the real names, per `headless-dispatch.md § Schema Versioning Watch`.
+The official hooks reference documents `to_model`, `from_model`, and `source` (`command`, `picker`, `sdk`). No installed-build payload was observed. The gate prioritizes these names and retains alternate spellings defensively. Its header distinguishes documented fields from live-unconfirmed and assumed fields; update both after a live probe. Notices use top-level `systemMessage`; ask/deny decisions use `hookSpecificOutput.permissionDecisionReason`. `PreModelSwitch` does not accept `additionalContext` or custom `annotate`/`confirm` decision values. Only interactive `/model` can show an ask prompt; other surfaces refuse it. See [the official hook reference](https://code.claude.com/docs/en/hooks#premodelswitch).
 
 #### Why this gate fails open
 
@@ -336,3 +336,18 @@ MCP servers can request structured input mid-task via interactive forms or brows
 | `ElicitationResult` | User responds to elicitation | Audit responses, transform data, route to agents |
 
 Use them to log elicitation requests for the audit trail, pre-fill known values from task metadata, and route complex elicitations to the right stage agent.
+
+## Hook reliability through Claude Code 2.1.303
+
+Command and HTTP hooks accept `onFailure: "block"` from 2.1.295. Launch failures, unexpected exits,
+timeouts, and invalid JSON/schema output block supported actions. A deliberate exit 0 still follows the hook's own decision.
+The plugin pins this behavior on its test-execution and decision-protection PreToolUse hooks and its PreModelSwitch gate.
+Advisory artifact checks and observational hooks retain their existing behavior.
+`onFailure` has no effect on Stop, SubagentStop, TaskCompleted, TeammateIdle, or asynchronous command hooks.
+Keep the stage-boundary harness as the enforcement mechanism when a completion hook cannot run.
+
+Async multiline JSON and SessionStart environment propagation are fixed in 2.1.295. SessionEnd while
+background commands run and plugin worktree hooks under `--worktree` are fixed in 2.1.300; `--tmux` remains excluded.
+Hook `updatedInput` is validated as tool input from 2.1.300; unknown keys are dropped and invalid input denies the call.
+Prompt and agent hooks run at most twelve instances per event concurrently from 2.1.302. Command hooks are unaffected.
+These releases do not confirm background notification ID keys, maxTurns partial keys, or model-switch/resume payload field names.

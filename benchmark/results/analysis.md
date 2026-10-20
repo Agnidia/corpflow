@@ -1,63 +1,63 @@
-# Benchmark Analysis — live-20260910T185926Z-954783e (live)
+# Benchmark Analysis — live-20261020T142527Z-f3f093f (live)
 
-_as of 2026-09-10T18:59:27Z_
+_as of 2026-10-20T14:25:40Z_
 
 ## totals
 
 | metric | WITH | WITHOUT | Δ | premium % |
 |---|---|---|---|---|
-| tokens total | 194109 | 183647 | 10462 | 5.7% |
-| cost (USD) | 25.63 | 18.48 | 7.15 | 38.7% |
+| tokens total | 210259 | 163139 | 47120 | 28.9% |
+| cost (USD) | 9.27 | 6.61 | 2.67 | 40.4% |
 
 ## per-stage
 
 | stage | arm | cost (USD) | cost share % | out tokens | out share % | cache-hit % | tool calls |
 |---|---|---|---|---|---|---|---|
-| PL | with | 2.42 | 5.5% | 26829 | 7.1% | 95.2% | 37 |
-| AR | with | 5.72 | 13.0% | 596 | 0.2% | 97.3% | 40 |
-| TL | with | 0.30 | 0.7% | 5543 | 1.5% | 88.7% | 9 |
-| DV | with | 10.75 | 24.4% | 97509 | 25.9% | 98.0% | 66 |
-| DR | with | 2.06 | 4.7% | 20559 | 5.5% | 92.9% | 29 |
-| SR | with | 2.68 | 6.1% | 18594 | 4.9% | 96.0% | 34 |
-| QA | with | 0.62 | 1.4% | 7310 | 1.9% | 93.7% | 17 |
-| DC | with | 0.12 | 0.3% | 5119 | 1.4% | 89.2% | 11 |
-| FN | with | 0.28 | 0.6% | 4971 | 1.3% | 91.1% | 12 |
-| ST | with | 0.70 | 1.6% | 6554 | 1.7% | 88.9% | 18 |
-| PL | without | 1.35 | 3.1% | 12456 | 3.3% | 86.4% | 6 |
-| AR | without | 2.17 | 4.9% | 27595 | 7.3% | 90.7% | 10 |
-| TL | without | 0.52 | 1.2% | 3714 | 1.0% | 81.1% | 4 |
-| DV | without | 8.35 | 18.9% | 88870 | 23.6% | 97.8% | 57 |
-| DR | without | 2.71 | 6.1% | 20433 | 5.4% | 92.3% | 19 |
-| SR | without | 1.77 | 4.0% | 10767 | 2.9% | 89.3% | 15 |
-| QA | without | 0.59 | 1.3% | 4652 | 1.2% | 92.4% | 10 |
-| DC | without | 0.25 | 0.6% | 10296 | 2.7% | 87.1% | 10 |
-| FN | without | 0.39 | 0.9% | 2662 | 0.7% | 80.3% | 3 |
-| ST | without | 0.40 | 0.9% | 1885 | 0.5% | 83.5% | 4 |
+| PL | with | 1.23 | 7.8% | 31861 | 8.5% | 91.4% | 21 |
+| AR | with | 1.02 | 6.4% | 22718 | 6.1% | 80.1% | 7 |
+| TL | with | 0.13 | 0.8% | 3254 | 0.9% | 71.4% | 4 |
+| DV | with | 4.41 | 27.8% | 97989 | 26.3% | 96.6% | 45 |
+| DR | with | 1.07 | 6.8% | 14182 | 3.8% | 88.6% | 16 |
+| SR | with | 0.85 | 5.4% | 14933 | 4.0% | 87.8% | 12 |
+| QA | with | 0.14 | 0.9% | 2132 | 0.6% | 78.3% | 5 |
+| DC | with | 0.02 | 0.1% | 14741 | 4.0% | 91.4% | 16 |
+| FN | with | 0.16 | 1.0% | 3300 | 0.9% | 75.3% | 4 |
+| ST | with | 0.25 | 1.5% | 4883 | 1.3% | 86.6% | 9 |
+| PL | without | 0.54 | 3.4% | 16008 | 4.3% | 73.6% | 3 |
+| AR | without | 1.08 | 6.8% | 33184 | 8.9% | 54.8% | 2 |
+| TL | without | 0.16 | 1.0% | 3392 | 0.9% | 68.9% | 3 |
+| DV | without | 3.28 | 20.7% | 78609 | 21.1% | 95.9% | 31 |
+| DR | without | 0.64 | 4.0% | 9263 | 2.5% | 85.2% | 8 |
+| SR | without | 0.57 | 3.6% | 7936 | 2.1% | 85.1% | 8 |
+| QA | without | 0.10 | 0.6% | 1906 | 0.5% | 83.4% | 4 |
+| DC | without | 0.01 | 0.1% | 5837 | 1.6% | 82.4% | 6 |
+| FN | without | 0.15 | 0.9% | 4781 | 1.3% | 89.3% | 6 |
+| ST | without | 0.08 | 0.5% | 2067 | 0.6% | 85.9% | 3 |
 
 ## paired-tokens
 
 | stage | WITH in | WITH cached-in | WITH out | WITHOUT in | WITHOUT cached-in | WITHOUT out |
 |---|---|---|---|---|---|---|
-| PL | 64 | 1828923 | 26829 | 14 | 577478 | 12456 |
-| AR | 2 | 122835 | 596 | 22 | 1068734 | 27595 |
-| TL | 20 | 384859 | 5543 | 10 | 521549 | 3714 |
-| DV | 134 | 12061386 | 97509 | 116 | 8615074 | 88870 |
-| DR | 38 | 1309708 | 20559 | 30 | 1787120 | 20433 |
-| SR | 70 | 2522127 | 18594 | 20 | 990780 | 10767 |
-| QA | 36 | 1232160 | 7310 | 22 | 1106496 | 4652 |
-| DC | 97 | 301439 | 5119 | 65 | 561402 | 10296 |
-| FN | 26 | 426181 | 4971 | 8 | 380486 | 2662 |
-| ST | 38 | 1021133 | 6554 | 10 | 457075 | 1885 |
+| PL | 38 | 682165 | 31861 | 8 | 97042 | 16008 |
+| AR | 14 | 322165 | 22718 | 6 | 110735 | 33184 |
+| TL | 8 | 76920 | 3254 | 6 | 98871 | 3392 |
+| DV | 82 | 5243786 | 97989 | 64 | 3271631 | 78609 |
+| DR | 30 | 727394 | 14182 | 16 | 335884 | 9263 |
+| SR | 26 | 479276 | 14933 | 16 | 305110 | 7936 |
+| QA | 10 | 121423 | 2132 | 8 | 105948 | 1906 |
+| DC | 30 | 543795 | 14741 | 10 | 159232 | 5837 |
+| FN | 10 | 115947 | 3300 | 14 | 189292 | 4781 |
+| ST | 18 | 315243 | 4883 | 8 | 89055 | 2067 |
 
 ## cache-economics
 
 | stage | arm | cache_creation |
 |---|---|---|
-| DV | with | 240268 |
-| DV | without | 191889 |
-| DR | without | 137501 |
-| ST | with | 112888 |
-| SR | without | 105552 |
+| DV | with | 179749 |
+| DV | without | 135168 |
+| DR | with | 82581 |
+| AR | with | 64139 |
+| PL | with | 58831 |
 
 ## quality-delta
 
@@ -79,15 +79,15 @@ a high count is not evidence of correctness.
 
 | metric | WITH | WITHOUT |
 |---|---|---|
-| test_count (self-written) | 74 | 110 |
+| test_count (self-written) | 54 | 91 |
 
 **Descriptive only** — size, not quality. More lines for the same feature is
 not a better result.
 
 | metric | WITH | WITHOUT |
 |---|---|---|
-| loc_produced | 2242 | 2495 |
-| tokens per LOC | 86.5785 | 73.606 |
+| loc_produced | 2838 | 2779 |
+| tokens per LOC | 74.087 | 58.7042 |
 
 ## validity-caveats
 
@@ -95,21 +95,21 @@ not a better result.
 
 ## improvement-candidates
 
-- [ ] (stage_cost_outlier) PL [with]: cost $2.4180 is 2.36x the per-stage median ($1.0226)
-- [ ] (stage_cost_outlier) AR [with]: cost $5.7236 is 5.60x the per-stage median ($1.0226)
-- [ ] (stage_cost_outlier) DV [with]: cost $10.7516 is 10.51x the per-stage median ($1.0226)
-- [ ] (stage_cost_outlier) DR [with]: cost $2.0558 is 2.01x the per-stage median ($1.0226)
-- [ ] (stage_cost_outlier) SR [with]: cost $2.6769 is 2.62x the per-stage median ($1.0226)
-- [ ] (stage_cost_outlier) AR [without]: cost $2.1704 is 2.12x the per-stage median ($1.0226)
-- [ ] (stage_cost_outlier) DV [without]: cost $8.3528 is 8.17x the per-stage median ($1.0226)
-- [ ] (stage_cost_outlier) DR [without]: cost $2.7108 is 2.65x the per-stage median ($1.0226)
-- [ ] (stage_cost_outlier) SR [without]: cost $1.7674 is 1.73x the per-stage median ($1.0226)
-- [ ] (out_token_spike) PL [with]: out-tokens 26829 is 3.05x the per-stage median (8803)
-- [ ] (out_token_spike) DV [with]: out-tokens 97509 is 11.08x the per-stage median (8803)
-- [ ] (out_token_spike) DR [with]: out-tokens 20559 is 2.34x the per-stage median (8803)
-- [ ] (out_token_spike) SR [with]: out-tokens 18594 is 2.11x the per-stage median (8803)
-- [ ] (out_token_spike) AR [without]: out-tokens 27595 is 3.13x the per-stage median (8803)
-- [ ] (out_token_spike) DV [without]: out-tokens 88870 is 10.10x the per-stage median (8803)
-- [ ] (out_token_spike) DR [without]: out-tokens 20433 is 2.32x the per-stage median (8803)
-- [ ] (tool_call_spike) DV [with]: 66 tool calls exceeds max(40, 1.5x median) = 40
-- [ ] (tool_call_spike) DV [without]: 57 tool calls exceeds max(40, 1.5x median) = 40
+- [ ] (stage_cost_outlier) PL [with]: cost $1.2327 is 3.14x the per-stage median ($0.3924)
+- [ ] (stage_cost_outlier) AR [with]: cost $1.0191 is 2.60x the per-stage median ($0.3924)
+- [ ] (stage_cost_outlier) DV [with]: cost $4.4109 is 11.24x the per-stage median ($0.3924)
+- [ ] (stage_cost_outlier) DR [with]: cost $1.0734 is 2.74x the per-stage median ($0.3924)
+- [ ] (stage_cost_outlier) SR [with]: cost $0.8515 is 2.17x the per-stage median ($0.3924)
+- [ ] (stage_cost_outlier) AR [without]: cost $1.0762 is 2.74x the per-stage median ($0.3924)
+- [ ] (stage_cost_outlier) DV [without]: cost $3.2811 is 8.36x the per-stage median ($0.3924)
+- [ ] (stage_cost_outlier) DR [without]: cost $0.6392 is 1.63x the per-stage median ($0.3924)
+- [ ] (out_token_spike) PL [with]: out-tokens 31861 is 3.70x the per-stage median (8600)
+- [ ] (out_token_spike) AR [with]: out-tokens 22718 is 2.64x the per-stage median (8600)
+- [ ] (out_token_spike) DV [with]: out-tokens 97989 is 11.39x the per-stage median (8600)
+- [ ] (out_token_spike) DR [with]: out-tokens 14182 is 1.65x the per-stage median (8600)
+- [ ] (out_token_spike) SR [with]: out-tokens 14933 is 1.74x the per-stage median (8600)
+- [ ] (out_token_spike) DC [with]: out-tokens 14741 is 1.71x the per-stage median (8600)
+- [ ] (out_token_spike) PL [without]: out-tokens 16008 is 1.86x the per-stage median (8600)
+- [ ] (out_token_spike) AR [without]: out-tokens 33184 is 3.86x the per-stage median (8600)
+- [ ] (out_token_spike) DV [without]: out-tokens 78609 is 9.14x the per-stage median (8600)
+- [ ] (tool_call_spike) DV [with]: 45 tool calls exceeds max(40, 1.5x median) = 40

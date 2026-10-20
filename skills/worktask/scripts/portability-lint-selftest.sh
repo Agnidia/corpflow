@@ -98,6 +98,12 @@ self_test() {
   assert_hit  "P008 positive: sort -V"        P008 'sort -V "$f"'
   assert_hit  "P008 positive: readlink -f"    P008 'readlink -f "$f"'
   assert_clean "P008 negative: no GNU-only flag" 'sort "$f" | grep foo'
+  assert_clean "P008 negative: git grep -P is exempt" "git grep -P '\\d+' ."
+  assert_hit  "P008 positive: bare grep -P after git grep -P" P008 "git grep -nP x . | grep -P 'y'"
+
+  # --- P009: \b in a git grep pattern without -P -------------------------------------
+  assert_hit  "P009 positive: git grep -nE with \\b" P009 "git grep -nE '\\bfoo\\b' ."
+  assert_clean "P009 negative: git grep -nP with \\b" "git grep -nP '\\bfoo\\b' ."
 
   # --- P000: a disable directive with no reason ---------------------------------------
   assert_hit  "P000: reasonless inline directive" P000 \

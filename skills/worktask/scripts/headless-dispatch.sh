@@ -48,7 +48,8 @@ _HD_PLUGIN_ROOT="$(cd "${_HD_DIR}/../../.." && pwd)"
 # shellcheck source=effort-ladder.sh
 . "${_HD_DIR}/effort-ladder.sh"
 
-MIN_CC_VERSION="2.1.294"
+MIN_CC_VERSION="2.1.303"
+. "${_HD_DIR}/dispatch-controls.sh"
 
 usage() {
   cat >&2 << 'EOF2'
@@ -59,6 +60,10 @@ usage:
                         [--effort <tier>] [--permission-mode <mode>] [--workspace <path>]
                         [--artifact <path>] [--parent-mode <mode>] [--session-id <uuid>]
                         [--resume <uuid>] [--state <path>]
+                        [--auto-compact-window <tokens>] [--retry-watchdog <true|false>]
+                        [--retry-watchdog-max-wait-ms <ms>]
+                        [--retry-watchdog-max-usage-limit-wait-ms <ms>]
+                        [--overloaded-retry-max-delay-ms <ms>]
   headless-dispatch.sh --task <ID> --agent <plugin:agent> --model <alias> --effort <tier>
                         --permission-mode <mode> --workspace <path> --print-argv
 
@@ -109,6 +114,9 @@ ARTIFACT=""
 STATE_PATH=""
 OUT_LOG=""
 PRINT_ARGV=0
+CONTROL_ARGS=()
+CONTROLS='{}'
+HAS_CONTROLS=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -126,6 +134,9 @@ while [ "$#" -gt 0 ]; do
     --artifact) ARTIFACT="${2:-}"; shift 2 ;;
     --state) STATE_PATH="${2:-}"; shift 2 ;;
     --out) OUT_LOG="${2:-}"; shift 2 ;;
+    --auto-compact-window | --retry-watchdog | --retry-watchdog-max-wait-ms | --retry-watchdog-max-usage-limit-wait-ms | --overloaded-retry-max-delay-ms)
+      [ "$#" -ge 2 ] && [ -n "$2" ] || usage
+      CONTROL_ARGS+=("${1#--}" "$2"); shift 2 ;;
     --print-argv) PRINT_ARGV=1; shift ;;
     -h | --help) usage ;;
     *)
@@ -347,10 +358,53 @@ if [ "$PRINT_ARGV" -ne 1 ]; then
     || refuse "out log must be under ledger-root/.context/logs: $OUT_LOG"
 fi
 
+if [ "$PRINT_ARGV" -ne 1 ] && [ -f "$STATE_PATH" ]; then
+  CONTROLS=$(jq -ce --arg t "$TASK" '.tasks[$t].metadata | with_entries(select(.key ==
+    ("auto_compact_window", "retry_watchdog", "retry_watchdog_max_wait_ms",
+     "retry_watchdog_max_usage_limit_wait_ms", "overloaded_retry_max_delay_ms")))' "$STATE_PATH") \
+    || refuse "unreadable dispatch controls"
+fi
+while [ "${#CONTROL_ARGS[@]}" -gt 0 ]; do
+  _control_key="${CONTROL_ARGS[0]//-/_}"
+  _control_value="${CONTROL_ARGS[1]}"
+  case "$_control_value" in true | false) ;; *)
+    [[ "$_control_value" =~ ^[1-9][0-9]*$ ]] || refuse "invalid dispatch control" ;;
+  esac
+  CONTROLS=$(printf '%s' "$CONTROLS" | jq -ce --arg k "$_control_key" --argjson v "$_control_value" '. + {($k):$v}') \
+    || refuse "invalid dispatch control"
+  CONTROL_ARGS=("${CONTROL_ARGS[@]:2}")
+done
+CONTROL_ENV=("CORPFLOW_HEADLESS_CHILD=$TASK")
+dispatch_controls_validate "$CONTROLS" || refuse "invalid dispatch controls"
+if dispatch_controls_present "$CONTROLS"; then HAS_CONTROLS=1; fi
+if [ "$HAS_CONTROLS" -eq 1 ]; then
+  for _control_pair in \
+    'retry_watchdog:CLAUDE_CODE_RETRY_WATCHDOG' \
+    'retry_watchdog_max_wait_ms:CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS' \
+    'retry_watchdog_max_usage_limit_wait_ms:CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS' \
+    'overloaded_retry_max_delay_ms:CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS'; do
+    _control_key="${_control_pair%%:*}"
+    _control_name="${_control_pair#*:}"
+    if printf '%s' "$CONTROLS" | jq -e --arg k "$_control_key" 'has($k)' >/dev/null; then
+      _control_value=$(printf '%s' "$CONTROLS" | jq -r --arg k "$_control_key" '.[$k]')
+      case "$_control_value" in true) _control_value=1 ;; false) _control_value=0 ;; esac
+      CONTROL_ENV+=("$_control_name=$_control_value")
+    fi
+  done
+fi
+
 # --- argv (array, never a shell string) ------------------------------------------------------
 ARGV=(-p --agent "$AGENT" --model "$MODEL" --effort "$EFFORT" \
   --permission-mode "$MODE" --permission-prompts none \
   --output-format stream-json --verbose)
+_compact_window=""
+if [ "$HAS_CONTROLS" -eq 1 ]; then
+  _compact_window=$(printf '%s' "$CONTROLS" | jq -r '.auto_compact_window // empty')
+fi
+if [ -n "$_compact_window" ]; then
+  ARGV+=(--autocompact "$_compact_window")
+  CONTROL_ENV+=("CLAUDE_CODE_AUTO_COMPACT_WINDOW=$_compact_window")
+fi
 # --session-id and --resume are mutually exclusive on the CLI surface unless --fork-session is
 # also passed, and this is a true resume of the SAME child, never a fork — so a resume call
 # carries --resume alone; --session-id only reaches argv when there is no resume in play.
@@ -412,6 +466,7 @@ emit_result() {
 }
 
 if [ -n "$FALLBACK_REASON" ]; then
+  [ "$HAS_CONTROLS" -eq 0 ] || refuse "dispatch controls require headless execution: $FALLBACK_REASON"
   # Nothing has run yet on this path, so there is no side effect to check. The in-process
   # fallback carries the tier on `effort`; only its hook rows can report what ran.
   emit_result "warn" "agent-param" "null" "$FALLBACK_REASON" null null null "inproc_fallback"
@@ -466,8 +521,8 @@ EXIT_CODE=0
 # orchestrator's — while WORKSPACE_ROOT still names the ledger root so the child's hooks
 # resolve .context/state.json there rather than in the (ledger-less) worktree.
 ( cd "$WORKSPACE_REAL" \
-  && exec env CORPFLOW_HEADLESS_CHILD="$TASK" WORKSPACE_ROOT="$LEDGER_ROOT_REAL" \
-       claude "${ARGV[@]}" ) < "$PROMPT" > "$LOG_FILE" 2>&1 \
+  && exec env WORKSPACE_ROOT="$LEDGER_ROOT_REAL" \
+       "${CONTROL_ENV[@]}" claude "${ARGV[@]}" ) < "$PROMPT" > "$LOG_FILE" 2>&1 \
   || EXIT_CODE=$?
 
 SNAPSHOT_AFTER="$(_hd_snapshot)"
@@ -492,6 +547,7 @@ if [ "$EXIT_CODE" -ne 0 ]; then
   elif grep -qiE 'unknown agent|agent not found|no such agent' "$LOG_FILE" 2> /dev/null; then
     REASON="agent_unresolved"
   fi
+  [ "$HAS_CONTROLS" -eq 0 ] || refuse "dispatch controls prevent in-process fallback: $REASON"
   emit_result "warn" "agent-param" "null" "$REASON" null null null "inproc_fallback"
   exit 0
 fi

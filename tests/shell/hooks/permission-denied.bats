@@ -323,8 +323,9 @@ _rows() {
   [ ! -x "$PLUGIN_ROOT/$LIB" ]
 }
 
-@test "contract: --self-test passes (smoke, NON-counting)" {
+@test "contract: --self-test passes (counted summary)" {
   run_script_env "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'permission-denied: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }

@@ -233,6 +233,7 @@ teardown() {
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'test-execution-gate: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 @test "edge: unknown tool_name is out of scope -> allow, no row (FO-10 matcher drift)" {
@@ -594,6 +595,60 @@ swift test'
   assert_output "full_test_run"
   classify_split "echo 'oops; swift test"
   assert_output "full_test_run"
+}
+
+# The apostrophe in the body leaves a quote open for _gate_split_segments, which forces the
+# blind legacy split: that is the path these cases pin.
+@test "legacy split here-doc: a runner only inside the body is data, not a test run" {
+  classify_split "$(printf '%s\n' "cat > log <<'EOF'" "it's a note" 'swift test' 'EOF')"
+  assert_output "not_test"
+  # `<<-` strips leading tabs, and a comment after the operator does not end the line early.
+  classify_split "$(printf '%s\n' 'cat > log <<-EOF # notes' "it's" '	swift test' '	EOF' 'echo done')"
+  assert_output "not_test"
+
+  state_with DR
+  run env CLAUDE_PROJECT_DIR="$WD" bash "$PLUGIN_ROOT/$SCRIPT" <<< "$(bash_payload "$(printf '%s\n' \
+    "cat > log <<'EOF'" "it's a note" 'swift test' 'EOF' 'swift build')")"
+  assert_success
+  [ -z "$output" ] || fail "expected allow, got: $output"
+}
+
+@test "legacy split here-doc: a runner after the terminator is still a test run" {
+  classify_split "$(printf '%s\n' "cat > log <<'EOF'" "it's a note" 'EOF' 'swift test')"
+  assert_output "full_test_run"
+  classify_split "$(printf '%s\n' "cat > log <<'EOF' && swift test" "it's a note" 'EOF')"
+  assert_output "full_test_run"
+}
+
+@test "legacy split here-doc: any doubt in the scan keeps the blind split, which denies" {
+  # Unterminated body; an escaped delimiter; a continued operator line; a numeric word.
+  classify_split "$(printf '%s\n' "cat > log <<'EOF'" "it's" 'swift test')"
+  assert_output "full_test_run"
+  classify_split "$(printf '%s\n' 'cat > log <<\EOF' "it's" 'swift test' 'EOF')"
+  assert_output "full_test_run"
+  classify_split "$(printf '%s\n' 'cat > log <<EOF \' "it's" 'swift test' 'EOF')"
+  assert_output "full_test_run"
+  classify_split "$(printf '%s\n' 'echo $((1<<2))' "it's" 'swift test' '2')"
+  assert_output "full_test_run"
+  # A `<<` in a comment opens nothing, so the runner line stays a command.
+  classify_split "$(printf '%s\n' 'echo hi # see <<EOF' "it's" 'swift test' 'EOF')"
+  assert_output "full_test_run"
+}
+
+@test "legacy split here-doc: an 8000-line body is stripped in one linear pass" {
+  # Structural first: 2 segments prove the strip ran rather than aborting into one segment per
+  # line. The ceiling is loose on purpose: a scan that copies the rest of the string per line
+  # needs tens of seconds at this size, a linear one well under one.
+  run /bin/bash -c '. "$1" --lib-only
+    body=$(awk "BEGIN { for (i = 1; i <= 8000; i++) printf \"line %d data payload xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\", i }")
+    cmd=$(printf "cat > f <<\047EOF\047\nit\047s\n%s\nEOF\nswift test" "$body")
+    SECONDS=0
+    _gate_split_legacy "$cmd"
+    printf "segs=%s last=%s secs=%s\n" "${#GATE_SEGS[@]}" "${GATE_SEGS[${#GATE_SEGS[@]}-1]}" "$SECONDS"' \
+    _ "$PLUGIN_ROOT/$SCRIPT"
+  assert_success
+  assert_output --regexp '^segs=2 last=swift test secs=[0-9]+$'
+  [ "${output##*secs=}" -lt 15 ] || fail "legacy split took ${output##*secs=}s on 8000 lines: $output"
 }
 
 @test "quote-aware split: bash -c chases a runner after a separator inside its own string" {

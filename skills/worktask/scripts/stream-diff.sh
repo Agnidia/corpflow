@@ -5,8 +5,10 @@
 #   and prints one labelled block per row. Tree mode does the same for one tree with no
 #   ledger rows. Read-only on git: never writes the index, the worktree or a ref.
 #
-#   Base per row: branch-lib.sh resolve_base_ref evaluated at the row's tree, mapped by
-#   resolve_git_ref. There is no literal fallback; an unresolved base is reported.
+#   Base per row: branch-lib.sh resolve_base_ref evaluated at the row's tree with that
+#   row's own task id as BASE_REF_TASK_ID, so the row's metadata.base_ref (rank 2a,
+#   base_source=task) outranks the ledger mirror; mapped by resolve_git_ref. Tree mode
+#   names no task. There is no literal fallback; an unresolved base is reported.
 #
 #   Source ladder per row, first match wins:
 #     committed  <ref>...HEAD is non-empty                        body: git diff <ref>...HEAD
@@ -17,7 +19,7 @@
 #
 #   Header, one per row, space-free values, "-" when none:
 #     stream-diff task=<ID|-> stream=<s|-> source=<committed|staged|worktree|empty>
-#       base=<name|-> base_source=<env|state|workspace|origin_head|unresolved> files=<n>
+#       base=<name|-> base_source=<env|task|state|workspace|origin_head|unresolved> files=<n>
 #       untracked=<n> staged_also=<n> shared_with=<ID|-> reason=<token>
 #   (one line). files = paths in the body; untracked = untracked, non-ignored paths;
 #   staged_also = uncommitted tracked paths the body omits (non-zero only for committed).
@@ -49,6 +51,7 @@
 # @arg -h | --help      Print this header on stdout and exit 0.
 #
 # @env FN_BASE_REF      Highest-priority base override (resolve_base_ref rank 1).
+# @env BASE_REF_TASK_ID Ignored: ledger mode sets it per row, tree mode clears it.
 #
 # @exitcode 0  Printed (degraded rows included).
 # @exitcode 2  Usage: unknown flag or format, bad or unknown --task, --tree with --task or
@@ -220,9 +223,10 @@ row_selected() {
 }
 
 # Prints "source base base_source ref files untracked staged_also reason", TAB-separated,
-# for the tree in $1. Runs in a subshell so the cd and the ledger env stay local.
+# for the tree in $1, resolving the base for task $2 ("-" in tree mode). Runs in a
+# subshell so the cd and the ledger env stay local.
 probe_tree() (
-  local tree="$1" bsrc base ref="" reason="-" source="empty"
+  local tree="$1" task="${2:--}" bsrc base ref="" reason="-" source="empty"
   local committed="" staged="" unstaged="" untracked="" uncommitted="" headish files=0 also=0
   CDPATH='' cd -- "$tree" 2> /dev/null || {
     printf 'empty\t-\tunresolved\t-\t0\t0\t0\ttree_missing\n'
@@ -234,6 +238,13 @@ probe_tree() (
   fi
   export WORKSPACE_ROOT="$tree"
   [[ -z "$LEDGER" ]] || export STATE_PATH="$LEDGER"
+  # The row's own id, never --caller: a reviewer's row is not the stream under review.
+  # Cleared otherwise so an inherited value cannot point tree mode at some ledger row.
+  if [[ -n "$LEDGER" && "$task" != "-" ]]; then
+    export BASE_REF_TASK_ID="$task"
+  else
+    unset BASE_REF_TASK_ID
+  fi
   base=$(resolve_base_ref)
   bsrc=$(base_ref_source)
   if [[ -z "$base" ]]; then
@@ -323,7 +334,7 @@ while IFS=$'\t' read -r id stream tree _status; do
       shared="-"
       SEEN="$SEEN"$'\n'"$real"$'\t'"$id"
     fi
-    probe=$(probe_tree "$real") || probe=""
+    probe=$(probe_tree "$real" "$id") || probe=""
     [[ -n "$probe" ]] || probe=$(printf 'empty\t-\tunresolved\t-\t0\t0\t0\tnot_a_work_tree')
   else
     real=""

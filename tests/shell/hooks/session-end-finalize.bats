@@ -80,10 +80,11 @@ setup() {
   [ ! -e "$WD/target-dir/escaped.txt" ]
 }
 
-@test "contract: --self-test passes (smoke, NON-counting)" {
+@test "contract: --self-test passes (counted summary)" {
   run_script_env "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'session-end-finalize: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 @test "unresolved root exits 0 and creates no .context under cwd" {

@@ -138,7 +138,7 @@ Every material worktask action writes one JSONL line to `.context/logs/audit.jso
 |-------|-----------------|
 | Orchestrator | `worktask_init`, `stage_transition`, `approval_received`, `resume`, `stage_replay`, `permission_mode_pinned`, `github_issue_created`, `dispatch_depth_projected` (Pre-Stage Validation check 11), `stage_returned_incomplete` (Step 6.5a2), `reattach_send_result` (one per reattach attempt — `skills/worktask/references/resume.md § Reattach rows`), `blocked_on` (one row per leg, Steps 6.5a3 and 7a; § Writers — blocked_on rows), `mailbox_ingest` |
 | Stage agents | `artifact_created`, `error_recorded`, `retry_attempt`, `escalation`, `full_test_run`, `scoped_test_run`, `message_ack` (`state-patch.sh --ack`) |
-| Any agent whose nested `Agent()` is refused by the depth cap | `dispatch_flattened` (§ Depth-refusal self-report) — the writer is the *refused dispatcher*, which may be a stage agent or a nested platform router, never the orchestrator |
+| Any agent that flattens a dispatch (depth-cap refusal or choice) | `dispatch_flattened` (§ Depth-refusal self-report) — the writer is the *flattening dispatcher*, which may be a stage agent or a nested platform router, never the orchestrator |
 
 #### Writers — permission denials (two writers, one row)
 
@@ -388,7 +388,7 @@ In auto mode the permission classifier evaluates a subagent spawn before it laun
 
 #### Depth-refusal self-report
 
-When the depth cap refuses a nested `Agent()`, the refused dispatcher appends one `dispatch_flattened` row to `.context/logs/audit.jsonl` before doing that work inline. Written afterwards, the row misses its purpose: an agent that finishes the specialist's job and then forgets leaves an artifact indistinguishable from one the specialist produced.
+When the depth cap refuses a nested `Agent()`, or an agent chooses to do a specialist's work inline (skipping the platform router included), that dispatcher appends one `dispatch_flattened` row to `.context/logs/audit.jsonl` before doing that work inline. Written afterwards, the row misses its purpose: an agent that finishes the specialist's job and then forgets leaves an artifact indistinguishable from one the specialist produced.
 
 ##### No hook covers this refusal
 
@@ -400,12 +400,13 @@ Unlike a refused tool (`PermissionDenied`), nothing in the plugin hook vocabular
 | `action` | `dispatch_flattened` |
 | `subject` | the **specialist that would have been used** (e.g. `apple-developer:test-generator`) |
 | `result` | `deferred` — the dispatch did not happen; the work still did |
-| `metadata.attempted_depth` | the depth the refused child would have occupied |
-| `metadata.cap` | `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` as resolved at refusal time |
+| `metadata.reason` | `depth_cap` (the cap refused the dispatch) or `chosen` (the agent flattened by choice) |
+| `metadata.attempted_depth` | the depth the refused child would have occupied; `null` under `chosen` |
+| `metadata.cap` | `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` as resolved at refusal time; `null` under `chosen` |
 
 ##### Required fields and pairing
 
-All three of `subject`, `attempted_depth` and `cap` are required: together they tell an operator whose judgment is missing from the output, which is the only question the row answers.
+`subject`, `reason`, `attempted_depth` and `cap` are required for both reasons, the last two as `null` under `chosen` so readers see stable keys: together they tell an operator whose judgment is missing from the output, which is the only question the row answers.
 
 Pairs with the orchestrator's forward-looking `dispatch_depth_projected` (`skills/worktask/SKILL.md § Validation check 11`): the projection warns before the stage runs; this row records what the projection missed.
 
@@ -497,7 +498,7 @@ Subagents resolve project, user and plugin skills natively at every depth, so ne
 | IR | `ssh prod tail -f /var/log/app.log` → recurring error pattern |
 | DR/SR | `swiftlint --reporter json` → warnings streamed for severity triage |
 | RE | `xcodebuild archive …` → signing / archive steps; abort on signing failure |
-| FN | `gh run watch <run-id>` → PR check progress |
+| FN | `gh run watch <run-id>` → PR check progress; skipped when `metadata.ci` is `"disabled"` (`state-ledger.md § CI field`) |
 
 #### Stall Timeout
 
@@ -656,3 +657,12 @@ The `/config` "Dynamic workflow size" setting (`workflowSizeGuideline`; default 
 #### Gate prompts — idle behaviour
 
 These dialogs do not auto-continue on idle, so a PL/FN gate park holds until the operator answers. Idle-timeout auto-continue is an explicit `/config` opt-in; keep it off on hosts running gated worktasks.
+
+## Claude Code 2.1.303 coordination compatibility
+
+Main-conversation Agent calls run in the background across terminal, print/SDK, desktop, and IDE sessions from 2.1.302.
+A subagent's own calls default to the foreground. Wait for completion evidence before settling the stage.
+The first in-process teammate SendMessage call no longer requires prior tool-search loading (2.1.295).
+Subagents preload at most 32 distinct skills; use the Skill tool for additional skills.
+MCP descriptions loaded through tool search allow 16384 characters. Agent tool lists match only the named MCP server;
+use `mcp__<whole name>__*` when its name contains `__` (2.1.299).

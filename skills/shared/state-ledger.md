@@ -218,6 +218,22 @@ orchestrator honours `model` (always) and `permission_mode` (audited per
 the rest are advisory, read only by external CLI dispatchers, and the orchestrator may refuse
 `dangerously_skip_permissions`.
 
+#### Compaction and retry controls
+
+The five optional fields below require the headless route. They remain unset by default under schema version 2.
+
+| Field | Type | Child transport |
+|---|---|---|
+| `auto_compact_window` | Integer, 100000–1000000 tokens | `--autocompact` and `CLAUDE_CODE_AUTO_COMPACT_WINDOW` |
+| `retry_watchdog` | Boolean | `CLAUDE_CODE_RETRY_WATCHDOG` (`1` or `0`) |
+| `retry_watchdog_max_wait_ms` | Positive integer milliseconds | `CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS` |
+| `retry_watchdog_max_usage_limit_wait_ms` | Positive integer milliseconds | `CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS` |
+| `overloaded_retry_max_delay_ms` | Positive integer milliseconds | `CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS` |
+
+Millisecond values cannot exceed 2147483647. Watchdog wait limits require `retry_watchdog: true` on the resulting row.
+Explicit nulls and numeric strings are invalid. Validate the merged row for metadata updates, before writing anything.
+These controls do not change `model`, permission ceilings, or dispatched-agent records.
+
 #### Dispatch writer rules
 
 PL0 should set `permission_mode: default` on SR/FN tasks under `--secure`/`--full` and never sets
@@ -247,6 +263,13 @@ The orchestrator should validate metadata before spawning the stage agent. Non-P
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
+  "allOf": [{
+    "if": {"anyOf": [
+      {"required": ["retry_watchdog_max_wait_ms"]},
+      {"required": ["retry_watchdog_max_usage_limit_wait_ms"]}
+    ]},
+    "then": {"required": ["retry_watchdog"], "properties": {"retry_watchdog": {"const": true}}}
+  }],
   "properties": {
     "stage": {
       "enum": ["PL", "AR", "TL", "DV", "DR", "SR", "QA", "DC", "RE", "FN", "ST", "IR", "ET"]
@@ -261,6 +284,11 @@ The orchestrator should validate metadata before spawning the stage agent. Non-P
     "effort": {
       "enum": ["low", "medium", "high", "xhigh", "max"]
     },
+    "auto_compact_window": {"type": "integer", "minimum": 100000, "maximum": 1000000},
+    "retry_watchdog": {"type": "boolean"},
+    "retry_watchdog_max_wait_ms": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+    "retry_watchdog_max_usage_limit_wait_ms": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+    "overloaded_retry_max_delay_ms": {"type": "integer", "minimum": 1, "maximum": 2147483647},
     "description": {
       "type": "string",
       "maxLength": 240,
@@ -467,6 +495,12 @@ The `/worktask` option flags are not here: they land on PL0's task metadata (§ 
 | Field | Writer → Reader | Description |
 |-------|-----------------|-------------|
 | `release_tag` | `state-patch.sh --ledger-meta --set '{"release_tag":"<tag>"}'` → release engineer (`changelog-from-git.sh --tag`) | The tag this release is cut under. Absent or empty ⇒ no changelog, PR or summary text names a tag |
+
+### CI field
+
+| Field | Writer → Reader | Description |
+|-------|-----------------|-------------|
+| `ci` | orchestrator, only on an explicit operator or megatask-brief instruction: `state-patch.sh --ledger-meta --set '{"ci":"disabled"}'` → FN, ST | `enabled` or `disabled`. Only the literal `"disabled"` turns CI off; absent or any other value means on, so a typo keeps CI on. Under `disabled`, FN skips `gh run watch` and writes "CI wait skipped: metadata.ci disabled" in `complete-summary-N.md`; ST marks no criterion PARTIAL for a missing CI run alone and records the flag instead. Revert with `{"ci":"enabled"}`: the merge cannot delete a key. The seed does not carry it, so a re-seeded run (new `run_index`) writes it again |
 
 ### Issue publishing field
 

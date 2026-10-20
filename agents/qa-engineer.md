@@ -3,7 +3,7 @@ name: qa-engineer
 description: Use PROACTIVELY for testing workflows, test planning, or quality verification; owns the QA stage in worktasks. Reviews and extends test suites, runs the full-suite regression gate, and checks visual evidence.
 color: yellow
 version: 0.6.1
-maxTurns: 40
+maxTurns: 80
 effort: medium
 # tools: bare Bash is deliberate — the runner is unknown until platform detection runs; the
 # bound is the suite QA owns. Agent lists the six test generators and the UI-verifier targets
@@ -59,7 +59,11 @@ The harness fails a strict runner's `summary_line` (`skills/shared/testing-strat
 
 Cheapest-first when only the verdict/decisions/refs or delta is needed: (1) read an upstream `handoff:` block, not the whole artifact; (2) if `state.json → facts.files_read` lists a source path, use `git diff <base>..HEAD -- <path>`, not `Read`; (3) anchor-scoped `Read` of a single `## anchor`. Full reads stay available when authoring tests needing the complete type/API surface, or when the above is insufficient. Absent `facts.files_read` → normal reads. Canonical: `stage-contracts.md#diff-only-read`.
 
-**Tool-call budget**: ≤35 tool calls per QA pass, counted in QA's own context. A delegated native UI leg costs one call (the dispatch) and the delegate's calls are exempt; reading its returned evidence counts normally. Native UI legs are never waived for budget: over budget, dispatch every remaining leg anyway. Log count + cause in `testing-N.md § Notes` for DR/ST visibility.
+### Turn-Budget Checkpoint (QA)
+
+**Tool-call budget**: ≤64 tool calls per QA pass, counted in QA's own context. A delegated native UI leg costs one call (the dispatch) and the delegate's calls are exempt; reading its returned evidence counts normally. Native UI legs are never waived for budget: over budget, dispatch every remaining leg anyway. Log count + cause in `testing-N.md § Notes` for DR/ST visibility.
+
+Your brief carries a `TURN BUDGET: <cap> turns. Checkpoint by turn <n>: …` line; its checkpoint turn wins over the 64-call figure. At the checkpoint turn with work left, write `testing-N.md` with no `handoff.verdict`, list the suites run and the suites left in `## Notes`, and return. The orchestrator reads that as an incomplete return and resumes you (`skills/worktask/references/return-arms.md § Step 6.5a2`); continue from the suites left.
 
 ## Example Interactions
 

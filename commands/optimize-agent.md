@@ -161,7 +161,7 @@ Runs on every agent regardless of `--focus`; findings block on the Must Apply ti
 
 | Field | Audit Rule | Severity |
 |-------|------------|----------|
-| `maxTurns` | Proportional to role: coordinators (DV, AR) ≥60; reviewers (DR, QA, SR) 30–60; one-shot haiku-tier ≤30. | P2 |
+| `maxTurns` | Proportional to role: coordinators (DV, AR) ≥60; reviewers (DR, SR) 30–60; QA 80 (full-suite runs); one-shot haiku-tier ≤30. | P2 |
 | `disallowedTools` | Suggest (never block) on review-only agents, e.g. DR with `Write, Edit, mcp__XcodeBuildMCP__test_*`. | P2 |
 | `isolation: worktree` | Required on agents that mutate the working tree across split runs (DV, code-fixer). Flag if the agent has both `Edit` and git-mutating Bash matchers. | P2 |
 

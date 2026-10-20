@@ -118,7 +118,7 @@ line plus the audit reason) to `.context/errors/project-manager.md`, and do NOT 
 
 | Check | Enforces | Non-blocking degrade |
 |---|---|---|
-| `continuity` | worktree HEAD is an ancestor of the integration branch, so fast-forward/merge is safe | diverged → diagnostic + `branch_continuity` `result: "diverged_cherry_pick"` row; cherry-pick the worktree commits, confirm the count matches the unmerged set, record it in `complete-summary-N.md` |
+| `continuity` | the integration branch is an ancestor of worktree HEAD, so the merge is a fast-forward | diverged (the base holds commits HEAD lacks) → diagnostic + `branch_continuity` `result: "diverged_cherry_pick"` row; cherry-pick the worktree commits, confirm the count matches the unmerged set, record it in `complete-summary-N.md` |
 | `continuity`, multi-stream (`facts.stream_branches` holds ≥2 keys) | every stream branch is an ancestor of HEAD; `branch_continuity` rows `stream_merged` / `stream_unmerged` | none — an unmerged stream blocks (exit 1, after every stream is checked). No `diverged_cherry_pick` row and no cherry-pick in this mode: re-run `fn-stream-merge.sh merge`, then the battery |
 | `base-sanity` | the PR-vs-ledger magnitude check that discriminates a wrong base (below) | degrades, never false-blocks (below) |
 
@@ -137,8 +137,11 @@ line plus the audit reason) to `.context/errors/project-manager.md`, and do NOT 
 ##### `base-sanity` specifics
 
 - **Blocks** when the PR file count is over 3x the ledger's **and** over 20 files larger — the
-  signature of a base this work never forked from. `continuity` cannot see this: `diverged` is the
-  normal state of every feature branch about to merge.
+  signature of a base this work never forked from. `continuity` cannot see this: a stacked branch
+  still contains its base.
+- **Git evidence caps the ledger**: with a fork candidate other than the base, the count compared
+  is min(ledger, committed since the candidate + dirty). A candidate that IS the base warns
+  `fork_confirms_base` and exits 0.
 - **Degrades, never false-blocks**: no `jq`, no work tree, an unresolved, unresolvable or
   fork-point-inferred base, empty `facts.files_modified`, unreadable diff — each warns with its own
   `base_sanity` result token and exits 0. `ahead > 25` warns.
@@ -184,11 +187,18 @@ evidence is invisible; `probe_timeout`/`token_invalid` is resolved by exporting
   PR head is the **planned** name PL0 stamped on the ledger, never a live `git rev-parse` of FN's
   own cwd. Validate the value first (below).
 - **Workspace mode**: create the PR from the workspace/worktree branch.
-- **Close the issue explicitly on a non-default integration branch**: GitHub honours a
-  `Closes #N` trailer only on a merge into the DEFAULT branch. Post-merge run
-  `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh issue-close-required`; on `yes` run the `gh issue close <N>` it printed and
-  record it as an `### Issue` H3 under `complete-summary-N.md ## artifacts`. On `no`, do nothing.
+- **Record the close a non-default base needs**: GitHub honours `Closes #N` only on a merge into
+  the DEFAULT branch. FN opens the PR and does not merge it, so it never closes the issue. Run
+  `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh issue-close-required`; on `yes` record the printed `gh issue close <N>` as an
+  `### Issue` H3 under `complete-summary-N.md ## artifacts`. On `no`, do nothing. The merger runs
+  the close post-merge (`skills/megatask/SKILL.md § Post-merge settle`).
 - **Settle the row last**: on the success path, run § State Patch after the push and the PR.
+
+##### CI wait
+
+When `state.json → metadata.ci` is `"disabled"`, skip `gh run watch` and write "CI wait skipped:
+metadata.ci disabled" in `complete-summary-N.md`. Absent or any other value waits as usual
+(`skills/shared/state-ledger.md § CI field`).
 
 ##### Check for an external rename before pushing
 
@@ -323,10 +333,16 @@ Pass `--facts` in the **same call** to union this stage's facts into `state.json
 bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage FN --prev <PREV> --facts '{
   "files_modified": ["CHANGELOG.md"],
   "decisions": [{"id":"fn1","summary":"≤160 chars","ref":"complete-summary-0.md#summary"}],
-  "open_questions": [{"id":"sw-FN0-1","class":"decision","ref":"complete-summary-0.md#elicitation-sweep","blocks_next_stage":false}]}'
+  "open_questions": []}'
 ```
 
 Omitting it loses the fact silently: a stub that reaches only the frontmatter never reaches the FN gate's render, so the question is never asked. Union by `.id`, last writer wins. Canonical: `handoff-protocol.md#facts-union`.
+
+#### Under fn_gate: "bypass"
+
+The FN gate never shows, so FN emits `open_questions: []`, as the example
+shows, and auto-records any `decision` it takes (`stage-contracts.md § Under fn_gate: "bypass"`).
+An attended run lists its stubs in the same field.
 
 <!-- output-sections:begin stage=FN -->
 ### Artifact anchors

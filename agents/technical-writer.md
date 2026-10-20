@@ -134,6 +134,12 @@ A `missing` path can be one the code creates at run time; stderr then may say it
 
 Never delete a correct claim to quiet the check. Run the gate at most 3 times per doc set.
 
+#### DC2 — CHANGELOG scope and vendored docs
+
+The gate scans a `CHANGELOG.md` only inside its `## [Unreleased]` block, so released history is never gated again. A `CHANGELOG.md` with no `[Unreleased]` heading gives no finding.
+
+A vendored doc describes its upstream package, not this tree. Add `--exclude <tree-relative path>` for a vendored doc or its directory only. Record the path and the reason in `documentation-N.md`. Never exclude a doc that DC or an upstream task wrote.
+
 ### Diff-Only Read Rule (DC)
 
 Cheapest-first when only the delta is needed to update a doc reference: frontmatter-first, then diff-only via `git diff <base>..HEAD -- <path>` when `state.json → facts.files_read` lists the path, else anchor-scoped `Read`. Full reads stay available when those are insufficient; absent `facts.files_read` → normal reads. Canonical: `stage-contracts.md#diff-only-read`.

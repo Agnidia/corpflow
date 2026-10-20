@@ -157,16 +157,18 @@ build_row() {
 }
 
 if [ "$SELF_TEST" -eq 1 ]; then
-  build_row "$ST_WRITE" || { echo "audit-tooluse: self-test FAIL (write row not built)"; exit 1; }
+  _st_passed=0
+  build_row "$ST_WRITE" || { echo "audit-tooluse: self-test FAIL (write row not built) ($_st_passed passed, 1 failed)"; exit 1; }
   printf '%s\n' "$ROW" | jq -e '.metadata.dedupe_key == "sess_test:toolu_test" and .metadata.duration_ms == 42
     and .metadata.effort == "medium" and .subject == "Write" and (.task_id | length > 0)' >/dev/null \
-    || { echo "audit-tooluse: self-test FAIL"; exit 1; }
+    || { echo "audit-tooluse: self-test FAIL ($_st_passed passed, 1 failed)"; exit 1; }
+  _st_passed=$((_st_passed + 1))
 
   _root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
   _st_cmd="API_TOKEN=${ST_CANARY} bash ${_root}/skills/worktask/scripts/state-patch.sh --task-status DV1 done --note ghp_${ST_CANARY}"
   _st_bash=$(jq -cn --arg c "$_st_cmd" '{tool_name:"Bash", tool_input:{command:$c}, tool_use_id:"toolu_bash", session_id:"sess_test"}')
   WORKSPACE_ROOT="$_root" build_row "$_st_bash" \
-    || { echo "audit-tooluse: self-test FAIL (bash row not built)"; exit 1; }
+    || { echo "audit-tooluse: self-test FAIL (bash row not built) ($_st_passed passed, 1 failed)"; exit 1; }
   # The host-path patterns are the ones path-scrub.sh exported when the row above loaded it;
   # restating them here would be a second definition. With the scrub loaded they must be
   # non-empty, so the host check can never pass vacuously.
@@ -179,8 +181,9 @@ if [ "$SELF_TEST" -eq 1 ]; then
     and .task_id == "DV1" and .subject == "state-patch"
     and (tostring | contains($c) | not)
     and ((.metadata.redaction // "") == "scrub_unavailable" or ($host != "" and $drive != ""))' >/dev/null \
-    || { echo "audit-tooluse: self-test FAIL (bash row redaction)"; exit 1; }
-  echo "audit-tooluse: self-test OK"
+    || { echo "audit-tooluse: self-test FAIL (bash row redaction) ($_st_passed passed, 1 failed)"; exit 1; }
+  _st_passed=$((_st_passed + 1))
+  echo "audit-tooluse: self-test OK ($_st_passed passed, 0 failed)"
   exit 0
 fi
 

@@ -72,7 +72,8 @@ if [ "$SELF_TEST" -eq 1 ]; then
     ".context/development-0-a234567890123456789012345678901234567890.md" \
     ".context/developer-review-12.md" \
     "/abs/path/.context/planning-3.md"; do
-    is_artifact "$p" || { echo "anchor-preflight: self-test FAIL (should match: $p)"; exit 1; }
+    is_artifact "$p" || { echo "anchor-preflight: self-test FAIL (should match: $p) ($ok passed, 1 failed)"; exit 1; }
+    ok=$((ok + 1))
   done
   for p in \
     "skills/worktask/SKILL.md" \
@@ -87,14 +88,14 @@ if [ "$SELF_TEST" -eq 1 ]; then
     ".context/planning-0-stream.md" \
     ".context/developer-review-0-web.md" \
     ".context/worktask-comms.md"; do
-    is_artifact "$p" && { echo "anchor-preflight: self-test FAIL (should NOT match: $p)"; exit 1; }
+    is_artifact "$p" && { echo "anchor-preflight: self-test FAIL (should NOT match: $p) ($ok passed, 1 failed)"; exit 1; }
     ok=$((ok + 1))
   done
 
   # An unreachable library is a FAIL here, never a vacuous OK: the hook itself fails open.
   _ST_LIB="${CLAUDE_PLUGIN_ROOT:-$(dirname -- "$0")/..}/skills/worktask/scripts/control-byte-lib.sh"
   if [ ! -r "$_ST_LIB" ]; then
-    echo "anchor-preflight: self-test FAIL (control-byte-lib.sh unreachable at $_ST_LIB)"
+    echo "anchor-preflight: self-test FAIL (control-byte-lib.sh unreachable at $_ST_LIB) ($ok passed, 1 failed)"
     exit 1
   fi
   # shellcheck source=skills/worktask/scripts/control-byte-lib.sh
@@ -108,10 +109,12 @@ if [ "$SELF_TEST" -eq 1 ]; then
   _st_rc=0
   _st_out=$(cb_scan_file "$_st_td/nul.md" nul.md) || _st_rc=$?
   [ "$_st_rc" -eq 1 ] && [ "$_st_out" = "nul.md:33:0x00" ] \
-    || { echo "anchor-preflight: self-test FAIL (NUL not flagged: rc=$_st_rc out=$_st_out)"; exit 1; }
+    || { echo "anchor-preflight: self-test FAIL (NUL not flagged: rc=$_st_rc out=$_st_out) ($ok passed, 1 failed)"; exit 1; }
+  ok=$((ok + 1))
   _st_rc=0
   cb_scan_file "$_st_td/clean.md" clean.md > /dev/null || _st_rc=$?
-  [ "$_st_rc" -eq 0 ] || { echo "anchor-preflight: self-test FAIL (clean file flagged: rc=$_st_rc)"; exit 1; }
+  [ "$_st_rc" -eq 0 ] || { echo "anchor-preflight: self-test FAIL (clean file flagged: rc=$_st_rc) ($ok passed, 1 failed)"; exit 1; }
+  ok=$((ok + 1))
 
   if command -v jq > /dev/null 2>&1; then
     mkdir -p "$_st_td/.context"
@@ -126,10 +129,12 @@ if [ "$SELF_TEST" -eq 1 ]; then
     _st_out=$(_st_pre Edit "$_st_td/.context/development-0.md") || _st_out=""
     case "$_st_out" in
       *'"permissionDecision":"deny"'*'## Approach'*) ;;
-      *) echo "anchor-preflight: self-test FAIL (bad H2 in an artifact Edit not denied: $_st_out)"; exit 1 ;;
+      *) echo "anchor-preflight: self-test FAIL (bad H2 in an artifact Edit not denied: $_st_out) ($ok passed, 1 failed)"; exit 1 ;;
     esac
+    ok=$((ok + 1))
     _st_out=$(_st_pre Write "$_st_td/.context/development-0.md") || _st_out="rc!=0"
-    [ -z "$_st_out" ] || { echo "anchor-preflight: self-test FAIL (artifact Write denied: $_st_out)"; exit 1; }
+    [ -z "$_st_out" ] || { echo "anchor-preflight: self-test FAIL (artifact Write denied: $_st_out) ($ok passed, 1 failed)"; exit 1; }
+    ok=$((ok + 1))
     if command -v yq > /dev/null 2>&1; then
       printf -- '---\nhandoff:\n  stage: QA\n  verdict: go\n  summary: "s"\n  tests_executed:\n    - { runner: bats, count: 3, summary_line: "ALL PASS" }\n  files_touched: []\n  key_decisions: []\n  open_questions: []\n  refs:\n    results: testing-0.md#results\n---\n\n## results\n' \
         > "$_st_td/.context/testing-0.md"
@@ -139,12 +144,14 @@ if [ "$SELF_TEST" -eq 1 ]; then
         | CLAUDE_PLUGIN_ROOT="$_st_root" bash "$0" --event post 2>&1 > /dev/null) || _st_rc=$?
       case "$_st_rc:$_st_out" in
         2:*'carries no digit'*'do not re-Write the file'*) ;;
-        *) echo "anchor-preflight: self-test FAIL (digitless summary_line not reported at Post: rc=$_st_rc $_st_out)"; exit 1 ;;
+        *) echo "anchor-preflight: self-test FAIL (digitless summary_line not reported at Post: rc=$_st_rc $_st_out) ($ok passed, 1 failed)"; exit 1 ;;
       esac
+      ok=$((ok + 1))
       rm -f "$_st_td/.context/testing-0.md"
     fi
     _st_out=$(_st_pre Edit "$_st_td/notes-0.md") || _st_out="rc!=0"
-    [ -z "$_st_out" ] || { echo "anchor-preflight: self-test FAIL (non-artifact write denied: $_st_out)"; exit 1; }
+    [ -z "$_st_out" ] || { echo "anchor-preflight: self-test FAIL (non-artifact write denied: $_st_out) ($ok passed, 1 failed)"; exit 1; }
+    ok=$((ok + 1))
   else
     echo "anchor-preflight: self-test SKIP pre-write deny and post frontmatter arms (jq unavailable; both fail open)"
   fi
@@ -168,15 +175,18 @@ if [ "$SELF_TEST" -eq 1 ]; then
   cp "$_st_td/nul.md" "$_st_td/.context/nul.md"
   _st_file="$_st_td/.context/nul.md"
   _st_nojq
-  [ "$_st_rc" -eq 2 ] || { echo "anchor-preflight: self-test FAIL (no-jq Post fixture exited $_st_rc, want 2)"; exit 1; }
+  [ "$_st_rc" -eq 2 ] || { echo "anchor-preflight: self-test FAIL (no-jq Post fixture exited $_st_rc, want 2) ($ok passed, 1 failed)"; exit 1; }
+  ok=$((ok + 1))
   _st_file="$_st_td/nul.md"
   _st_nojq
-  [ "$_st_rc" -eq 0 ] || { echo "anchor-preflight: self-test FAIL (NUL outside any .context/ exited $_st_rc, want 0)"; exit 1; }
+  [ "$_st_rc" -eq 0 ] || { echo "anchor-preflight: self-test FAIL (NUL outside any .context/ exited $_st_rc, want 0) ($ok passed, 1 failed)"; exit 1; }
+  ok=$((ok + 1))
   _st_file="$_st_td/.context/nul.md"
   _st_nojq --event pre
-  [ "$_st_rc" -eq 0 ] || { echo "anchor-preflight: self-test FAIL (no-jq --event pre exited $_st_rc)"; exit 1; }
+  [ "$_st_rc" -eq 0 ] || { echo "anchor-preflight: self-test FAIL (no-jq --event pre exited $_st_rc) ($ok passed, 1 failed)"; exit 1; }
+  ok=$((ok + 1))
 
-  echo "anchor-preflight: self-test OK"
+  echo "anchor-preflight: self-test OK ($ok passed, 0 failed)"
   exit 0
 fi
 

@@ -4,9 +4,9 @@ Repository-tracked memory (lean rolling format). Narratives live in git history,
 
 ## Version Tracking
 
-- Plugin version: **4.1.2** (2026-10-18; suite green (#483, #488), cli-fallback font fix, igrsoft→agnidia rename.)
-- Claude Code min required: **2.1.294** (README.md is authoritative; load-bearing: 2.1.293 `haiku` → Haiku 5.5, 2.1.292 `Agent` tool `effort` param, 2.1.288 reports a held message as not delivered, 2.1.285 time-limits unattended background commands)
-- Claude Code latest integrated band: **2.1.293→2.1.294**
+- Plugin version: **4.1.3** (2026-10-19; orchestration fixes and Claude Code 2.1.303 integration.)
+- Claude Code min required: **2.1.303** (hook failure blocking, bounded headless retries, resume messaging, and cross-host subagent defaults)
+- Claude Code latest integrated band: **2.1.295→2.1.303**
 
 ## CC Feature Band Index
 
@@ -14,6 +14,7 @@ Canonical band files live in the authoritative memory directory (`~/.claude/proj
 
 | Band | Canonical file | Plugin release |
 |------|----------------|----------------|
+| 2.1.295→2.1.303 | cc-features-2.1.295-303.md (draft in .context/; sync pending) | v4.1.3 (dispatch controls, hook failure blocking; min CC → 2.1.303; 297/298 unpublished) |
 | 2.1.293→2.1.294 | cc-features-2.1.293-294.md | v4.1.1 develop (Haiku 5.5 rates, DC repin; min CC → 2.1.294) |
 | 2.1.285→2.1.292 | cc-features-2.1.285-292.md | v4.1.1 develop (in-process Agent effort, Task→Agent, held reattach; min CC → 2.1.292) |
 | 2.1.281→2.1.284 | cc-features-2.1.281-284.md | v4.1.0 develop (Sonnet 5.5 repin, mid-pattern :* preflight; min CC → 2.1.284) |
@@ -45,6 +46,8 @@ Canonical band files live in the authoritative memory directory (`~/.claude/proj
 
 ## Release History (last 12, newest first)
 
+- 2026-10-19: v4.1.3 — Claude Code 2.1.303 update (28 files, dispatch controls, hook enforcement; min CC 2.1.303).
+- 2026-10-19: v4.1.3 — worktask orchestration, evidence validation, and sibling contract fixes.
 - 2026-10-18: v4.1.2 — suite green (#483, #488), cli-fallback font fix, igrsoft→agnidia marketplace rename.
 - 2026-10-08: v4.1.1 (develop) — Claude Code 2.1.294 update (17 files, min CC → 2.1.294, Haiku 5.5 rates, benchmark DC repin).
 - 2026-10-06: v4.1.1 (develop) — Claude Code 2.1.292 update (75 files, min CC → 2.1.292, `agent-param` effort, headless opt-in, Task→Agent gate fix).
@@ -55,5 +58,3 @@ Canonical band files live in the authoritative memory directory (`~/.claude/proj
 - 2026-09-13: v4.0.32 (develop) — Claude Code 2.1.270 update (18 files, min CC → 2.1.270, queued reattach row, SessionEnd hook timeout, FORCE preflight).
 - 2026-09-09: v4.0.31 — leaderboard V1 fix plan phases A–E: discovered-vs-executed evidence, sweep transport for five agents, AR contract before DV fan-out.
 - 2026-09-08: v4.0.30 (cont.) — prompt-audit remediation, 26 findings across agents/commands/skills; tool-grant coverage and template backfill.
-- 2026-09-08: v4.0.30 — leaderboard V1 self-hosting findings; breaking `handoffs` re-key per task id, per-task decision clamps.
-- 2026-09-03/04: v4.0.29 — `fn-preflight base-sanity` for wrong PR bases on stacked branches, plus 13 run-remediation findings.

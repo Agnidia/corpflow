@@ -416,6 +416,62 @@ mk_te_legacy() {
   assert_output --partial 'warn: stage=DV tests_executed[0] runner=xcodebuild count: 58 is not a whole-number token'
 }
 
+# A line QA composed from `xcrun xcresulttool get test-results summary` is printed by no runner,
+# so it can sit in neither the body nor a log. The capture of that JSON is the evidence instead.
+xcresult_summary() {  # <path> <totalTestCount>
+  mkdir -p "$(dirname "$1")"
+  printf '{"title":"App","result":"Passed","totalTestCount":%s,"passedTests":%s,"failedTests":0,"skippedTests":0,"expectedFailures":0}\n' \
+    "$2" "$2" > "$1"
+}
+
+XC_ENTRY='    - { runner: xcodebuild, count: 35, summary_line: "35 tests: 35 passed, 0 failed (xcresult summary)" }'
+
+@test "xcresult: a named summary capture whose totalTestCount equals count corroborates the line" {
+  xcresult_summary "$WD/logs/qa0-xcresult-summary.json" 35
+  mk_te "$WD/qa-xc.md" QA "$XC_ENTRY" 'capture: .context/logs/qa0-xcresult-summary.json'
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/qa-xc.md"
+  assert_success
+  refute_output --partial 'summary_line is uncorroborated'
+}
+
+@test "xcresult: an unequal total, a non-summary capture or no named capture still fails" {
+  xcresult_summary "$WD/logs/qa0-xcresult-summary.json" 34
+  mk_te "$WD/qa-xc34.md" QA "$XC_ENTRY" 'capture: .context/logs/qa0-xcresult-summary.json'
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/qa-xc34.md"
+  assert_failure 1
+  assert_output --partial 'runner=xcodebuild summary_line is uncorroborated'
+  assert_output --partial 'xcresulttool summary whose totalTestCount is 35'
+
+  printf '{}\n' > "$WD/logs/other.json"
+  mk_te "$WD/qa-xcother.md" QA "$XC_ENTRY" 'capture: .context/logs/other.json'
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/qa-xcother.md"
+  assert_failure 1
+  assert_output --partial 'summary_line is uncorroborated'
+
+  # The right capture on disk proves nothing until the artifact names it.
+  xcresult_summary "$WD/logs/qa0-xcresult-summary.json" 35
+  mk_te "$WD/qa-xcnone.md" QA "$XC_ENTRY" 'see the bundle'
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/qa-xcnone.md"
+  assert_failure 1
+  assert_output --partial 'summary_line is uncorroborated'
+}
+
+@test "xcresult: the summary arm is xcodebuild-only and needs the count in the line" {
+  xcresult_summary "$WD/logs/qa0-xcresult-summary.json" 35
+  mk_te "$WD/qa-xcpy.md" QA '    - { runner: pytest, count: 35, summary_line: "35 tests: 35 passed, 0 failed (xcresult summary)" }' \
+    'capture: .context/logs/qa0-xcresult-summary.json'
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/qa-xcpy.md"
+  assert_failure 1
+  assert_output --partial 'runner=pytest summary_line is uncorroborated'
+  refute_output --partial 'xcresulttool summary whose totalTestCount'
+
+  mk_te "$WD/qa-xcnotok.md" QA '    - { runner: xcodebuild, count: 35, summary_line: "3 suites passed (xcresult summary)" }' \
+    'capture: .context/logs/qa0-xcresult-summary.json'
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/qa-xcnotok.md"
+  assert_failure 1
+  assert_output --partial 'summary_line is uncorroborated'
+}
+
 @test "entries: a bats count the TAP plan does not name fails (strict)" {
   mkdir -p "$WD/logs"
   mk_te "$WD/te-tap.md" DV '    - { runner: bats, count: 1814, summary_line: "1..840" }' '1..840'
@@ -1083,17 +1139,21 @@ spill_state() {  # <path> <run_index> <ids-json>
 # ---------------------------------------------------------------------------
 
 # A DV artifact padded to an approximate total token count, with <stubs> sweep stubs and
-# <runners> list entries (default 1); `bad` emits one entry with an invalid count.
-budget_artifact() {  # <path> <filler-words> <stubs> [runners|bad]
-  local path="$1" fill="$2" stubs="$3" runners="${4:-1}" i pad=""
+# <runners> list entries (default 1); `bad` emits one entry with an invalid count, `bad:N`
+# emits N of them.
+budget_artifact() {  # <path> <filler-words> <stubs> [runners|bad|bad:N]
+  local path="$1" fill="$2" stubs="$3" runners="${4:-1}" i pad="" nbad=0
+  case "$runners" in bad) nbad=1 ;; bad:*) nbad="${runners#bad:}" ;; esac
   for ((i = 0; i < fill; i++)); do pad="$pad w"; done
   {
     printf -- '---\n'
     printf 'handoff:\n'
     printf '  stage: DV\n'
     printf '  tests_executed:\n'
-    if [ "$runners" = "bad" ]; then
-      printf '    - { runner: bats, count: "x" }\n'
+    if [ "$nbad" -gt 0 ]; then
+      for ((i = 1; i <= nbad; i++)); do
+        printf '    - { runner: bats, count: "x" }\n'
+      done
     else
       for ((i = 1; i <= runners; i++)); do
         printf '    - { runner: r%s, count: 12, summary_line: "12 tests, 0 failures" }\n' "$i"
@@ -1167,12 +1227,38 @@ budget_artifact() {  # <path> <filler-words> <stubs> [runners|bad]
   assert_output --partial "- 96 tests_executed tokens excluded)"
 }
 
-@test "budget: an invalid tests_executed list is counted in full and says so" {
+@test "budget: an invalid tests_executed list is excluded at the cap and the prose is still checked" {
   budget_artifact "$WD/dv-bad-te.md" 200 1 bad
   run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/dv-bad-te.md"
   assert_failure 1
-  assert_output --partial "(tests_executed invalid: counted in full) stage=DV frontmatter"
-  assert_output --partial "- 0 tests_executed tokens excluded)"
+  assert_output --partial "(tests_executed invalid: excluded at the 96-token cap) stage=DV frontmatter"
+  refute_output --partial "counted in full"
+  refute_output --partial "- 0 tests_executed tokens excluded)"
+}
+
+@test "budget: an invalid tests_executed block cannot hide prose beyond the 96-token cap" {
+  # Thirty bad entries are about 240 tokens; only 96 of them are excluded, so the excess alone
+  # carries a frontmatter whose other prose is well inside 200 over the budget.
+  budget_artifact "$WD/dv-bad-big.md" 40 1 bad:30
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/dv-bad-big.md"
+  assert_failure 1
+  assert_output --partial "(tests_executed invalid: excluded at the 96-token cap) stage=DV frontmatter"
+  assert_output --partial "- 96 tests_executed tokens excluded)"
+}
+
+@test "budget: an uncorroborated entry is one fault, not also a budget failure" {
+  # Within 200 once the block is excluded at the cap, over 200 when it is counted: the old
+  # full count turned the one evidence fault into two failures.
+  local f="$WD/qa-uncorr.md" pad="" i
+  mk_te "$f" QA '    - { runner: pytest, count: 35, summary_line: "35 passed, 2 skipped, 1 deselected, 4 warnings in 12.34s on worker gw0 with random seed 12345 and the coverage report written to htmlcov/index.html for review" }' \
+    'the run is in the bundle'
+  for ((i = 0; i < 115; i++)); do pad="$pad w"; done
+  sed "s/summary: \"ad4 fixture\"/summary: \"ad4 fixture$pad\"/" "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$f"
+  assert_failure 1
+  assert_output --partial 'runner=pytest summary_line is uncorroborated'
+  refute_output --partial 'discretionary tokens > 200 budget'
+  [ "$(printf '%s\n' "$output" | grep -c '^fail:')" -eq 1 ] || fail "expected one fail line: $output"
 }
 
 @test "budget: the 360 absolute ceiling is reported alongside the failure" {

@@ -474,7 +474,7 @@ Schemas` titles, owes a sweep. No stage is exempt and there is no lower tier: a 
 the run. The default: an item is surfaced at the FN gate when non-blocking and at this stage's own
 boundary when blocking, and in an unattended lane a `decision` item is recorded, not prompted, while
 an `escalate` item still stops at its boundary unless § Unattended fallbacks gives its lane nobody
-to stop for.
+to stop for. Under `fn_gate: "bypass"` nothing is deferred to the FN gate (§ Under fn_gate: "bypass").
 
 Which side applies is decided per item by `blocks_next_stage` (§ Where an item is answered), never by
 the stage code. `commands/worktask.md § Step C` renders the non-blocking side; § Step C.0 renders the
@@ -488,8 +488,8 @@ does with it — never in whether the sweep is owed:
 | Code | Obligation | Surfaced by (non-blocking / blocking) | Unattended fallback |
 |---|---|---|---|
 | PL | Required | plan gate / plan gate (PL's boundary IS the plan gate) | auto-decided at § Step A.4, else recorded — unresolved `escalate` items still force the checkpoint stop |
-| FN | Required | recorded for ST / FN's own boundary, before ST | `decision` items recorded, not prompted; `escalate` items stop at FN's boundary unless their lane parks or records (§ Unattended fallbacks) |
-| ST | Required | recorded as follow-ups / ST's own boundary | `decision` items recorded, not prompted; `escalate` items as FN |
+| FN | Required | recorded for ST / FN's own boundary, before ST | `fn_gate: "bypass"` ⇒ `[]` (below); else `decision` items recorded, not prompted; `escalate` items stop at FN's boundary unless their lane parks or records (§ Unattended fallbacks) |
+| ST | Required | recorded as follow-ups / ST's own boundary | as FN, the bypass rule included |
 | IR | Required | FN gate / this stage's own boundary | `--emergency` bypasses both gates: `decision` items recorded; `escalate` items still stop |
 
 #### Why those four depart
@@ -497,6 +497,14 @@ does with it — never in whether the sweep is owed:
 PL, FN and ST differ because they have no *later* gate to defer to — PL's own boundary is the plan
 gate, and FN and ST sit at or past the FN gate — so "surface at the FN gate" is not a destination
 they can name. IR differs because `--emergency` bypasses both gates by design.
+
+#### Under fn_gate: "bypass"
+
+The FN gate never shows, so an item deferred to it stalls the run. FN and ST emit
+`open_questions: []`. A non-blocking observation goes in the artifact body instead: FN's
+`complete-summary-N.md` follow-ups, ST's `## followups`. A `decision` FN must take uses the
+`recommended` option, and FN records it under its decisions with the resolution `(auto-recorded)`.
+`escalate` items are unchanged (§ Unattended fallbacks).
 
 Every other code — AR, TL, DV, DR, SR, QA, DC, RE, ET — takes the default sentence above
 unmodified, and a new stage code joins them by saying nothing here.
@@ -786,6 +794,15 @@ the artifact body nor in a `.context/logs/` capture the artifact names, one `fai
 a single run. It also fails an entry from a strict runner when the line does not carry that
 entry's `count` as a whole-number token (§ Strict runners fail a count-less line).
 
+##### An xcresult summary corroborates an xcodebuild line (tpl-dv, tpl-qa)
+
+An `xcodebuild` line composed from `xcrun xcresulttool get test-results summary` JSON is printed
+by no runner, so it has a third home: a `.context/logs/*.json` capture of that JSON, named in the
+artifact body, whose `totalTestCount` equals the entry's `count`, with `count` a whole-number token
+of the line. A missing capture, a file that is not that JSON, or an unequal total stays a fail. The
+validator reads the capture only and never runs `xcresulttool`. Suggested name:
+`.context/logs/qa0-xcresult-summary.json`.
+
 ##### Strict runners fail a count-less line (tpl-dv, tpl-qa)
 
 The strict runners are listed once, in `skills/shared/testing-strategy.md § Strict-count runners`,
@@ -1018,6 +1035,13 @@ time. The value must not be empty, `.`, absolute, or hold `..`. Each use records
 `file:line` or the `.gitignore` line in `documentation-N.md`. DC uses it after one failed fix
 attempt, never deletes a correct claim to quiet the check, and runs the gate at most 3 times per doc
 set.
+
+#### DC scopes CHANGELOG.md and skips vendored docs (tpl-dc)
+
+The gate reads a `CHANGELOG.md` only from its `## [Unreleased]` heading to the next `## ` heading.
+With no `[Unreleased]` heading it gives no finding. `--exclude <path>` skips a vendored doc at that
+tree-relative path or below it, with the same value rules as `--allow-path`. Each use records the
+path and the reason in `documentation-N.md`.
 
 #### A finding routes by who wrote the line (tpl-dc)
 

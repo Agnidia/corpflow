@@ -153,10 +153,11 @@ EOF
   assert_success
 }
 
-@test "contract: --self-test asserts the gating regex (smoke, NON-counting)" {
+@test "contract: --self-test asserts the gating regex (counted summary)" {
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'anchor-preflight: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 # --- control-byte lint (bytes are printf-generated) ---------------------------

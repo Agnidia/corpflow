@@ -16,6 +16,14 @@ setup() {
   sel_context_init "$PLUGIN_ROOT"
 }
 
+@test "selector self-test reports the seven executed cases" {
+  run bash "$SELECTOR" --self-test
+  assert_success
+  assert_output --partial "select-tests.sh: self-test OK"
+  assert_output --regexp 'select-tests.sh: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
+  assert_output "select-tests.sh: self-test OK (7 passed, 0 failed)"
+}
+
 _targets_of() {
   sel_matrix_rows | awk -F'\t' '$2 != "NONE" && $2 != "FULL" {
     n = split($2, a, ","); for (i = 1; i <= n; i++) print "tests/shell/" a[i] ".bats"

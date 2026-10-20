@@ -99,6 +99,13 @@ then at user scope, else the defaults here. An override replaces the platform's 
 override target and let it specialize internally. An override target missing from `tools:` cannot
 be dispatched: implement in-process and record `override <id> not granted` in `§ Decisions`.
 
+### Flattened dispatch
+
+When you do a specialist's work inline instead of dispatching it, by choice or because the depth
+cap refused the `Agent()` call, append one `dispatch_flattened` audit row **before** the inline
+work, with `metadata.reason` set to `chosen` or `depth_cap`. Skipping the platform router counts
+as a flatten. Fields and pairing: `skills/agent-coordination/SKILL.md § Depth-refusal self-report`.
+
 ### UI vs non-UI defaults
 
 apple/android/web work is UI by default when the planner leaves the flag unset (`metadata.requires_screenshots: true`, capture via the platform adapter; the planner may set `false` for a diff that renders nothing, and DV may raise it back via `escalate-flag.sh`); systems/backend/ai is non-UI (`false`; build/test transcripts under `.context/logs/` are the Build Evidence — for ai, eval reports and metric tables).

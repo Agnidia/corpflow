@@ -209,3 +209,13 @@ _expected_registered_handlers() {
   printf '%s\n' "$events" | grep -qx 'PostCompact' || fail "PostCompact is not a registered hook event"
   printf '%s\n' "$events" | grep -qx 'SessionEnd' || fail "SessionEnd is not a registered hook event"
 }
+
+@test "policy hooks block infrastructure failures while advisory and completion hooks retain their behavior" {
+  run jq -e '.hooks.PreToolUse | all(.[]; all(.hooks[];
+    if (.command | test("(test-execution-gate|user-decision-record)\\.sh$"))
+    then .onFailure == "block" else (has("onFailure") | not) end))' "$PLUGIN_ROOT/.claude-plugin/plugin.json"
+  assert_success
+  run jq -e '.hooks.PreModelSwitch[0].hooks[0].onFailure == "block" and
+    (all(.hooks.SubagentStop[].hooks[]; has("onFailure") | not))' "$PLUGIN_ROOT/.claude-plugin/plugin.json"
+  assert_success
+}

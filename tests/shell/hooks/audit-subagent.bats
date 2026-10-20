@@ -93,10 +93,11 @@ setup() {
   [ ! -s "$WD/.context/logs/audit.jsonl" ]
 }
 
-@test "contract: --self-test passes (smoke, NON-counting)" {
+@test "contract: --self-test passes (counted summary)" {
   run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
   assert_success
   assert_output --partial "self-test OK"
+  assert_output --regexp 'audit-subagent: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
 }
 
 # The last three direct audit.jsonl writers in the hook tree carried no symlink
@@ -419,4 +420,87 @@ rows_of() { jq -r --arg a "$1" 'select(.action == $a) | .action' "$WD/.context/l
     --env "GIT_CEILING_DIRECTORIES=$cwd" --stdin-file "$PAYLOAD" "$PLUGIN_ROOT/$SCRIPT"
   assert_success
   [ ! -e "$cwd/.context" ]
+}
+
+# --- stage ladder: payload, env, ledger dispatch row by agent_id, brief stage line ---
+
+# _stage_ledger <rows-json> — a ledger whose facts.dispatched_agents holds <rows-json>.
+_stage_ledger() {
+  jq -cn --argjson rows "$1" '{version:2, tasks:{}, facts:{dispatched_agents:$rows}}' \
+    > "$WD/.context/state.json"
+}
+
+# _stage_transcript <path> <stage-line> — a transcript whose first user record is a composed
+# brief. A decoy `stage:` line before the task block proves the read is scoped to that block.
+_stage_transcript() {
+  local brief
+  brief=$(printf '%s\n' '<<<contract-reminder>>>' 'stage: DR' '<<<task-description>>>' \
+    'task_id: QA0' "$2" 'agent: corpflow:qa-engineer' '<<<retry-hints>>>' 'stage: FN')
+  jq -cn '{type:"system",content:"init"}' > "$1"
+  jq -cn --arg c "$brief" '{type:"user",message:{content:$c}}' >> "$1"
+}
+
+# _stage_run <payload-json> [env NAME=VALUE...] — runs the hook, echoes metadata.stage.
+_stage_run() {
+  local p="$1"
+  shift
+  rm -f "$WD/.context/logs/audit.jsonl"
+  env -u CLAUDE_TASK_METADATA_STAGE CLAUDE_PROJECT_DIR="$WD" "$@" \
+    bash "$PLUGIN_ROOT/$SCRIPT" <<< "$p" || return 1
+  jq -r 'select(.action == "subagent_stopped") | .metadata.stage' "$WD/.context/logs/audit.jsonl"
+}
+
+@test "stage: the ledger dispatch row whose agent_id matches the payload names the stage, in any status" {
+  local st
+  for st in launched completed; do
+    _stage_ledger "[{\"stage\":\"DV\",\"agent_id\":\"a_other\",\"status\":\"launched\"},
+      {\"stage\":\"QA\",\"task_id\":\"QA0\",\"agent_id\":\"a_qa\",\"status\":\"$st\"}]"
+    run _stage_run '{"agent_type":"","agent_id":"a_qa","session_id":"s1"}'
+    assert_success
+    assert_output "QA"
+  done
+}
+
+@test "stage: with no matching row, the task-description stage line of the agent's brief names the stage" {
+  _stage_ledger '[{"stage":"DV","agent_id":"a_other","status":"launched"}]'
+  _stage_transcript "$WD/agent.jsonl" 'stage: QA'
+  run _stage_run "$(jq -cn --arg t "$WD/agent.jsonl" '{agent_id:"a_qa",session_id:"s1",agent_transcript_path:$t}')"
+  assert_success
+  assert_output "QA"
+  # transcript_path is the PARENT's transcript on SubagentStop, so it is never read.
+  run _stage_run "$(jq -cn --arg t "$WD/agent.jsonl" '{agent_id:"a_qa",session_id:"s2",transcript_path:$t}')"
+  assert_success
+  assert_output "unknown"
+  # A stage line that is not a stage code is no answer.
+  _stage_transcript "$WD/bad.jsonl" 'stage: QA0'
+  run _stage_run "$(jq -cn --arg t "$WD/bad.jsonl" '{agent_id:"a_qa",session_id:"s3",agent_transcript_path:$t}')"
+  assert_success
+  assert_output "unknown"
+}
+
+@test "stage: payload .stage and the env outrank both new rungs; nothing resolving gives unknown" {
+  _stage_ledger '[{"stage":"QA","agent_id":"a_qa","status":"launched"}]'
+  _stage_transcript "$WD/agent.jsonl" 'stage: AR'
+  run _stage_run "$(jq -cn --arg t "$WD/agent.jsonl" '{stage:"DR",agent_id:"a_qa",session_id:"s1",agent_transcript_path:$t}')"
+  assert_output "DR"
+  run _stage_run "$(jq -cn --arg t "$WD/agent.jsonl" '{agent_id:"a_qa",session_id:"s2",agent_transcript_path:$t}')" \
+    CLAUDE_TASK_METADATA_STAGE=DV
+  assert_output "DV"
+  run _stage_run '{"agent_id":"a_none","session_id":"s3"}'
+  assert_success
+  assert_output "unknown"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "audit-subagent: self-test OK"
+  assert_output --regexp 'audit-subagent: self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
+}
+
+@test "stage: an agent_id on rows of two stages is ambiguous and falls to the brief, then to unknown" {
+  _stage_ledger '[{"stage":"QA","agent_id":"a_x","status":"completed"},
+    {"stage":"DR","agent_id":"a_x","status":"launched"}]'
+  _stage_transcript "$WD/agent.jsonl" 'stage: AR'
+  run _stage_run "$(jq -cn --arg t "$WD/agent.jsonl" '{agent_id:"a_x",session_id:"s1",agent_transcript_path:$t}')"
+  assert_output "AR"
+  run _stage_run '{"agent_id":"a_x","session_id":"s2"}'
+  assert_output "unknown"
 }
