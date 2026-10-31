@@ -2166,9 +2166,18 @@ After the post-capture issue update above (and after FN has created/merged the P
 
 ### Completion snippet
 
-Run § Post-capture publish snippet and § Post-capture fallback audit (helper_not_found) verbatim with three substitutions — `--post completion` instead of `--post issue`, `action:"completion_summary_commented"` instead of `action:"visual_evidence_issue_commented"`, and the dedupe-key suffix `completion:all` instead of `visual_evidence:issue`. Same non-blocking discipline (`; true`; the helper exits 0 on every operational outcome).
+Run § Post-capture publish snippet and § Post-capture fallback audit (helper_not_found) verbatim with three substitutions — `--post completion` instead of `--post issue`, `action:"completion_summary_commented"` instead of `action:"visual_evidence_issue_commented"`, and the dedupe-key suffix `completion:all` instead of `visual_evidence:issue`. Same non-blocking discipline (`; true`; the helper exits 0 on every operational outcome). Inside the publish snippet's `if [ -f "$HELPER" ]` block, pass the PR FN recorded on the ledger as `<pr-ref>`; an absent or empty value passes no argument, and the helper itself drops a value that is not a PR number or a github.com PR URL naming this repository:
 
-### Completion resolver & summary sourcing
+```bash
+  PR_REF=$(jq -r '.metadata.pr_url // empty' "${WORKSPACE_ROOT:-${CLAUDE_PROJECT_DIR:-.}}/.context/state.json" 2>/dev/null)
+  bash "$HELPER" --post completion ${PR_REF:+"$PR_REF"}; true
+```
+
+### Completion PR-ref resolution
+
+The PR resolves in this order: the `<pr-ref>` argument, then the current branch's PR, then the ledger's `metadata.pr_url` (FN writes it after `gh pr create`; the checkout is off the PR head branch after a merge into a non-default base). A valid argument is final. With no valid argument, the current-branch PR wins if it yields at least one issue, else the ledger PR, so a branch PR that closes nothing falls through. The helper passes the argument or the ledger value to `gh` only when it is a PR number or a `https://github.com/<owner>/<repo>/pull/<n>` URL naming this repository. The summary fallback reads the same PR.
+
+### Completion issue resolution & summary sourcing
 
 Related issues resolve from PR-body keywords (`Closes`/`Fixes`/`Resolves #N`, case-insensitive) unioned with `gh pr view --json closingIssuesReferences`, deduped to integers so no untrusted PR-body text reaches a `gh` argv. One comment per issue carries the work summary (`.context/complete-summary-<run_index>.md`, else `state.json facts.goal`, else PR title+body — sanitised) plus the visual-evidence block when `requires_screenshots == true` and captures exist (summary-only otherwise).
 

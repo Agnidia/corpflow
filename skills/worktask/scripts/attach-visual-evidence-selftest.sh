@@ -40,6 +40,8 @@ MD
   #   $GH_PR_BODY    → PR body for keyword scan + title/body fallback
   #   $GH_PR_REFS    → space-separated issue numbers for closingIssuesReferences
   #   $GH_PR_TITLE   → PR title (title,body fallback)
+  #   $GH_NO_CURRENT_PR → a ref-less `pr view` fails; $GH_PR_BODY_<n>/$GH_PR_TITLE_<n> → data
+  #                   for PR <n>; $GH_CALL_LOG → file receiving every `pr view` argv
   #   $GH_FAIL_ISSUES→ space-separated issue numbers whose `issue comment` fails
   _mk_gh() { # $1=dir
     cat > "$1/bin/gh" <<'MOCK'
@@ -57,6 +59,16 @@ _store() {
 }
 case "$1 $2" in
   "pr view")
+    [ -n "${GH_CALL_LOG:-}" ] && printf '%s\n' "$*" >> "$GH_CALL_LOG"
+    # Ref-less call = the checkout's branch PR (the ledger pr_url is the fallback). GH_NO_CURRENT_PR=1 → none.
+    case "${3:-}" in
+      --*) [ -n "${GH_NO_CURRENT_PR:-}" ] && exit 1 ;;
+      *)   # per-ref data: GH_PR_BODY_<n>, GH_PR_TITLE_<n> (n = trailing number of the ref)
+           _n=${3##*/}; _b="GH_PR_BODY_$_n"; _t="GH_PR_TITLE_$_n"
+           if [ -n "${!_b:-}" ] || [ -n "${!_t:-}" ]; then
+             GH_PR_BODY=${!_b:-}; GH_PR_TITLE=${!_t:-}
+           fi ;;
+    esac
     # Determine which --json field was asked for.
     if printf '%s' "$*" | grep -q 'closingIssuesReferences'; then
       for n in ${GH_PR_REFS:-}; do printf '%s\n' "$n"; done
@@ -76,6 +88,7 @@ case "$1 $2" in
     for f in ${GH_FAIL_ISSUES:-}; do [ "$f" = "$3" ] && exit 1; done
     body=$(cat); s=$(_store "$3"); printf '%s\n' "$body" >> "$s"
     echo "https://github.com/o/r/issues/$3#comment-1"; exit 0 ;;
+  "repo view") echo "${GH_ORIGIN_REPO:-o/r}"; exit 0 ;;
   "auth status") exit 0 ;;
 esac
 exit 0
@@ -370,6 +383,148 @@ MD
     _fail "f15-task-id-mime" "rc=$rc15 $(printf '%s' "$out15" | tr '\n' '~')"
   fi
   rm -rf "$d15"
+
+
+  # ---- f16-f21: ledger pr_url fallback (#519) ----
+  # Sandbox builders and runner for the ledger pr_url cases. _run_completion takes the
+  # case dir, env assignments, then `-- <args>` for --post completion.
+  _mk_ledger_case() { # $1=pr_url ; echoes dir
+    local d; d=$(_mk_sandbox)
+    jq --arg u "$1" 'if $u=="" then . else .metadata.pr_url=$u end | .metadata.requires_screenshots=false' \
+      "$d/.context/state.json" > "$d/.context/state.json.t" && mv "$d/.context/state.json.t" "$d/.context/state.json"
+    mkdir -p "$d/bin" "$d/markers"; _mk_gh "$d"
+    printf '%s' "$d"
+  }
+  _run_completion() { # $1=dir, rest: env assignments, then optional args after --
+    local d="$1"; shift
+    local envs=() args=()
+    while [ "$#" -gt 0 ] && [ "$1" != "--" ]; do envs+=("$1"); shift; done
+    [ "${1:-}" = "--" ] && shift; args=("$@")
+    ( env PATH="$d/bin:$PATH" STATE_FILE="$d/.context/state.json" WORKSPACE_ROOT="$d" \
+        GH_BIN=gh GH_MARKER_DIR="$d/markers" GH_CALL_LOG="$d/calls.log" DRY_RUN=1 ${envs[@]+"${envs[@]}"} \
+        bash "$self" --post completion ${args[@]+"${args[@]}"} >/dev/null 2>&1 )
+  }
+  _issues_commented() { find "$1/markers" -type f -exec basename {} \; 2>/dev/null | sort -n | tr '\n' ' '; }
+
+  local d16; d16=$(_mk_ledger_case "https://github.com/o/r/pull/19")
+  _run_completion "$d16" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10"
+  if [ "$(_issues_commented "$d16")" = "10 " ] && \
+     [ "$(grep -cF '<!-- completion-summary:wid-test:0:10 -->' "$d16/markers/10")" -eq 1 ] && \
+     [ "$(grep -c '"action":"completion_summary_commented".*"result":"ok"' "$d16/.context/logs/audit.jsonl")" -eq 1 ] && \
+     ! grep -q no_related_issues "$d16/.context/logs/audit.jsonl"; then
+    _ok "f16-completion-ledger-fallback"
+  else
+    _fail "f16-completion-ledger-fallback" "$(_issues_commented "$d16") $(tail -1 "$d16/.context/logs/audit.jsonl" 2>/dev/null)"
+  fi
+  rm -rf "$d16"
+
+  local d17; d17=$(_mk_ledger_case "")
+  _run_completion "$d17" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10"; local rc17=$?
+  if [ "$rc17" -eq 0 ] && [ -z "$(_issues_commented "$d17")" ] && \
+     [ "$(grep -c '"result":"skipped".*"reason":"no_related_issues"' "$d17/.context/logs/audit.jsonl")" -eq 1 ]; then
+    _ok "f17-completion-no-ledger-ref"
+  else
+    _fail "f17-completion-no-ledger-ref" "rc=$rc17 $(tail -1 "$d17/.context/logs/audit.jsonl" 2>/dev/null)"
+  fi
+  rm -rf "$d17"
+
+  local d18; d18=$(_mk_ledger_case "19")
+  _run_completion "$d18" GH_PR_BODY="Closes #12" GH_PR_BODY_19="Closes #10"
+  if [ "$(_issues_commented "$d18")" = "12 " ]; then
+    _ok "f18-completion-current-branch-wins"
+  else
+    _fail "f18-completion-current-branch-wins" "$(_issues_commented "$d18")"
+  fi
+  rm -rf "$d18"
+
+  local d19; d19=$(_mk_ledger_case "19")
+  _run_completion "$d19" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" GH_PR_BODY_21="Closes #14" -- 21
+  if [ "$(_issues_commented "$d19")" = "14 " ]; then
+    _ok "f19-completion-argument-wins"
+  else
+    _fail "f19-completion-argument-wins" "$(_issues_commented "$d19")"
+  fi
+  rm -rf "$d19"
+
+  # f22: a hostile <pr-ref> ARGUMENT is dropped like a hostile ledger value.
+  local d22; d22=$(_mk_ledger_case "")
+  _run_completion "$d22" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- '--repo=evil/x'; local rc22=$?
+  if [ "$rc22" -eq 0 ] && [ -z "$(_issues_commented "$d22")" ] && \
+     ! grep -qF -- 'evil' "$d22/calls.log" 2>/dev/null && \
+     grep -q '"reason":"no_related_issues"' "$d22/.context/logs/audit.jsonl"; then
+    _ok "f22-completion-argument-validated"
+  else
+    _fail "f22-completion-argument-validated" "rc=$rc22 $(cat "$d22/calls.log" 2>/dev/null | tr '\n' '~')"
+  fi
+  rm -rf "$d22"
+
+  local d22b; d22b=$(_mk_ledger_case "")
+  _run_completion "$d22b" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- $'--repo=evil/x\n19'; local rc22b=$?
+  if [ "$rc22b" -eq 0 ] && [ -z "$(_issues_commented "$d22b")" ] && \
+     ! grep -qF -- 'evil' "$d22b/calls.log" 2>/dev/null && \
+     grep -q '"reason":"no_related_issues"' "$d22b/.context/logs/audit.jsonl"; then
+    _ok "f22b-completion-multiline-argument-validated"
+  else
+    _fail "f22b-completion-multiline-argument-validated" "rc=$rc22b"
+  fi
+  rm -rf "$d22b"
+
+  # f24: a foreign-repo PR URL (ledger value or argument) counts as absent; origin match is case-insensitive.
+  local d24 rc24 d24b rc24b d24c
+  d24=$(_mk_ledger_case "https://github.com/other/repo/pull/19")
+  _run_completion "$d24" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10"; rc24=$?
+  d24b=$(_mk_ledger_case "")
+  _run_completion "$d24b" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- https://github.com/other/repo/pull/19; rc24b=$?
+  d24c=$(_mk_ledger_case "https://github.com/O/R/pull/19")
+  _run_completion "$d24c" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10"
+  if [ "$rc24" -eq 0 ] && [ "$rc24b" -eq 0 ] && \
+     [ -z "$(_issues_commented "$d24")" ] && [ -z "$(_issues_commented "$d24b")" ] && \
+     ! grep -q 'other/repo' "$d24/calls.log" 2>/dev/null && \
+     grep -q '"reason":"no_related_issues"' "$d24/.context/logs/audit.jsonl" && \
+     grep -q '"reason":"no_related_issues"' "$d24b/.context/logs/audit.jsonl" && \
+     [ "$(_issues_commented "$d24c")" = "10 " ]; then
+    _ok "f24-completion-foreign-repo-url-dropped"
+  else
+    _fail "f24-completion-foreign-repo-url-dropped" "$(_issues_commented "$d24")|$(_issues_commented "$d24b")|$(_issues_commented "$d24c")"
+  fi
+  rm -rf "$d24" "$d24b" "$d24c"
+
+  # f23: the current-branch PR exists but closes nothing → the ledger PR still wins.
+  local d23; d23=$(_mk_ledger_case "19")
+  _run_completion "$d23" GH_PR_BODY="no keywords" GH_PR_BODY_19="Closes #10"
+  if [ "$(_issues_commented "$d23")" = "10 " ]; then
+    _ok "f23-completion-empty-branch-pr-falls-through"
+  else
+    _fail "f23-completion-empty-branch-pr-falls-through" "$(_issues_commented "$d23")"
+  fi
+  rm -rf "$d23"
+
+  local f20_ok=1 v20 d20 rc20
+  # The two-line value has a valid last line: a per-line matcher would accept it.
+  for v20 in '--repo=evil/x' '19; touch pwned' $'--repo=evil/x\n19'; do
+    d20=$(_mk_ledger_case "$v20")
+    _run_completion "$d20" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10"; rc20=$?
+    [ "$rc20" -eq 0 ] || f20_ok=0
+    [ -z "$(_issues_commented "$d20")" ] || f20_ok=0
+    [ ! -e "$d20/pwned" ] && [ ! -e pwned ] || f20_ok=0
+    grep -qF -- "${v20%%$'\n'*}" "$d20/calls.log" 2>/dev/null && f20_ok=0
+    grep -q '"reason":"no_related_issues"' "$d20/.context/logs/audit.jsonl" || f20_ok=0
+    rm -rf "$d20"
+  done
+  if [ "$f20_ok" = "1" ]; then
+    _ok "f20-completion-ledger-ref-validated"
+  else
+    _fail "f20-completion-ledger-ref-validated"
+  fi
+
+  local d21; d21=$(_mk_ledger_case "https://github.com/o/r/pull/19")
+  _run_completion "$d21" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" GH_PR_TITLE_19=RIGHT GH_PR_TITLE=WRONG
+  if grep -q RIGHT "$d21/markers/10" 2>/dev/null && ! grep -q WRONG "$d21/markers/10" 2>/dev/null; then
+    _ok "f21-completion-summary-uses-ledger-pr"
+  else
+    _fail "f21-completion-summary-uses-ledger-pr" "$(tr '\n' '~' < "$d21/markers/10" 2>/dev/null)"
+  fi
+  rm -rf "$d21"
 
   echo "attach-visual-evidence: self-test summary — pass=$pass fail=$fail"
   [ "$fail" -eq 0 ]

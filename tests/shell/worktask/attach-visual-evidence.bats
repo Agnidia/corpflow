@@ -601,3 +601,15 @@ _union_tree() {
   run grep -c '^!\[' <<< "$output"
   assert_output "2"
 }
+
+@test "completion: falls back to ledger metadata.pr_url when the current branch has no PR (#519)" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f16-completion-ledger-fallback PASS"
+}
+
+@test "completion: a hostile ledger metadata.pr_url never reaches gh and exits 0 (#519)" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f20-completion-ledger-ref-validated PASS"
+}

@@ -1012,7 +1012,7 @@ its own artifact (§ DV fan-out — ledger tasks).
 | Schema field | state.json target | Artifact anchor |
 |--------------|-------------------|-----------------|
 | `FN.verdict` | `tasks.FN0.verdict` | complete-summary-N.md `## summary` |
-| `FN.pr_url` | `handoffs["RE→FN0"]`/`DC→FN0`/`QA→FN0` (ref pointer) | complete-summary-N.md `## artifacts` |
+| `FN.pr_url` | `handoffs["RE→FN0"]`/`DC→FN0`/`QA→FN0` (ref pointer); also `metadata.pr_url` (`--ledger-meta`) | complete-summary-N.md `## artifacts` |
 | `ST.verdict` | `tasks.ST0.verdict` + `facts.verdicts.ST0` + derived `facts.verdicts.ST` | retrospective-N.md `## decision` |
 | `IR.verdict` | `tasks.IR0.verdict` | incident-N.md `## root-cause` |
 | `IR.root_cause` | `facts.decisions[]` | incident-N.md `## root-cause` |
