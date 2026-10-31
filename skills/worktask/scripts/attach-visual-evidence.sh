@@ -33,9 +33,16 @@
 #                    a retry never double-posts; partial prior failure re-posts only
 #                    missing issues. Each gh failure audits and continues (overall
 #                    exit 0 always). Run by orchestrator post-loop after FN merge
-#                    ("when the PR closes"). <pr-ref> optional; defaults to current
-#                    branch's PR. Defers under milestone mode (parent milestone issue
-#                    is canonical); audits no_related_issues when PR closes nothing.
+#                    ("when the PR closes"). <pr-ref> optional; sources in order:
+#                    argument; current branch's PR, else ledger metadata.pr_url
+#                    (FN writes it; covers a checkout that is off the PR head
+#                    branch after a non-default-base merge). A valid argument
+#                    is final; with none, the current-branch PR wins if it
+#                    yields at least one issue, else the ledger PR. The argument and the ledger
+#                    value must be a PR number or a github.com PR URL naming this
+#                    repository; any other value counts as absent. Defers under milestone mode (parent
+#                    milestone issue is canonical); audits no_related_issues when no
+#                    source yields an issue.
 #   --validate-manifest <path>
 #                 Read-only schema assertion over the canonical 9-column capture
 #                 table. Writes nothing, posts nothing, loads no state. exit 0 valid,
@@ -743,8 +750,9 @@ _completion_marker() {
   printf '<!-- completion-summary:%s:%s:%s -->' "$WORKTASK_ID" "$RUN_INDEX" "$1"
 }
 
-# Resolve related issues for a PR. $1=optional pr-ref (number or URL); default =
-# current branch's PR (gh resolves it inside the worktree). Output: newline-sep
+# Resolve related issues for a PR. $1=optional pr-ref (number or URL); empty = the
+# checkout's own branch PR (gh resolves it; post_completion adds the ledger
+# metadata.pr_url fallback). Output: newline-sep
 # sorted-unique INTEGERS on stdout. Empty on no refs / gh failure. Always rc 0,
 # never blocks. SECURITY: output is filtered to ^[0-9]+$ so no shell metachar
 # from an untrusted PR body can ever reach a downstream gh argv.
@@ -843,6 +851,42 @@ _completion_meta() {
     '{worktask_id:$w, run_index:$r, issue:$issue, reason:$reason, dedupe_key:$dk}'
 }
 
+# Syntax gate for a PR ref that reaches a gh argv, whether it came from the
+# argument or the ledger: a bare number or a github.com PR URL. Anything else
+# (an option-looking string such as --repo=x, shell metachars) counts as absent.
+# Which repo a URL names is _pr_ref_is_local's job, not this gate's.
+_valid_pr_ref() {
+  # [[ =~ ]] anchors on the whole value; grep matches per line, so a multi-line
+  # value with one valid line would pass.
+  [[ "${1:-}" =~ ^([0-9]+|https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+)$ ]]
+}
+
+# A URL ref must name THIS repo: the later `gh issue comment <n>` carries no --repo,
+# so a foreign PR's closing refs would land on the same-numbered local issue. A bare
+# number is always local. An unresolvable origin fails closed (treated as foreign).
+_pr_ref_is_local() {
+  local ref="${1:-}" slug origin
+  case "$ref" in
+    https://*) ;;
+    *) return 0 ;;
+  esac
+  slug=${ref#https://github.com/}; slug=${slug%/pull/*}
+  origin=$("$GH_BIN" repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true)
+  [ -n "$origin" ] || return 1
+  [ "$(printf '%s' "$slug" | tr '[:upper:]' '[:lower:]')" = \
+    "$(printf '%s' "$origin" | tr '[:upper:]' '[:lower:]')" ]
+}
+
+# Ledger metadata.pr_url, echoed only when _valid_pr_ref accepts it.
+_ledger_pr_ref() {
+  local v
+  v=$(jq -r '.metadata.pr_url // empty' "$STATE_FILE" 2>/dev/null || true)
+  if _valid_pr_ref "$v" && _pr_ref_is_local "$v"; then
+    printf '%s' "$v"
+  fi
+  return 0
+}
+
 # Post one completion comment per related issue. $1=optional pr-ref. Non-blocking.
 post_completion() {
   local ref="${1:-}"
@@ -856,8 +900,23 @@ post_completion() {
     return 0
   fi
 
-  # Gate 1: resolve related issues. Empty → audit no_related_issues, exit 0.
+  # Gate 1: resolve related issues. Sources in order: the argument, the checkout's
+  # branch PR, then the ledger's metadata.pr_url. A valid argument is final; with
+  # none, the branch PR wins if it yields at least one issue, else the ledger PR
+  # (a long-lived PR that closes nothing must not mask this run's PR). A URL naming
+  # another repo counts as absent. Empty → audit no_related_issues, exit 0. After a
+  # merge into a non-default base the checkout sits on a branch with no PR, so the ledger ref is
+  # the only one that still names it. $ref becomes the effective ref, so the
+  # summary fallback reads the same PR the issues came from.
+  { _valid_pr_ref "$ref" && _pr_ref_is_local "$ref"; } || ref=""
   local issues; issues=$(resolve_related_issues "$ref")
+  if [ -z "$issues" ] && [ -z "$ref" ]; then
+    local ledger_ref; ledger_ref=$(_ledger_pr_ref)
+    if [ -n "$ledger_ref" ]; then
+      issues=$(resolve_related_issues "$ledger_ref")
+      [ -n "$issues" ] && ref="$ledger_ref"
+    fi
+  fi
   if [ -z "$issues" ]; then
     audit_av "$action" "skipped" \
       "$(_completion_meta 0 no_related_issues "$WORKTASK_ID:$RUN_INDEX:completion:none")"
