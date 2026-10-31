@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format is based on 
 ### Fixed
 
 - Post the completion comment when the checkout is off the PR head branch: FN records `metadata.pr_url` on the ledger and `attach-visual-evidence.sh --post completion` falls back to it (#519).
+- Accept the optional `info` severity in `consultant-return.v1`: the validator takes an `info` count and `info` findings, and four-key returns keep byte-identical output (#520).
 
 ## [4.1.3] — 2026-10-19
 

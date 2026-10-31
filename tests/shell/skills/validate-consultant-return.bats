@@ -153,7 +153,7 @@ _assert_error() {
   assert_success
   assert_output --partial "self-test OK"
   assert_output --regexp 'self-test OK \([0-9]+ passed, [0-9]+ failed\)$'
-  assert_output "self-test OK (4 passed, 0 failed)"
+  assert_output "self-test OK (5 passed, 0 failed)"
 }
 
 @test "--self-test fails closed with exit 2 when the harness is missing" {
@@ -315,6 +315,49 @@ _assert_error() {
   if printf '%s' "$stderr" | LC_ALL=C grep -q $'\xc2'; then
     fail "a C1 control character survived: $stderr"
   fi
+}
+
+@test "an info count and info findings pass unchanged, from stdin, and re-validate to the same bytes" {
+  local expected
+  expected="$(jq -c . "$CR_FIX/info-key.json")"
+  [ "$expected" = '{"schema_version":"consultant-return.v1","verdict":"pass","severity_counts":{"critical":0,"high":0,"medium":1,"low":0,"info":2},"findings":[{"id":"F1","severity":"medium","summary":"m"},{"id":"F2","severity":"info","summary":"i"},{"id":"F3","severity":"info","summary":"j"}]}' ] \
+    || fail "fixture drifted from the AC-1 input: $expected"
+
+  run_script_env --separate-stderr --stdin-file "$CR_FIX/info-key.json" "$SCRIPT" -
+  assert_success
+  assert_output "$expected"
+  [ -z "$stderr" ] || fail "unexpected stderr: $stderr"
+
+  _validate_json "$output"
+  assert_success
+  assert_output "$expected"
+  [ -z "$stderr" ] || fail "second pass warned: $stderr"
+}
+
+@test "count_mismatch compares info: an absent info count reads as 0 and is not added to the output" {
+  _validate_json "{$V1_HEAD,\"verdict\":\"pass\",$ZERO_COUNTS,\"findings\":[{\"id\":\"F1\",\"severity\":\"info\",\"summary\":\"i\"}]}"
+  assert_success
+  assert_output "{$V1_HEAD,\"verdict\":\"pass\",$ZERO_COUNTS,\"findings\":[{\"id\":\"F1\",\"severity\":\"info\",\"summary\":\"i\"}]}"
+  [ "$stderr" = "warn: count_mismatch: severity_counts critical=0 high=0 medium=0 low=0 info=0 but findings tally critical=0 high=0 medium=0 low=0 info=1" ] \
+    || fail "unexpected stderr: $stderr"
+}
+
+@test "info is lowercase only and never replaces a required key; a bad info value has its own locator" {
+  local head="$V1_HEAD,\"verdict\":\"pass\",\"findings\":[]"
+  _validate_json "{$head,\"severity_counts\":{\"critical\":0,\"high\":0,\"medium\":0,\"low\":0,\"Info\":0}}"
+  _assert_reject 'reject: invalid_severity_counts: severity_counts: keys ["Info","critical","high","low","medium"]'
+
+  _validate_json "{$head,\"severity_counts\":{\"critical\":0,\"high\":0,\"medium\":0,\"low\":0,\"informational\":0}}"
+  _assert_reject 'reject: invalid_severity_counts: severity_counts: keys ["critical","high","informational","low","medium"]'
+
+  _validate_json "{$head,\"severity_counts\":{\"critical\":0,\"high\":0,\"medium\":0,\"info\":0}}"
+  _assert_reject 'reject: invalid_severity_counts: severity_counts: keys ["critical","high","info","medium"]'
+
+  _validate_json "{$head,\"severity_counts\":{\"critical\":0,\"high\":0,\"medium\":0,\"low\":0,\"info\":-1}}"
+  _assert_reject 'reject: invalid_severity_counts: severity_counts.info: -1'
+
+  _validate_json "{$V1_HEAD,\"verdict\":\"pass\",$ZERO_COUNTS,\"findings\":[{\"id\":\"F1\",\"severity\":\"Info\",\"summary\":\"s\"}]}"
+  _assert_reject 'reject: invalid_finding: findings[0].severity: "Info"'
 }
 
 # --- prose contract (DV1 appends below) ---

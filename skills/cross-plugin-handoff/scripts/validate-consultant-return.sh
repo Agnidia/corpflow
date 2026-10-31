@@ -8,6 +8,7 @@
 # @arg --self-test     Run the bundled checks; prints "self-test OK".
 # @arg -h | --help     Print usage on stdout.
 # @stdout Exit 0 only: one line of compact JSON, keys schema_version, verdict, severity_counts, findings.
+#         severity_counts carries info, after low, only when the input carries it.
 # @stderr "warn: <code>: <detail>" lines (exit 0), one "reject: <code>: <detail>" (exit 1),
 #         or one "error: <code>: <detail>" (exit 2).
 # @exitcode 0  Valid. Warnings, in order: version_absent, needs_changes_normalized, count_mismatch.
@@ -62,9 +63,11 @@ usage() {
 # Constant program: input reaches jq as data on stdin, never as program text.
 # Output lines are "reject|warn<TAB>code<TAB>detail" or "out<TAB>-<TAB>json"; details are
 # already single-line, so the TAB split in the caller is unambiguous.
-# shellcheck disable=SC2016 # $i, $p, $k are jq variables and must reach jq unexpanded
+# shellcheck disable=SC2016 # $i, $p, $k, $ks are jq variables and must reach jq unexpanded
 readonly JQ_VALIDATE='
 def sevs: ["critical", "high", "medium", "low"];
+# info is optional, so a four-key return keeps byte-identical output and warning text.
+def levels: sevs + ["info"];
 def clean: explode | map(select((. >= 32 and . < 127) or . > 159)) | implode | .[0:80];
 def shown: tojson | clean;
 def is_count: type == "number" and . >= 0 and . == floor;
@@ -74,7 +77,7 @@ def finding_reject($i):
     elif (has("id") | not) then "\($p).id: absent"
     elif (.id | type) != "string" or .id == "" then "\($p).id: \(.id | shown)"
     elif (has("severity") | not) then "\($p).severity: absent"
-    elif ([sevs[] == .severity] | any | not) then "\($p).severity: \(.severity | shown)"
+    elif ([levels[] == .severity] | any | not) then "\($p).severity: \(.severity | shown)"
     elif (has("summary") | not) then "\($p).summary: absent"
     elif (.summary | type) != "string" or .summary == "" then "\($p).summary: \(.summary | shown)"
     elif has("location") and (.location | type) != "string" then "\($p).location: \(.location | shown)"
@@ -86,8 +89,8 @@ def rejects:
      then ["missing_severity_counts", "severity_counts: absent"] else empty end),
   (.severity_counts
    | if type != "object" then ["invalid_severity_counts", "severity_counts: not an object (\(type))"]
-     elif (keys != (sevs | sort)) then ["invalid_severity_counts", "severity_counts: keys \(keys | shown)"]
-     else (sevs[] as $k | select(.[$k] | is_count | not)
+     elif ((keys - ["info"]) != (sevs | sort)) then ["invalid_severity_counts", "severity_counts: keys \(keys | shown)"]
+     else ((sevs[], (if has("info") then "info" else empty end)) as $k | select(.[$k] | is_count | not)
            | ["invalid_severity_counts", "severity_counts.\($k): \(.[$k] | shown)"])
      end),
   (if (has("findings") | not) then ["missing_findings", "findings: absent"]
@@ -101,9 +104,10 @@ def rejects:
      then ["invalid_verdict", "verdict: \(.verdict | shown)"]
    else empty end);
 # floor + 0 prints 1.0 and -0 as 0 on every jq version, which keeps output idempotent.
-def counts: . as $c | [sevs[] as $k | $c[$k] | floor + 0];
-def tally: . as $f | [sevs[] as $k | [$f[] | select(.severity == $k)] | length];
-def pairs: . as $l | [range(0; 4) as $j | "\(sevs | .[$j])=\($l[$j])"] | join(" ");
+# An absent info count reads as 0, so info findings under a four-key count still mismatch.
+def counts($ks): . as $c | [$ks[] as $k | ($c[$k] // 0) | floor + 0];
+def tally($ks): . as $f | [$ks[] as $k | [$f[] | select(.severity == $k)] | length];
+def pairs($ks): . as $l | [range(0; $ks | length) as $j | "\($ks[$j])=\($l[$j])"] | join(" ");
 (first(rejects) // null) as $r
 | if $r != null then "reject\t\($r[0])\t\($r[1])"
   else
@@ -111,15 +115,18 @@ def pairs: . as $l | [range(0; 4) as $j | "\(sevs | .[$j])=\($l[$j])"] | join(" 
        then "warn\tversion_absent\tschema_version absent; stamped consultant-return.v1" else empty end),
     (if .verdict == "needs_changes"
        then "warn\tneeds_changes_normalized\tverdict needs_changes normalized to fail" else empty end),
-    ((.severity_counts | counts) as $c | (.findings | tally) as $t
+    ((if (.severity_counts | has("info")) or ([.findings[].severity == "info"] | any)
+        then levels else sevs end) as $ks
+     | (.severity_counts | counts($ks)) as $c | (.findings | tally($ks)) as $t
      | if $c != $t
-         then "warn\tcount_mismatch\tseverity_counts \($c | pairs) but findings tally \($t | pairs)"
+         then "warn\tcount_mismatch\tseverity_counts \($c | pairs($ks)) but findings tally \($t | pairs($ks))"
          else empty end),
     ("out\t-\t" + ({
         schema_version: "consultant-return.v1",
         verdict: (if .verdict == "needs_changes" then "fail" else .verdict end),
-        severity_counts: ((.severity_counts | counts) as $c
-          | {critical: $c[0], high: $c[1], medium: $c[2], low: $c[3]}),
+        severity_counts: ((.severity_counts | counts(levels)) as $c
+          | {critical: $c[0], high: $c[1], medium: $c[2], low: $c[3]}
+          + (if .severity_counts | has("info") then {info: $c[4]} else {} end)),
         findings: [.findings[] | {id, severity, summary}
           + (if has("location") then {location} else {} end)]
       } | tojson))
