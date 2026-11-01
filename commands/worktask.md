@@ -7,7 +7,7 @@ version: 0.7.0
 # plugin (`pl0-procedure.md § Stage → agent table`, a project or user-scope CORPFLOW.md § Routing
 # override included), and the Step C.0a resolver and Phase 3 re-dispatch those agents,
 # `corpflow:prompt-engineer` or `corpflow:workflow-engineer`.
-allowed-tools: Read, AskUserQuestion, SendMessage, ListAgents, Monitor, TaskStop, Bash(claude:*), Glob, Grep, Bash(mkdir:*), Bash(gh:*), Bash(git:*), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/preflight-issue-scan.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/branch-name.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/refine-branch-target.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/publish-pl-issue.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/handoff-harness.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/effort-ladder-cli.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/model-matrix.sh --resolve *), Agent, Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/autonomy-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/seed-state.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/workspace-root-banner.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/brief-compose.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --producer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --consumer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --list-landed *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/megatask-settle.sh *)
+allowed-tools: Read, AskUserQuestion, SendMessage, ListAgents, Monitor, TaskStop, Bash(claude:*), Glob, Grep, Bash(mkdir:*), Bash(gh:*), Bash(git:*), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/preflight-issue-scan.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/branch-name.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/refine-branch-target.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/publish-pl-issue.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/handoff-harness.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/effort-ladder-cli.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/model-matrix.sh --resolve *), Agent, Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/autonomy-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/seed-state.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/workspace-root-banner.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/brief-compose.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --producer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --consumer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --list-landed *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/megatask-settle.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/loopback-targets.sh *)
 related:
   - skills/worktask/SKILL.md
   - commands/megatask.md
@@ -940,11 +940,10 @@ Execute the loop from `skills/worktask/SKILL.md § Orchestrator Execution Loop`.
 
 ##### After Step A — scripts the loop runs directly
 
-The loop body lives in the skill, but these four run under this file's grants, so they are named
-here too: a grant invoked only in the skill reads as unused to an audit.
+These five run under this file's grants; a grant used only in the skill reads as unused.
 
 ```bash
-# Assigned root for a row, after any stream re-pin — SKILL.md § Step 4.8
+# Assigned root after any re-pin — SKILL.md § Step 4.8
 bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/workspace-root-banner.sh --task "<TASK_ID>"
 # Land a producer's artifacts — SKILL.md § Step 4.7a
 bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --producer "<TASK_ID>"
@@ -952,9 +951,11 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --producer 
 bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --consumer "<TASK_ID>"
 # The tree's landed set — SKILL.md § Step 6.5a3
 bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --list-landed --tree "$_orch_root"
+# Loop-back rows — SKILL.md § Step 7
+bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/loopback-targets.sh --state .context/state.json --gate "<GATE_ID>"
 ```
 
-A refused landing is reported, never worked around: SKILL.md § Step 6.5d.
+A refused landing is reported, never worked around (SKILL.md § Step 6.5d).
 
 #### Workspace-root cross-check
 

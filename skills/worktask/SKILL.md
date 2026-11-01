@@ -1908,12 +1908,23 @@ The boundary code above calls helpers whose bodies and rules live in
 function loopBackToDV(ledger, gateId, gateRow) {
   const h = parseFrontmatter(gateRow.artifact);
   const blockers = h?.blockers ?? h?.blocking_defects ?? [];  // DR/ST shape | QA shape
-  const deps = new Set(), stack = [...(gateRow.blocked_by ?? [])];
-  while (stack.length) {
-    const id = stack.pop();
-    if (!deps.has(id)) { deps.add(id); stack.push(...(ledger.tasks[id]?.blocked_by ?? [])); }
+  const picked = spawnSync("bash", ["skills/worktask/scripts/loopback-targets.sh",
+    "--state", ".context/state.json", "--gate", gateId], { encoding: "utf8" });
+  let dvRows = picked.status === 0 ? picked.stdout.split("\n").filter(Boolean) : [];
+```
+
+##### Step 7 — loop-back, full-set fallback
+
+```typescript
+  // …continued: loopBackToDV body. Helper failure or empty output: the full transitive set.
+  if (!dvRows.length) {
+    const deps = new Set(), stack = [...(gateRow.blocked_by ?? [])];
+    while (stack.length) {
+      const id = stack.pop();
+      if (!deps.has(id)) { deps.add(id); stack.push(...(ledger.tasks[id]?.blocked_by ?? [])); }
+    }
+    dvRows = [...deps].filter(id => /^DV\d+$/.test(id));
   }
-  const dvRows = [...deps].filter(id => /^DV\d+$/.test(id));
 ```
 
 ##### Step 7 — loop-back, replay then stamp

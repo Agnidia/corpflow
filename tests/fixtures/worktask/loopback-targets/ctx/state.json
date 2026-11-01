@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "worktask_id": "loopback-fixture",
+  "run_index": 0,
+  "tasks": {
+    "PL0": {
+      "status": "completed",
+      "metadata": {
+        "stage": "PL"
+      }
+    },
+    "DV0": {
+      "status": "completed",
+      "blocked_by": [
+        "PL0"
+      ],
+      "metadata": {
+        "stage": "DV",
+        "stream": "alpha",
+        "artifact": ".context/development-0-alpha.md"
+      }
+    },
+    "DV1": {
+      "status": "completed",
+      "blocked_by": [
+        "PL0"
+      ],
+      "metadata": {
+        "stage": "DV",
+        "stream": "beta",
+        "artifact": ".context/development-0-beta.md"
+      }
+    },
+    "DV2": {
+      "status": "completed",
+      "blocked_by": [
+        "PL0"
+      ],
+      "metadata": {
+        "stage": "DV",
+        "stream": "gamma",
+        "artifact": ".context/development-0-gamma.md"
+      }
+    },
+    "DV3": {
+      "status": "completed",
+      "blocked_by": [
+        "PL0"
+      ],
+      "metadata": {
+        "stage": "DV",
+        "stream": "delta",
+        "artifact": ".context/development-0-delta.md"
+      }
+    },
+    "DR0": {
+      "status": "completed",
+      "blocked_by": [
+        "DV0",
+        "DV1",
+        "DV2",
+        "DV3"
+      ],
+      "metadata": {
+        "stage": "DR",
+        "artifact": ".context/developer-review-0.md"
+      }
+    },
+    "QA0": {
+      "status": "completed",
+      "blocked_by": [
+        "DR0"
+      ],
+      "metadata": {
+        "stage": "QA",
+        "artifact": ".context/testing-0.md"
+      }
+    }
+  },
+  "facts": {},
+  "handoffs": {}
+}
