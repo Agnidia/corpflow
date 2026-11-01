@@ -297,8 +297,21 @@ All `Executed Tests (DV)` pass (tests Added/Modified this run + `always_required
 For every exact-output rule in `<plan_file>` or the stage prompt (CLI flags, output format,
 byte-level example), write one self-checking command under `## acceptance-commands` — a fenced
 `bash` block, one command per line, each comparing real output to the expected bytes with `cmp`
-or `diff` — and run them all before D3 closes. QA replays this block verbatim and fails the stage
-when any line was not executed (`skills/worktask/scripts/acceptance-check.sh`). Emit one `audit.jsonl` line `action: "artifact_created"`, `artifact: "<your artifact>"`, after the artifact write.
+or `diff`. Each command fails closed: a missing match, a tool error or a wrong count exits
+non-zero, so never end one in `|| true`, `|| :`, `|| echo …` or `|| printf …`.
+
+#### D3 — Run the acceptance commands green
+
+Before D3 closes, run every line of the fence verbatim and record each run under the same heading,
+outside the fence, as `- exit=<n> <command>`. Then check the rows with
+`acceptance-check.sh --dv <your artifact>` from `$PLUGIN_ROOT/skills/worktask/scripts/`. On a
+non-zero exit, fix the command or the code, re-run, and re-record; never hand off on it, because
+the stage gate (`handoff-harness.sh --validate-frontmatter`) runs the same check and fails the
+artifact. A rework round re-runs and re-records the full list, not only the lines it touched. QA
+then replays the block itself and runs `acceptance-check.sh --qa <testing-N.md> --dv <your artifact>`,
+which fails the stage on any line it did not execute or that exited non-zero.
+
+Emit one `audit.jsonl` line `action: "artifact_created"`, `artifact: "<your artifact>"`, after the artifact write.
 
 ### Worktree Mode
 

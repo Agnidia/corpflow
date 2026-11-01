@@ -113,7 +113,7 @@ DV tree, and every `<plan_file>` acceptance criterion that quotes exact output (
 bash "$PLUGIN_ROOT/skills/worktask/scripts/acceptance-check.sh" --qa <testing-N.md> --dv <each DV artifact>
 ```
 
-Exit 1 → `verdict: no-go` naming each `missing:`/`failed:` line; never pass on unit tests alone.
+Exit 1 → `verdict: no-go` naming each `missing:`/`failed:`/`fail-open:` line; never pass on unit tests alone.
 
 #### Q1 QA Additions and Warnings
 
