@@ -1595,6 +1595,140 @@ mk_qa_dec_bullet() {
   assert_success
 }
 
+# --- AR consult vs key_decisions (#518) --------------------------------------
+
+AD6="Player names compare case-sensitively"
+AD6_CONFLICT="- Per ad6, the duplicate-name check is case-insensitive."
+
+# mk_ar_consult <file> [section-line] — an AR artifact whose key_decisions holds ad6; with a
+# second argument it also carries a `## Swift App Architecture` section holding that line.
+mk_ar_consult() {
+  {
+    echo '---'
+    echo 'handoff:'
+    echo '  stage: AR'
+    echo '  task_id: AR0'
+    echo '  verdict: ok'
+    echo '  summary: "consult fixture"'
+    echo '  key_decisions:'
+    echo "    - { id: ad6, summary: \"$AD6\", anchor: \"architecture-0.md#decisions\" }"
+    echo '  next_stage_focus: "build the roster"'
+    echo '  open_questions: []'
+    echo '  refs: { decisions: architecture-0.md#decisions }'
+    echo '---'
+    anchor_h2s AR; echo
+    if [[ $# -ge 2 ]]; then
+      echo '## Swift App Architecture'
+      echo
+      echo "$2"
+      echo
+    fi
+    echo '## elicitation-sweep'
+    echo
+    echo 'open_questions: [] — nothing to elicit.'
+  } > "$1"
+}
+
+@test "consult: a cited contradiction in an App Architecture section warns, naming id and source" {
+  mk_ar_consult "$WD/architecture-0.md" "$AD6_CONFLICT"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  assert_output --partial "warn: consult architecture-0.md § Swift App Architecture:"
+  assert_output --partial "restates decision ad6 with different content (polarity: sensitive vs insensitive)"
+  [ "$(grep -c '^warn: consult ' <<< "$output")" -eq 1 ]
+}
+
+@test "consult: the warn leaves the exit status of the same artifact without the line unchanged" {
+  # A second, unrelated failure makes both runs exit 1, so equal statuses prove the warn added
+  # nothing rather than two successes agreeing by default.
+  mk_ar_consult "$WD/architecture-0.md" "$AD6_CONFLICT"
+  sed -i.bak 's/^  next_stage_focus: .*$//' "$WD/architecture-0.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  local with="$status"
+  assert_output --partial "warn: consult "
+  mkdir "$WD/plain" && mk_ar_consult "$WD/plain/architecture-0.md"
+  sed -i.bak 's/^  next_stage_focus: .*$//' "$WD/plain/architecture-0.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/plain/architecture-0.md"
+  [ "$with" -eq 1 ] && [ "$status" -eq "$with" ]
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: --strict does not turn the warn into a failure" {
+  mk_ar_consult "$WD/architecture-0.md" "$AD6_CONFLICT"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md" --strict
+  assert_success
+  assert_output --partial "warn: consult "
+}
+
+@test "consult: a sibling *-architecture.md is read, its frontmatter skipped" {
+  mk_ar_consult "$WD/architecture-0.md"
+  printf -- '---\nnote: per ad6 names are case-insensitive\n---\n# Apple\n\n%s\n' "$AD6_CONFLICT" \
+    > "$WD/apple-architecture.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  assert_output --partial "warn: consult apple-architecture.md:6 restates decision ad6"
+  [ "$(grep -c '^warn: consult ' <<< "$output")" -eq 1 ]
+}
+
+@test "consult: a cited restatement quoting a different number warns" {
+  mk_ar_consult "$WD/architecture-0.md" "- Per ad6, the roster holds 8 names; case-sensitive, as 2 decided."
+  sed -i.bak "s/$AD6/Player names compare case-sensitively, at most 12 per roster/" \
+    "$WD/architecture-0.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  assert_output --partial "(numbers differ)"
+}
+
+@test "consult: a faithful restatement in other words does not warn" {
+  mk_ar_consult "$WD/architecture-0.md" \
+    "- Per ad6, names compare case-sensitively, so Bob and bob are two players."
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: a contradicting line that cites no decision id does not warn" {
+  mk_ar_consult "$WD/architecture-0.md" "- The duplicate-name check is case-insensitive."
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: ad6 is matched as a whole word, never inside ad60" {
+  mk_ar_consult "$WD/architecture-0.md" "- Per ad60, the duplicate-name check is case-insensitive."
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: an AR artifact with no consult source does not warn" {
+  mk_ar_consult "$WD/architecture-0.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: an id with an empty summary is skipped, not compared on shifted fields" {
+  # Without the skip the empty field collapses under the tab-split read and the source label
+  # ("… § Swift App Architecture") takes the summary's place, so "unswift" warns on polarity.
+  mk_ar_consult "$WD/architecture-0.md" "- Per ad7, the build stays unswift."
+  sed -i.bak 's/^  next_stage_focus:/    - { id: ad7, summary: "" }\n  next_stage_focus:/' "$WD/architecture-0.md"
+  grep -q 'id: ad7, summary: ""' "$WD/architecture-0.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: a non-AR stage is never compared against a consult source" {
+  # The sibling would warn under AR; QA carries the same id, so only the stage gate is silent.
+  mk_qa_dec "$WD/testing-0.md" "$AD6" "$AD6"
+  sed -i.bak 's/id: qa-1/id: ad6/; s/| qa-1 |/| ad6 |/' "$WD/testing-0.md"
+  printf '# Apple\n\n%s\n' "$AD6_CONFLICT" > "$WD/apple-architecture.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/testing-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
+}
+
 # --- collect-all frontmatter reporting (REQ-13) ------------------------------
 
 @test "collect-all: two violated check groups report two lines and one non-zero exit" {
