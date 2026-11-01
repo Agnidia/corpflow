@@ -71,7 +71,7 @@ When `state.json → metadata.ci` is `"disabled"`, a criterion whose only gap is
 `retrospective-N.md` takes the H2 set in § Artifact anchors: the decision and each criterion's PASS/PARTIAL/FAIL under `## decision`; business value, what went well and what to improve as H3s under `## learnings`; every carried item under `## followups`.
 
 - **All PASS** → `verdict: approve`; write retrospective-N.md.
-- **Any PARTIAL or FAIL** → `verdict: reject`, with one `blockers:` entry per unmet criterion saying what is missing. The orchestrator sends a reject back to the DV rows ST depends on, injects `blockers:` into their prompt and re-runs every stage after them, ST included (`skills/worktask/SKILL.md § Step 7 — loop-back arm`).
+- **Any PARTIAL or FAIL** → `verdict: reject`, with one `blockers:` entry per unmet criterion saying what is missing. The orchestrator sends a reject back to the one DV stream every blocker names, or to every DV row ST depends on when they name none or several (`skills/worktask/scripts/loopback-targets.sh`), injects `blockers:` into their prompt and re-runs every stage after them, ST included (`skills/worktask/SKILL.md § Step 7 — loop-back arm`).
 
 ### Step 4: Self-Improvement Retrospective
 
