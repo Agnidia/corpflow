@@ -90,6 +90,9 @@
 #                                             and state.json byte-unchanged. An id that already
 #                                             exists is a per-row no-op; a repeated id, or a
 #                                             batch mixed with another ledger op, is exit 2.
+#                                             A DV row with a stream whose subject repeats
+#                                             another DV row's (ledger or same batch) is
+#                                             exit 2: each stream needs its own subject.
 # @arg --task-status  <ID> <status>           pending|in_progress|completed|blocked|skipped|failed|stale.
 #                                             `stale` parks a task whose consumed input was
 #                                             corrected: it is neither ready (the loop's filter
@@ -315,7 +318,8 @@
 #               --audit-row (bad JSON, missing/empty required key, unknown key) or one
 #               paired with an op it does not compose with, and a malformed batched
 #               --task-create (repeated id, mixed op, --metadata ahead of the first id, or
-#               any row's id/effort/required-key defect) — nothing written in every case.
+#               any row's id/effort/required-key defect), or a DV stream row whose
+#               metadata.subject repeats another DV row's — nothing written in every case.
 # @exitcode 3   Artifact unresolved on the agent self-patch path (--prev given, --via absent),
 #               OR a missing/unknown handoff.verdict on ANY path (--stage/--artifact,
 #               plain or paired with --facts), state.json unchanged either way. An agent
@@ -2739,6 +2743,46 @@ if [[ -n "$TASK_OP" ]]; then
           fi
         fi
       }
+      # A stream row cloned from DV0 inherits DV0's subject, so two agents get one title for
+      # disjoint scopes. Refused here, before the lock, so the fault surfaces at fan-out time
+      # and state.json stays byte-identical. Exact bytes: the defect is a clone, and a
+      # case-folded compare would refuse titles the author meant to differ. Only a row that
+      # carries a stream is refused; every DV row with a subject is a prior to compare with.
+      # A row or metadata that is not an object has no subject. Only a ledger jq cannot
+      # parse fails open here, and the apply below reports that one as exit 1.
+      # _tc_subject_gate <rows-json>  [{id, meta: object|null}]; silent and 0 on no collision.
+      _tc_subject_gate() {
+        local _tc_hit _tc_tail='state.json unchanged'
+        local -a _tc_src=(-n)
+        [[ -f "$STATE_PATH" ]] && _tc_src=("$STATE_PATH")
+        [[ "${#TC_IDS[@]}" -gt 1 ]] && _tc_tail='batch refused, state.json unchanged'
+        _tc_hit=$(jq -r --argjson rows "$1" '
+            def nonempty: (type == "string") and (. != "");
+            [((objects | .tasks | objects) // {}) | to_entries[]
+              | select((.key | test("^DV[0-9]+$")) and ((.value | type) == "object"))
+              | {id: .key, s: ((((.value.metadata | objects) // {}) | .subject) // .value.subject), batch: false}
+              | select(.s | nonempty)] as $prior
+            | reduce $rows[] as $r ({seen: $prior, hit: null};
+                if .hit != null then . else
+                  (if ($r.meta | type) == "object" then $r.meta else {} end) as $m
+                  | ($r.id | test("^DV[0-9]+$")) as $dv
+                  | if $dv and ($m.stream | nonempty) and ($m.subject | nonempty) then
+                      (first(.seen[] | select(.s == $m.subject)) // null) as $d
+                      | if $d != null then .hit = {id: $r.id, dup: $d.id, batch: $d.batch} else . end
+                    else . end
+                  | if .hit == null and $dv and ($m.subject | nonempty)
+                    then .seen += [{id: $r.id, s: $m.subject, batch: true}] else . end
+                end)
+            | .hit // empty | "\(.id)\t\(.dup)\t\(.batch)"' "${_tc_src[@]}" 2> /dev/null) || _tc_hit=""
+        [[ -n "$_tc_hit" ]] || return 0
+        local _tc_id _tc_dup _tc_sib _tc_where=''
+        IFS=$'\t' read -r _tc_id _tc_dup _tc_sib <<< "$_tc_hit"
+        [[ "$_tc_sib" == "true" ]] && _tc_where=' in this batch'
+        printf >&2 'invalid --task-create %s: metadata.subject repeats tasks.%s%s (each DV stream needs its own subject); %s\n' \
+          "$_tc_id" "$_tc_dup" "$_tc_where" "$_tc_tail"
+        log_msg ERROR "invalid --task-create ${_tc_id}: metadata.subject repeats tasks.${_tc_dup}${_tc_where}; ${_tc_tail}"
+        exit 2
+      }
       if [[ "${#TC_IDS[@]}" -gt 1 ]]; then
         # Every row is gated before the single merge below, so one bad row refuses the batch
         # with state.json byte-unchanged rather than landing the rows that preceded it. A row
@@ -2772,6 +2816,8 @@ if [[ -n "$TASK_OP" ]]; then
             exit 1
           fi
         done
+        # After the loop, so every per-row defect keeps its own exit code and message.
+        _tc_subject_gate "$_TC_ROWS_JSON"
         DIGEST_TOUCHED="$(jq -r 'join(",")' <<< "$_TC_IDS_JSON")"
         # All-present is the whole-batch no-op: skipping the write keeps state.json
         # byte-identical, as the single-row early exit does.
@@ -2800,6 +2846,12 @@ if [[ -n "$TASK_OP" ]]; then
           exit 0
         fi
         _tc_required_gate "$TASK_OP_ID" "$TASK_OP_VALUE"
+        # Invalid JSON skips the gate: the apply below already refuses it with exit 1.
+        if [[ "$TASK_OP_ID" =~ ^DV[0-9]+$ ]] \
+          && _TC_ROWS_JSON=$(jq -cn --arg id "$TASK_OP_ID" --argjson meta "${TASK_OP_VALUE:-null}" \
+            '[{id: $id, meta: $meta}]' 2> /dev/null); then
+          _tc_subject_gate "$_TC_ROWS_JSON"
+        fi
         # --metadata is optional; absent ⇒ an empty object, never a parse abort.
         DESC_TRUNCATED=$(jq -rn --arg id "$TASK_OP_ID" --argjson meta "${TASK_OP_VALUE:-null}" \
           '$meta.description? | strings | length | select(. > 240) | "\($id):\(.)"' 2> /dev/null) \
