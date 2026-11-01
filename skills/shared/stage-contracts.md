@@ -837,9 +837,25 @@ DV lists one self-checking command per exact-output rule (CLI flags, output form
 example) under `## acceptance-commands`: a fenced `bash` block, one command per line, each
 comparing real output to the expected bytes with `cmp` or `diff`. QA executes every line verbatim
 and records it as `- exit=<n> <command>` under its own `## acceptance-commands`;
-`skills/worktask/scripts/acceptance-check.sh` then decides — a listed command that was not
-executed, or exited non-zero, is `verdict: no-go`. A green unit suite does not stand in for it:
-the contract is exactly what a paraphrase between agents loses.
+`skills/worktask/scripts/acceptance-check.sh --qa <testing-N.md> --dv <development-N.md>` then
+decides — a listed command that was not executed, or exited non-zero, is `verdict: no-go`. A green
+unit suite does not stand in for it: the contract is exactly what a paraphrase between agents
+loses.
+
+##### Each acceptance command fails closed (tpl-dv, tpl-qa)
+
+Each command must fail closed: a missing match, a tool error or a wrong count exits non-zero. A
+top-level `|| true`, `|| :`, `|| echo …` or `|| printf …` tail exits 0 whatever it found, so
+`acceptance-check.sh --dv` reports it as `fail-open:` in both modes and exits 1.
+
+##### DV runs its acceptance commands green first (tpl-dv)
+
+DV runs every line green before it hands off. It records each run under its own heading, outside
+the fence, as `- exit=<n> <command>`, and `acceptance-check.sh --dv <development-N.md>`, with no
+`--qa`, checks those rows. `handoff-harness.sh --validate-frontmatter` runs the same check on every
+DV artifact and fails it with one `fail: stage=DV acceptance …` line per finding. Every DV round,
+rework included, re-runs and re-records the full list. QA's replay stays the trust boundary: DV's
+rows are self-attested.
 
 #### Zero executed tests must say whether the suite compiles (tpl-dv)
 

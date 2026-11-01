@@ -2343,3 +2343,56 @@ _bd_run() {
     [[ "$stderr" != *"blocking_defects"* ]] || fail "$f: $stderr"
   done
 }
+
+# mk_dv_ac <path> <fence lines> [row lines...] — the shared DV fixture plus an acceptance-commands
+# section, so a failure names the acceptance arm alone.
+mk_dv_ac() {
+  local out="$1" fence="$2"; shift 2
+  { cat "$FIXTURES/worktask/development-0.sample.md"
+    printf '\n## acceptance-commands\n\n```bash\n%s\n```\n\n' "$fence"
+    [ "$#" -eq 0 ] || printf '%s\n' "$@"; } > "$out"
+}
+
+@test "dv-acceptance: one fail line per self-check finding, exit 1, with and without yq" {
+  local hide
+  mk_dv_ac "$WD/dv-ac.md" "$(printf 'test -f missing.txt\ntest -s out.txt\ngrep -q x f || true')" \
+    "- exit=1 test -f missing.txt" "- exit=0 grep -q x f || true"
+  for hide in no yes; do
+    _bd_run "$WD/dv-ac.md" "$hide"
+    [ "$status" -eq 1 ] || fail "hide yq: $hide: exit $status, want 1: $stderr"
+    [[ "$stderr" == *"fail: stage=DV acceptance failed: test -f missing.txt — "* ]] || fail "failed ($hide): $stderr"
+    [[ "$stderr" == *"fail: stage=DV acceptance missing: test -s out.txt — "* ]] || fail "missing ($hide): $stderr"
+    [[ "$stderr" == *"fail: stage=DV acceptance fail-open: grep -q x f || true — "* ]] || fail "fail-open ($hide): $stderr"
+    [ "$(grep -c 'stage=DV acceptance' <<< "$stderr")" -eq 3 ] || fail "want 3 lines ($hide): $stderr"
+  done
+}
+
+@test "dv-acceptance: every row exit 0 and no fail-open tail passes, from a foreign cwd" {
+  mk_dv_ac "$WD/dv-ac-ok.md" 'test -f missing.txt' "- exit=0 test -f missing.txt"
+  run_script_env --separate-stderr --cwd "$BATS_TEST_TMPDIR" "$PLUGIN_ROOT/$SCRIPT" \
+    --validate-frontmatter "$WD/dv-ac-ok.md"
+  [ "$status" -eq 0 ] || fail "exit $status: $stderr"
+  [[ "$stderr" != *"acceptance"* ]] || fail "$stderr"
+  run_script_env --separate-stderr --cwd "$BATS_TEST_TMPDIR" "$PLUGIN_ROOT/$SCRIPT" \
+    --validate-frontmatter "$WD/development-0.md"
+  [ "$status" -eq 0 ] || fail "no-fence fixture: exit $status: $stderr"
+}
+
+@test "dv-acceptance: a stage other than DV is never self-checked" {
+  mk_qa_bd "$WD/qa-ac.md" go -
+  printf '\n## acceptance-commands\n\n```bash\ntest -f missing.txt\n```\n' >> "$WD/qa-ac.md"
+  run_script_env --separate-stderr "$SCRIPT" --validate-frontmatter "$WD/qa-ac.md"
+  [ "$status" -eq 0 ] || fail "exit $status: $stderr"
+  [[ "$stderr" != *"acceptance"* ]] || fail "$stderr"
+}
+
+@test "dv-acceptance: an unreachable acceptance-check.sh fails closed" {
+  local p="$BATS_TEST_TMPDIR/plugin/skills/worktask"
+  mkdir -p "$p"
+  cp -R "$PLUGIN_ROOT/skills/worktask/scripts" "$p/"
+  rm "$p/scripts/acceptance-check.sh"
+  mk_dv_ac "$WD/dv-ac-ok.md" 'test -f missing.txt' "- exit=0 test -f missing.txt"
+  run_script_env --separate-stderr "$p/scripts/handoff-harness.sh" --validate-frontmatter "$WD/dv-ac-ok.md"
+  [ "$status" -eq 1 ] || fail "exit $status: $stderr"
+  [[ "$stderr" == *"fail: stage=DV acceptance gate cannot run: acceptance-check.sh unreachable"* ]] || fail "$stderr"
+}

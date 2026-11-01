@@ -67,6 +67,10 @@
 #       unknown resume_with, or a missing or empty detail each print one `fail:` line and
 #       exit 1. The enums are blocked-on-lib.sh's.
 #
+#       A DV artifact with an `## acceptance-commands` heading runs acceptance-check.sh --dv
+#       on itself, with or without yq: one `fail: stage=DV acceptance …` line per command not
+#       recorded, recorded non-zero, or failing open, and exit 1. Other stages are unaffected.
+#
 #       A QA `verdict: no-go` needs handoff.blocking_defects as a non-empty list of non-empty
 #       strings, with or without yq: one `fail:` line for an absent, non-list or empty value,
 #       and one per bad entry. A QA `go` and every other stage are unaffected.
@@ -209,14 +213,16 @@ if [ ! -r "$_FM_LIB" ]; then
   printf >&2 'fail: frontmatter-lib.sh unreachable at %s — the frontmatter reader cannot run\n' "$_FM_LIB"
   exit 1
 fi
-# shellcheck source=frontmatter-lib.sh
+# SC1091 here and at the other sourced libraries: shellcheck follows a sibling file only under
+# -x, and a plain `shellcheck` run on this script must exit 0.
+# shellcheck source=frontmatter-lib.sh disable=SC1091
 . "$_FM_LIB"
 
 # Fail closed like the two libraries above: a gate that cannot scan for raw bytes must not
 # hand yq an artifact it may silently truncate at a NUL.
 _CB_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/control-byte-lib.sh"
 if [ -r "$_CB_LIB" ]; then
-  # shellcheck source=control-byte-lib.sh
+  # shellcheck source=control-byte-lib.sh disable=SC1091
   . "$_CB_LIB"
 fi
 if ! command -v cb_scan_file > /dev/null 2>&1; then
@@ -228,7 +234,7 @@ fi
 # router then refuses. Fail closed like the libraries above.
 _BO_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/blocked-on-lib.sh"
 if [ -r "$_BO_LIB" ]; then
-  # shellcheck source=blocked-on-lib.sh
+  # shellcheck source=blocked-on-lib.sh disable=SC1091
   . "$_BO_LIB"
 fi
 if ! command -v blocked_on_validate > /dev/null 2>&1; then
@@ -1625,7 +1631,7 @@ summary_line_audit() {  # <artifact> <stage> <executed> <line> [runner]
   [[ -z "$runner" ]] || runner_kv=(--meta-kv "runner=$runner")
   lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../shared/lib/audit-lib.sh"
   [[ -r "$lib" ]] || return 0
-  # shellcheck source=../../shared/lib/audit-lib.sh
+  # shellcheck source=../../shared/lib/audit-lib.sh disable=SC1091
   . "$lib" 2> /dev/null || return 0
   command -v corpflow_audit_row > /dev/null 2>&1 || return 0
   corpflow_audit_row --file "$(dirname "$artifact")/logs/audit.jsonl" \
@@ -1798,7 +1804,12 @@ validate_frontmatter() {
   if [[ "$fm_stage" == "QA" ]]; then
     check_blocking_defects "$fmfile" || bd_rc=1
   fi
-  local pre_rc=$((bo_rc | anchor_rc | bd_rc))
+  # Same placement reason: a host without yq must still refuse a DV that never ran its checks.
+  local ac_rc=0
+  if [[ "$fm_stage" == "DV" ]]; then
+    check_dv_acceptance "$f" || ac_rc=1
+  fi
+  local pre_rc=$((bo_rc | anchor_rc | bd_rc | ac_rc))
 
   command -v yq >/dev/null 2>&1 || {
     echo "frontmatter: yq required for full validation; running grep-only fallback" >&2
@@ -1991,6 +2002,37 @@ check_blocking_defects() {
   return 1
 }
 
+# check_dv_acceptance <artifact> — DV must have run its own acceptance commands green, and each
+# must fail closed, before it hands off: acceptance-check.sh --dv alone, one `fail:` line per
+# finding. Without the heading there is nothing to replay, so the arm does not need the script.
+# Resolved beside this file, never from the cwd: the orchestrator calls the harness from the
+# project root, not the plugin.
+check_dv_acceptance() {
+  local f="$1" check out rc=0 line hint
+  grep -q '^## acceptance-commands[[:space:]]*$' "$f" || return 0
+  check="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/acceptance-check.sh"
+  if [[ ! -r "$check" ]]; then
+    echo "fail: stage=DV acceptance gate cannot run: acceptance-check.sh unreachable at $check" >&2
+    return 1
+  fi
+  out=$(bash "$check" --dv "$f" 2>&1) || rc=$?
+  [[ "$rc" -ne 0 ]] || return 0
+  if [[ "$rc" -ne 1 ]]; then
+    echo "fail: stage=DV acceptance gate cannot run on $(basename "$f"): ${out%%$'\n'*}" >&2
+    return 1
+  fi
+  while IFS= read -r line; do
+    case "$line" in
+      missing:*) hint="run it verbatim and record it as \`- exit=<n> <command>\` under ## acceptance-commands" ;;
+      failed:*) hint="fix the command or the code until it exits 0, then re-record the row" ;;
+      fail-open:*) hint="its tail swallows failure; make it fail closed (drop the tail, or end it with || exit 1)" ;;
+      *) continue ;;
+    esac
+    echo "fail: stage=DV acceptance $line — $hint" >&2
+  done <<< "$out"
+  return 1
+}
+
 # read_blocked_on <artifact> — the --read-blocked-on mode.
 read_blocked_on() {
   local f="$1" fmfile raw norm
@@ -2034,6 +2076,7 @@ validate_state() {
   # Atomic-write idempotency check: re-merging the same patch must be a no-op.
   local td
   td=$(mktemp -d "${TMPDIR:-/tmp}/handoff-state-XXXXXX")
+  # shellcheck disable=SC2064  # baked at set time, as validate_frontmatter's trap explains
   trap "rm -rf '$td'" RETURN
   cp "$f" "$td/orig.json"
   local patch='{"tasks":{"PL0":{"status":"completed"}}}'
@@ -2316,7 +2359,7 @@ case "$MODE" in
     SELFTEST_LIB_PATH="$(dirname "${BASH_SOURCE[0]}")/handoff-harness-selftest.sh"
     if [ -r "$SELFTEST_LIB_PATH" ]; then
       # shellcheck source=handoff-harness-selftest.sh
-      # shellcheck disable=SC1090
+      # shellcheck disable=SC1090,SC1091
       . "$SELFTEST_LIB_PATH"
     else
       printf >&2 'handoff-harness: self-test harness unreachable at %s — plugin install broken\n' \
