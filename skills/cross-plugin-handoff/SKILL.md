@@ -80,6 +80,15 @@ Provide Swift app architecture for the corpflow worktask AR stage:
 - API patterns: {REST/GraphQL/gRPC decisions}
 - Data layer: {persistence decisions}
 - Concurrency constraints: {system-level async requirements}
+```
+
+#### Delegation Prompt Template, continued
+
+```
+## Settled Decisions (cite by id)
+{one line per `key_decisions` entry settled in Delegation Flow step 1: `<id>: <summary>`}
+These ids belong to AR; give your own decisions ids that are not in this list.
+To disagree with one, say so on a line that cites its id; AR reconciles it.
 
 ## Expected Output
 1. Architecture pattern (MVVM/TCA/MVI/Clean/etc.) with rationale
@@ -88,13 +97,13 @@ Provide Swift app architecture for the corpflow worktask AR stage:
 4. Concurrency strategy (actors, async/await patterns)
 5. Navigation pattern
 6. Swift test architecture (unit, integration, UI)
-7. Decisions only, no tutorial prose or code listings: write them to .context/apple-architecture.md (≤80 lines)
+7. Decisions only, no tutorial prose or code listings: write them to .context/apple-architecture.md (≤80 lines); cite a settled decision's id on each line that restates or depends on it
 8. Return compressed summary (max 300 tokens)
 ```
 
 ### Return and Merge Protocol
 
-The architect writes `.context/apple-architecture.md` (≤80 lines) and returns a ≤300-token summary, inside the contract's 500-token ceiling; `software-architector` reads the file when merging. `architecture.md` gains `## Swift App Architecture` with `### Pattern` (+ rationale), `### Module Structure`, `### State & Dependency Boundaries`, `### Concurrency Strategy` and `### Navigation Pattern`; its `## Test Architecture` splits into system tests (`software-architector`) and Swift app tests (`apple-architector`).
+The architect writes `.context/apple-architecture.md` (≤80 lines) and returns a ≤300-token summary, inside the contract's 500-token ceiling; `software-architector` reads the file when merging. `architecture.md` gains `## Swift App Architecture` with `### Pattern` (+ rationale), `### Module Structure`, `### State & Dependency Boundaries`, `### Concurrency Strategy` and `### Navigation Pattern`; its `## Test Architecture` splits into system tests (`software-architector`) and Swift app tests (`apple-architector`). AR then reconciles the merged text with `key_decisions` (`agents/software-architector.md § Delegation Flow` step 5); the stage gate warns on a cited disagreement.
 
 System constraints override app-level preferences: where the architect's pattern conflicts with the system architecture (e.g. TCA's unidirectional flow vs. required bidirectional API streaming), `software-architector` takes the compatible option and records the trade-off in an ADR.
 

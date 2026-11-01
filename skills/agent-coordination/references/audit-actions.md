@@ -8,7 +8,7 @@ Each group's `actions:` line is the registry: `tests/shell/skills/agent-coordina
 
 Writers: `skills/worktask/SKILL.md` Steps 4–7 and § Hand-back guard, `commands/worktask.md`, `skills/megatask/SKILL.md` (track hold).
 
-actions: `worktask_init`, `stage_transition`, `approval_received`, `resume`, `stage_replay`, `permission_mode_pinned`, `dispatch_depth_projected`, `stage_returned_incomplete`, `reattach_send_result`, `gate_remediation_injected`, `dv_checkpoint_resume`, `dv_worktree_enforced`, `dv_test_scope_enforced`, `stage_test_ban_enforced`, `brief_compose_failed`, `model_resolution_constrained`, `artifact_path_resolved`, `routing_override`, `routing_override_partial`, `effort_clamped`, `resolver_skipped`, `workspace_path_unstamped`, `worktree_isolation_waived`, `handback_guard`
+actions: `worktask_init`, `stage_transition`, `approval_received`, `resume`, `stage_replay`, `permission_mode_pinned`, `dispatch_depth_projected`, `stage_returned_incomplete`, `reattach_send_result`, `gate_remediation_injected`, `dv_checkpoint_resume`, `dv_worktree_enforced`, `dv_test_scope_enforced`, `stage_test_ban_enforced`, `brief_compose_failed`, `model_resolution_constrained`, `artifact_path_resolved`, `routing_override`, `routing_override_partial`, `effort_clamped`, `resolver_skipped`, `workspace_path_unstamped`, `worktree_isolation_waived`, `handback_guard`, `consult_divergence`
 
 ## Orchestrator — parks, mailbox and contracts
 

@@ -45,6 +45,10 @@
 #       The inverse guard (an architecture reference with no tasks.AR<N> entry)
 #       always warns and never fails, in either mode.
 #
+#       On an AR artifact, a consult line (an `## <Platform> App Architecture` section or a
+#       sibling *-architecture.md) that cites a key_decisions id and contradicts it prints one
+#       `warn: consult ...` line. It never changes the exit status, --strict included.
+#
 #       The artifact's H2 set is checked for every stage against cache-lint.sh
 #       --anchor-diff (missing required or unexpected H2 = one `fail:` line each), in both
 #       modes and with or without yq; an unreachable lint fails the gate.
@@ -983,6 +987,87 @@ check_files_touched_cap() {  # <fmfile> <stage> <artname>
   return 0
 }
 
+# The decision comparator, shared by the body check (fail) and the consult check (warn) so the
+# two cannot drift on what counts as a word. Run as
+#   awk -v a=<statement> -v b=<statement> -v arms=<comma list> "$_DECISION_CMP_AWK"
+# Exit 1 means the two conflict, with the reason on stdout; exit 0 means no enabled arm fired.
+# Arms:
+#   vocab     the two share no significant vocabulary at all;
+#   digits    both quote numbers and no number is common (a restated bound or count);
+#   polarity  one side holds `<prefix><stem>` and the other the bare stem (in+sensitive).
+# Deliberately narrow. A frontmatter summary is a ≤160-char precis of a longer entry, so
+# paraphrase is the NORM and an equality or high-overlap test would fail honest artifacts — a
+# boundary-blocking false failure is worse than the divergence it would catch. Every arm
+# reports a shape that means two different statements rather than two phrasings of one.
+# Filenames are stripped BEFORE the split: `<stage>-<run_index>.md` would otherwise contribute
+# its index as a bare digit, and the digits arm fires on an unmatched numeral. A digit counts
+# only as a whole whitespace-delimited word — `newest-8` is a name, not a count. Residual: a
+# bare `planning-0` carrying no extension survives the strip, and the whole-word rule covers it.
+# POSIX awk only: BSD awk on macOS runs this, so no gensub, no \y, no arrays of arrays.
+readonly _DECISION_CMP_AWK='
+  function harvest(x, W, D,   i, n, w, m, t, tok) {
+    x = tolower(x)
+    gsub(/[a-z0-9_\/.-]+\.(md|yml|yaml|json|jsonl|sh|bats|txt|log)/, " ", x)
+    m = split(x, t, /[ \t\n]+/)
+    for (i = 1; i <= m; i++) {
+      tok = t[i]
+      sub(/^[^a-z0-9]+/, "", tok)
+      sub(/[^a-z0-9]+$/, "", tok)
+      if (tok ~ /^[0-9]+$/) D[tok] = 1
+    }
+    n = split(x, w, /[^a-z0-9]+/)
+    for (i = 1; i <= n; i++) {
+      if (w[i] == "") continue
+      if (w[i] ~ /^[0-9]+$/) continue
+      if (length(w[i]) >= 4) W[w[i]] = 1
+    }
+  }
+  function on(arm) { return index("," arms ",", "," arm ",") > 0 }
+  # An adverb and its adjective are one stem here: "sensitively" must meet "insensitive".
+  function stems(W, S,   k, s) {
+    for (k in W) {
+      s = k
+      if (length(s) >= 7 && substr(s, length(s) - 1) == "ly") s = substr(s, 1, length(s) - 2)
+      S[s] = 1
+    }
+  }
+  # A word w = p + r on side X conflicts when r stands bare on side Y, X never says r itself,
+  # and Y never says w: then the two sides take opposite polarity on one stem. The r >= 5 floor
+  # drops short accidental stems (in+put); a longer one (dis+patched) still needs "patched" bare
+  # on the other side and "dispatched" absent from it. The warn names the pair, so a residual
+  # false hit is cheap to dismiss.
+  function polar(X, Y,   w, j, p, r) {
+    for (w in X) {
+      for (j = 1; j <= NP; j++) {
+        p = PFX[j]
+        if (substr(w, 1, length(p)) != p) continue
+        r = substr(w, length(p) + 1)
+        if (length(r) >= 5 && (r in Y) && !(r in X) && !(w in Y)) { HIT = r " vs " w; return 1 }
+        break
+      }
+    }
+    return 0
+  }
+  BEGIN {
+    NP = split("non dis un in im ir il", PFX, " ")
+    harvest(a, AW, AD); harvest(b, BW, BD)
+    if (on("polarity")) {
+      stems(AW, AS); stems(BW, BS)
+      if (polar(AS, BS) || polar(BS, AS)) { print "polarity: " HIT; exit 1 }
+    }
+    if (on("vocab")) {
+      for (k in AW) { ca++; if (k in BW) hit++ }
+      for (k in BW) cb++
+      if (ca > 0 && cb > 0 && hit == 0) { print "no shared vocabulary"; exit 1 }
+    }
+    if (on("digits")) {
+      for (k in AD) { na++; if (k in BD) dhit++ }
+      for (k in BD) nb++
+      if (na > 0 && nb > 0 && dhit == 0) { print "numbers differ"; exit 1 }
+    }
+    exit 0
+  }'
+
 # key_decisions vs the body: the same id must not carry two different summaries. Until this
 # existed the harness read the frontmatter slice alone, so a decision could be restated in the
 # body with a different meaning and every downstream reader picked whichever copy it happened
@@ -1023,52 +1108,92 @@ check_decision_divergence() {  # <artifact> <fmfile> <stage>
         print line; exit
       }' "$body")
     [[ -n "$bsum" ]] || continue
-    if ! awk -v a="$fsum" -v b="$bsum" '
-      # Deliberately narrow. A frontmatter summary is a ≤160-char precis of a longer body
-      # entry, so paraphrase is the NORM and an equality or high-overlap test would fail
-      # honest artifacts — a boundary-blocking false failure is worse than the divergence it
-      # would catch. Two shapes are reported, both of which mean the id resolves to two
-      # different statements rather than two phrasings of one:
-      #   1. the two share no significant vocabulary at all;
-      #   2. both quote numbers and no number is common (a restated bound or count).
-      # Filenames are stripped BEFORE the split: `<stage>-<run_index>.md` would otherwise
-      # contribute its index as a bare digit, and arm 2 fires on an unmatched numeral. A
-      # digit counts only as a whole whitespace-delimited word — `newest-8` is a name, not a
-      # count. Residual: a bare `planning-0` carrying no extension survives the strip, and
-      # the whole-word rule is what covers it.
-      function harvest(x, W, D,   i, n, w, m, t, tok) {
-        x = tolower(x)
-        gsub(/[a-z0-9_\/.-]+\.(md|yml|yaml|json|jsonl|sh|bats|txt|log)/, " ", x)
-        m = split(x, t, /[ \t\n]+/)
-        for (i = 1; i <= m; i++) {
-          tok = t[i]
-          sub(/^[^a-z0-9]+/, "", tok)
-          sub(/[^a-z0-9]+$/, "", tok)
-          if (tok ~ /^[0-9]+$/) D[tok] = 1
-        }
-        n = split(x, w, /[^a-z0-9]+/)
-        for (i = 1; i <= n; i++) {
-          if (w[i] == "") continue
-          if (w[i] ~ /^[0-9]+$/) continue
-          if (length(w[i]) >= 4) W[w[i]] = 1
-        }
-      }
-      BEGIN {
-        harvest(a, AW, AD); harvest(b, BW, BD)
-        for (k in AW) { ca++; if (k in BW) hit++ }
-        for (k in BW) cb++
-        for (k in AD) { na++; if (k in BD) dhit++ }
-        for (k in BD) nb++
-        if (ca > 0 && cb > 0 && hit == 0) exit 1
-        if (na > 0 && nb > 0 && dhit == 0) exit 1
-        exit 0
-      }'; then
+    if ! awk -v a="$fsum" -v b="$bsum" -v arms=vocab,digits "$_DECISION_CMP_AWK" > /dev/null; then
       echo "fail: decision $id disagrees across transports — frontmatter says \"${fsum}\" but the ${artname} body says \"${bsum}\". Reconcile both to one statement; a reader resolving the id must not get two answers" >&2
       failed=1
     fi
   done <<< "$rows"
   rm -f "$body"
   return "$failed"
+}
+
+# AR consult text vs key_decisions: a platform architect's line that cites a decision id must
+# not say the opposite of that decision. AR merges the consult into its own artifact, so a
+# contradiction there reaches DV as two answers for one id. Advisory by design: the line prints
+# `warn:`, returns 0 on every path and ignores --strict, so it never changes the exit status
+# (Step B.1 records it and carries it forward). Only a cited line is compared — without an id
+# there is no decision to hold it to, and AR's own reconcile step covers the rest.
+#
+# Sources, by naming convention so no platform table is copied here: each
+# `## <Platform> App Architecture` H2 section of the artifact, and every `*-architecture.md`
+# beside it (its leading frontmatter skipped). The glob cannot match `architecture-N.md`.
+# The vocab arm stays off: a cited line often extends a decision rather than restating it.
+check_consult_divergence() {  # <artifact> <fmfile>
+  local artifact="$1" fmfile="$2"
+  local rows artname dir sf pairs
+  local -a srcs
+  artname=$(basename "$artifact")
+  rows=$(yq eval '(.handoff.key_decisions // []) | .[] | ((.id // "") + "\t" + (.summary // ""))' \
+    "$fmfile" 2> /dev/null || printf '')
+  [[ -n "$rows" ]] || return 0
+  dir=$(dirname "$artifact")
+  srcs=("$artifact")
+  for sf in "$dir"/*-architecture.md; do
+    [[ -f "$sf" && "$sf" != "$artifact" ]] && srcs+=("$sf")
+  done
+
+  # One pass emits each (cited id, line) pair: id, summary, source, line number, the line with
+  # that id removed (so the id never counts as a word), and the line as written. The id is
+  # matched by index(), not a regex, so an id carrying a metacharacter stays literal.
+  pairs=$(CONSULT_KEYS="$rows" awk -v art="$artifact" -v artname="$artname" '
+    BEGIN {
+      nk = split(ENVIRON["CONSULT_KEYS"], kl, "\n")
+      for (i = 1; i <= nk; i++) {
+        # An empty summary has nothing to compare, and its empty field would collapse under
+        # the tab-split read below and shift every later field.
+        t = index(kl[i], "\t"); if (t < 2 || t == length(kl[i])) continue
+        n++; ID[n] = substr(kl[i], 1, t - 1); SUM[n] = substr(kl[i], t + 1)
+      }
+    }
+    FNR == 1 { isart = (FILENAME == art); insec = 0; infm = 0
+      m = split(FILENAME, p, "/"); base = p[m]
+      if (!isart && $0 == "---") { infm = 1; next } }
+    infm { if ($0 == "---") infm = 0; next }
+    isart && /^## / {
+      insec = ($0 ~ /^## .+ App Architecture[[:space:]]*$/)
+      hdr = substr($0, 4); sub(/[[:space:]]+$/, "", hdr)
+      next
+    }
+    isart && !insec { next }
+    {
+      line = $0; gsub(/\t/, " ", line)
+      src = isart ? artname " § " hdr : base
+      for (k = 1; k <= n; k++) {
+        id = ID[k]; L = length(id); rest = line; out = ""; cited = 0
+        # Whole-word boundary class [^A-Za-z0-9_-], so ad6 never matches inside ad60.
+        while ((at = index(rest, id)) > 0) {
+          before = (at == 1) ? (out == "" ? "" : substr(out, length(out))) : substr(rest, at - 1, 1)
+          after = substr(rest, at + L, 1)
+          if (before !~ /[A-Za-z0-9_-]/ && after !~ /[A-Za-z0-9_-]/) {
+            cited = 1; out = out substr(rest, 1, at - 1) " "
+          } else {
+            out = out substr(rest, 1, at - 1 + L)
+          }
+          rest = substr(rest, at + L)
+        }
+        if (cited) printf "%s\t%s\t%s\t%d\t%s\t%s\n", id, SUM[k], src, FNR, out rest, line
+      }
+    }' "${srcs[@]}" 2> /dev/null || printf '')
+  [[ -n "$pairs" ]] || return 0
+
+  local id fsum src ln stripped orig reason
+  while IFS=$'\t' read -r id fsum src ln stripped orig; do
+    [[ -n "$id" && -n "$fsum" ]] || continue
+    reason=$(awk -v a="$fsum" -v b="$stripped" -v arms=digits,polarity "$_DECISION_CMP_AWK") && continue
+    [[ -n "$reason" ]] || continue
+    echo "warn: consult ${src}:${ln} restates decision $id with different content (${reason}) — key_decisions says \"${fsum}\" but the consult says \"${orig:0:200}\". Reconcile it in ${artname} or raise an AR sweep item" >&2
+  done <<< "$pairs"
+  return 0
 }
 
 # ---------- tests_executed evidence (DV, QA) ----------
@@ -1713,6 +1838,7 @@ validate_frontmatter() {
 
   check_files_touched_cap "$fmfile" "$stage" "$(basename "$f")" || rc=1
   check_decision_divergence "$f" "$fmfile" "$stage" || rc=1
+  if [[ "$stage" == "AR" ]]; then check_consult_divergence "$f" "$fmfile" || true; fi
   local stub_shape_ok=1
   check_sweep_stub_shape "$fmfile" || { rc=1; stub_shape_ok=0; }
   check_sweep_ref_anchor "$f" "$fmfile" || rc=1

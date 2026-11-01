@@ -2,6 +2,7 @@
 # Pins agents/software-architector.md § Consult Gate (AR): the platform-architect consult opens
 # at the first score of the estimation table's High tier, and the open path dispatches on
 # Sonnet with a capped return. Both sides are read from their defining files, never hardcoded.
+# It also pins the reconcile step and checkbox that hold the merged consult to key_decisions.
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
 ARCH="agents/software-architector.md"
@@ -52,6 +53,45 @@ gate_floor() {
 @test "completion checklist keys on the gate, not the tier" {
   cd "$PLUGIN_ROOT"
   section "$ARCH" "## Completion Verification" | grep -q "Consult Gate (AR)"
+}
+
+# Delegation Flow step 5: the merged consult text is checked against key_decisions and each
+# conflict reconciled. Lowercase "reconcil" on purpose: the step must say it, not a heading.
+reconcile_step() {
+  section "$1" "### Delegation Flow" | grep -E '^5\. ' | grep -F 'key_decisions' | grep -q 'reconcil'
+}
+
+# The Completion Verification checkbox for the same rule. Three anchors, because the gate
+# checkbox above it already holds "consulted" and `key_decisions` and would pass a two-anchor pin.
+reconcile_checkbox() {
+  section "$1" "## Completion Verification" | grep -E '^- \[ \] ' \
+    | grep -E '(^|[^A-Za-z])consult([^A-Za-z]|$)' | grep -F 'key_decisions' | grep -q 'reconcil'
+}
+
+@test "Delegation Flow step 5 reconciles consult statements with key_decisions" {
+  cd "$PLUGIN_ROOT"
+  reconcile_step "$ARCH"
+}
+
+@test "the step-5 pin fails on a copy with the step stripped" {
+  cd "$PLUGIN_ROOT"
+  stripped="$BATS_TEST_TMPDIR/arch-no-step5.md"
+  grep -vE '^5\. .*reconcil' "$ARCH" > "$stripped"
+  run reconcile_step "$stripped"
+  assert_failure
+}
+
+@test "Completion Verification carries the consult-vs-key_decisions checkbox" {
+  cd "$PLUGIN_ROOT"
+  reconcile_checkbox "$ARCH"
+}
+
+@test "the checkbox pin fails on a copy with the checkbox stripped" {
+  cd "$PLUGIN_ROOT"
+  stripped="$BATS_TEST_TMPDIR/arch-no-checkbox.md"
+  grep -vE '^- \[ \] .*consult.*reconcil' "$ARCH" > "$stripped"
+  run reconcile_checkbox "$stripped"
+  assert_failure
 }
 
 SR="agents/security-reviewer.md"

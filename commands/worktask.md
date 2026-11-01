@@ -1149,6 +1149,25 @@ reads the structure the failed one was validating. A re-dispatch that fixes a sh
 therefore return failures that were present but unreachable: the check working, not a regression.
 Do not promise one-shot batching when the first line is a shape line.
 
+##### Step B.1 — the consult divergence warn (AR only)
+
+On an AR artifact the harness also runs `check_consult_divergence`. It fires when a consult line
+cites a `key_decisions` id and conflicts with that decision. The consult lines are the artifact's
+`## <Platform> App Architecture` sections and each `*-architecture.md` beside it. On stderr:
+
+```
+warn: consult <source>:<lineno> restates decision <id> with different content (<reason>) — key_decisions says "…" but the consult says "…". Reconcile it in <artifact> or raise an AR sweep item
+```
+
+The warn never blocks. It does not change the exit status, and `--strict` does not promote it.
+
+###### Step B.1 — carrying the consult warn
+
+For each warn line, append `{"action":"consult_divergence","subject":"AR<N>","result":"warn"}`
+with the line as `reason`. Carry the line verbatim into the DV and DR dispatch prompts, with the
+rule that `key_decisions` prevail. A consult line that cites no id is not compared; AR's
+reconcile step covers it (`agents/software-architector.md § Delegation Flow`).
+
 ### Step C — Closing-sweep collection and render (loop step 4.9)
 
 Step C is to the FN gate what Step A.4 is to the plan gate: it resolves questions, it approves
