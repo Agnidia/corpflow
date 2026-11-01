@@ -7,7 +7,7 @@ version: 0.7.0
 # plugin (`pl0-procedure.md § Stage → agent table`, a project or user-scope CORPFLOW.md § Routing
 # override included), and the Step C.0a resolver and Phase 3 re-dispatch those agents,
 # `corpflow:prompt-engineer` or `corpflow:workflow-engineer`.
-allowed-tools: Read, AskUserQuestion, SendMessage, ListAgents, Monitor, TaskStop, Bash(claude:*), Glob, Grep, Bash(mkdir:*), Bash(gh:*), Bash(git:*), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/preflight-issue-scan.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/branch-name.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/refine-branch-target.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/publish-pl-issue.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/handoff-harness.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/effort-ladder-cli.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/model-matrix.sh --resolve *), Agent, Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/autonomy-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/seed-state.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/workspace-root-banner.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/brief-compose.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --producer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --consumer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --list-landed *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/megatask-settle.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/loopback-targets.sh *)
+allowed-tools: Read, AskUserQuestion, SendMessage, ListAgents, Monitor, TaskStop, Bash(claude:*), Glob, Grep, Bash(mkdir:*), Bash(gh:*), Bash(git:*), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/hook-install.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/preflight-issue-scan.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/branch-name.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/refine-branch-target.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/publish-pl-issue.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/handoff-harness.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/effort-ladder-cli.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/model-matrix.sh --resolve *), Agent, Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/autonomy-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/seed-state.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/workspace-root-banner.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/brief-compose.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --producer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --consumer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --list-landed *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/megatask-settle.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/loopback-targets.sh *)
 related:
   - skills/worktask/SKILL.md
   - commands/megatask.md
@@ -430,25 +430,24 @@ fi
 
 ### Step 3b — Verify SubagentStop hook installed
 
-3b. After the seed, verify `.claude/hooks/state-merge.sh` exists and is executable and that the
-plugin's `plugin.json` registers the SubagentStop hook — the Layer 2 safety net that patches
-state.json when agents skip self-patching (`initialization-patterns.md#hook-installation`).
+3b. After the seed, run `hook-install.sh` so `.claude/hooks/state-merge.sh` matches the running
+plugin's copy — a missing or stale copy is replaced, with one `hook_refreshed` audit row per
+replace — and the plugin's `plugin.json` registration is verified. This is the Layer 2 safety
+net that patches state.json when agents skip self-patching
+(`initialization-patterns.md#hook-installation`).
 
    ```bash
-   # $PLUGIN_ROOT per § Snippet preamble
-   hook_src="$PLUGIN_ROOT/hooks/state-merge.sh"
-   hook_dst=".claude/hooks/state-merge.sh"
-   if [[ ! -x "$hook_dst" ]] && [[ -f "$hook_src" ]]; then
-     mkdir -p .claude/hooks
-     cp "$hook_src" "$hook_dst" && chmod +x "$hook_dst"
-   fi
+   # Non-blocking: a failure warns, the worktask continues. The script resolves the
+   # plugin root from its own path, so the copy it installs is the running plugin's.
+   bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/hook-install.sh \
+     || echo "⚠ state-merge.sh hook not installed — state.json will only be patched if agents self-merge (Layer 1) or orchestrator Step 6.5 fires (Layer 3). Re-run the hook installer to fix." >&2
    ```
 
 #### Step 3b regression guard
 
-If neither the plugin-registered hook nor the project-local copy exists, warn without blocking:
+If the installer exits non-zero for any reason, warn without blocking:
 `"⚠ state-merge.sh hook not installed — state.json will only be patched if agents self-merge
-(Layer 1) or orchestrator Step 6.5 fires (Layer 3). Run hook-install.sh to fix."`
+(Layer 1) or orchestrator Step 6.5 fires (Layer 3). Re-run the hook installer to fix."`
 
 ### Step 3c — Name the branch once (PL start)
 

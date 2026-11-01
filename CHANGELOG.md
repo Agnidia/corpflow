@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format is based on 
 - Post the completion comment when the checkout is off the PR head branch: FN records `metadata.pr_url` on the ledger and `attach-visual-evidence.sh --post completion` falls back to it (#519).
 - Accept the optional `info` severity in `consultant-return.v1`: the validator takes an `info` count and `info` findings, and four-key returns keep byte-identical output (#520).
 - Reconcile the AR consult section with `key_decisions`: AR gains a reconcile step and checkbox, the consult prompt passes decision ids to cite, and `handoff-harness.sh` warns on an AR consult line that cites an id and contradicts it (#518).
+- Refresh a stale project copy of `state-merge.sh` at worktask start: Step 3b and the initialization snippet run `hook-install.sh` instead of copying only when missing, and each replace writes one `hook_refreshed` audit row naming the recovery source (#523).
 
 ## [4.1.3] — 2026-10-19
 

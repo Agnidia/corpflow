@@ -63,14 +63,9 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"  # Claude Code substitutes this token when l
 # Empty? Substitute <plugin-root>: the dir containing .claude-plugin/plugin.json — two levels
 # above this skill's base directory (see skills/shared/plugin-root-resolution.md).
 [ -d "$PLUGIN_ROOT" ] || PLUGIN_ROOT="<plugin-root>"
-hook_src="$PLUGIN_ROOT/hooks/state-merge.sh"
-hook_dst=".claude/hooks/state-merge.sh"
-
-if [[ ! -x "$hook_dst" ]]; then
-  mkdir -p .claude/hooks
-  cp "$hook_src" "$hook_dst"
-  chmod +x "$hook_dst"
-fi
+# Refreshes a stale copy too, not only a missing one; a failure warns and never blocks.
+CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$PLUGIN_ROOT/skills/worktask/scripts/hook-install.sh" \
+  || echo "⚠ state-merge.sh hook not installed — run hook-install.sh to fix." >&2
 ```
 
 ### PL0 invariant
