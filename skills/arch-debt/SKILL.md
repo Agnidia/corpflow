@@ -2,6 +2,7 @@
 name: arch-debt
 description: Use when the user invokes $arch-debt or asks for the canonical Corpflow arch-debt workflow.
 argument-hint: "[--path <dir>] [--add \"<description>\"] [--report] [--prioritize] [--category code|architecture|testing|docs|security]"
+user-invocable: false
 ---
 
 # arch-debt (Codex adapter)

@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format is based on 
 
 ### Fixed
 
+- Hide the 28 Codex adapter skills from the Claude Code `/` menu: each `skills/<name>/SKILL.md` that shadows a `commands/<name>.md` sets `user-invocable: false`, stays model-invocable, and `codex-compat.bats` fails an adapter without it. Plugin version 4.1.4.
 - Silence stage-less SubagentStops in `state-merge.sh`: with neither stage nor artifact the hook exits 0 before delegating, so no WARN line, audit row or sentinel is written (#522).
 - Post the completion comment when the checkout is off the PR head branch: FN records `metadata.pr_url` on the ledger and `attach-visual-evidence.sh --post completion` falls back to it (#519).
 - Accept the optional `info` severity in `consultant-return.v1`: the validator takes an `info` count and `info` findings, and four-key returns keep byte-identical output (#520).

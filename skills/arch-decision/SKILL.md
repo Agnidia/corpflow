@@ -2,6 +2,7 @@
 name: arch-decision
 description: Use when the user invokes $arch-decision or asks for the canonical Corpflow arch-decision workflow.
 argument-hint: "[\"<decision topic>\"] [--type adr|tdr] [--list] [--update <number>] [--supersede <number>] [--status proposed|accepted|deprecated|superseded] [--evaluate \"<name>\"] [--compare \"<t1>\" \"<t2>\"]"
+user-invocable: false
 ---
 
 # arch-decision (Codex adapter)

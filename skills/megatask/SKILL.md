@@ -17,6 +17,7 @@ scripts:
   - scripts/build-orchestrator.sh
   - scripts/init-worktree.sh
   - scripts/resolve-pbxproj-membership.sh
+user-invocable: false
 ---
 
 > **Codex host:** read `skills/shared/codex-runtime.md` before launching issue worktasks. Use Codex

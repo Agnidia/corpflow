@@ -2,6 +2,7 @@
 name: roadmap
 description: Use when the user invokes $roadmap or asks for the canonical Corpflow roadmap workflow.
 argument-hint: "[--quarter Q1|Q2|Q3|Q4] [--view timeline|kanban] [--add \"<feature>\"] [--move \"<feature>\" --to <quarter>]"
+user-invocable: false
 ---
 
 # roadmap (Codex adapter)

@@ -3,6 +3,7 @@ name: worktask
 description: Use when executing multi-stage worktasks, initializing tasks, or managing worktask state. Holds dynamic sizing, the orchestrator loop, and stage handoff rules.
 argument-hint: '"<task description>" [--secure|--full] [--emergency] [--priority <High|Medium|Low>] [--platform <p>] [--ethics-review] [--with-design] [--sequential] [--no-gh-issue] [--auto=[plan,decision,finalization]] [--accept-absent=<tool[,tool]>] | --resume <STAGE_ID> [--cascade]'
 version: 0.7.1
+user-invocable: false
 ---
 
 > **INVOCATION GATE**: a worktask the user asked for runs through `/worktask` in Claude Code,

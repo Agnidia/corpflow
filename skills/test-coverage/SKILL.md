@@ -2,6 +2,7 @@
 name: test-coverage
 description: Use when the user invokes $test-coverage or asks for the canonical Corpflow test-coverage workflow.
 argument-hint: "[--path <dir>] [--threshold <n>] [--report] [--critical-only] [--platform <p>]"
+user-invocable: false
 ---
 
 # test-coverage (Codex adapter)

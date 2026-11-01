@@ -2,6 +2,7 @@
 name: design-specs
 description: Use when the user invokes $design-specs or asks for the canonical Corpflow design-specs workflow.
 argument-hint: "<component or screen name> [--platform apple|android|web|all] [--include-assets]"
+user-invocable: false
 ---
 
 # design-specs (Codex adapter)

@@ -2,6 +2,7 @@
 name: tech-code-review
 description: Use when the user invokes $tech-code-review or asks for the canonical Corpflow tech-code-review workflow.
 argument-hint: "[--pr <number> | --path <dir>] [--platform <p>] [--depth surface|deep] [--focus <areas>] [--output summary|detailed] [--severity P2|P1|P0] [--ethics]"
+user-invocable: false
 ---
 
 # tech-code-review (Codex adapter)

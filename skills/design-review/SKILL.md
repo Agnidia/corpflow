@@ -2,6 +2,7 @@
 name: design-review
 description: Use when the user invokes $design-review or asks for the canonical Corpflow design-review workflow.
 argument-hint: "<screen, component, or feature> [--focus ui|ux|a11y|system] [--depth quick|standard|comprehensive]"
+user-invocable: false
 ---
 
 # design-review (Codex adapter)

@@ -2,6 +2,7 @@
 name: cc-update
 description: Use when the user invokes $cc-update or asks for the canonical Corpflow cc-update workflow.
 argument-hint: "<version> [--notes <url|text>] [--scope agents|commands|skills|all] [--agent <name>] [--command <name>] [--dry-run] [--memory-only] [--bump-min] [--force] [--worktask-impact-only]"
+user-invocable: false
 ---
 
 # cc-update (Codex adapter)

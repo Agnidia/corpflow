@@ -1,7 +1,7 @@
 {
   "name": "corpflow",
   "description": "Staged worktask pipeline (PL→AR→TL→DV→DR→SR→QA→DC→RE→FN→ST) with a durable state ledger, cross-plugin delegation, and /megatask dependency-DAG orchestration of many worktasks across a GitHub milestone.",
-  "version": "4.1.3",
+  "version": "4.1.4",
   "author": {
     "name": "Agnidia",
     "email": "support@agnidia.com"
