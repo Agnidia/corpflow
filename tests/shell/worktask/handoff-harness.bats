@@ -1133,7 +1133,7 @@ spill_state() {  # <path> <run_index> <ids-json>
 
 # ---------------------------------------------------------------------------
 # Frontmatter token budget (AD-2): discretionary = total - min(stub block, 64)
-# - min(tests_executed block, 96), fail > 200, advisory warn > 360. Sweep stubs and
+# - min(tests_executed block, min(entries, 8) x 24), fail > 200, advisory warn > 456. Sweep stubs and
 # runner entries are mandatory evidence, so excluding them stops the budget from
 # penalising a stage for asking questions or for recording every runner it ran.
 # ---------------------------------------------------------------------------
@@ -1208,6 +1208,13 @@ budget_artifact() {  # <path> <filler-words> <stubs> [runners|bad|bad:N]
   assert_success
 }
 
+@test "budget: eight runner entries cannot push a compliant artifact over" {
+  # A flat four-entry cap charged the prose for every runner past the fourth (#521).
+  budget_artifact "$WD/dv-run8.md" 120 1 8
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/dv-run8.md"
+  assert_success
+}
+
 @test "budget: the exclusion is capped, so extra stubs cannot buy prose room" {
   # Twelve stubs is three times the per-stage cap; the exclusion still stops at 64
   # tokens, so an artifact this size fails on its prose exactly as it would at four.
@@ -1219,12 +1226,13 @@ budget_artifact() {  # <path> <filler-words> <stubs> [runners|bad|bad:N]
   assert_output --partial "- 64 sweep-stub tokens -"
 }
 
-@test "budget: the tests_executed exclusion is capped at 96 tokens" {
-  budget_artifact "$WD/dv-gamed-te.md" 200 1 12
+@test "budget: the tests_executed exclusion stops at eight entries (192 tokens)" {
+  # Sixteen entries are about 235 tokens; only 192 of them are excluded.
+  budget_artifact "$WD/dv-gamed-te.md" 200 1 16
   run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/dv-gamed-te.md"
   assert_failure 1
   assert_output --partial "discretionary tokens > 200 budget"
-  assert_output --partial "- 96 tests_executed tokens excluded)"
+  assert_output --partial "- 192 tests_executed tokens excluded)"
 }
 
 @test "budget: an invalid tests_executed list is excluded at the cap and the prose is still checked" {
@@ -1261,11 +1269,11 @@ budget_artifact() {  # <path> <filler-words> <stubs> [runners|bad|bad:N]
   [ "$(printf '%s\n' "$output" | grep -c '^fail:')" -eq 1 ] || fail "expected one fail line: $output"
 }
 
-@test "budget: the 360 absolute ceiling is reported alongside the failure" {
-  budget_artifact "$WD/dv-huge.md" 260 4
+@test "budget: the 456 absolute ceiling is reported alongside the failure" {
+  budget_artifact "$WD/dv-huge.md" 340 4
   run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/dv-huge.md"
   assert_failure 1
-  assert_output --partial "> 360 absolute ceiling"
+  assert_output --partial "> 456 absolute ceiling"
 }
 
 @test "budget: every stage artifact this repo ships passes the promoted gate" {

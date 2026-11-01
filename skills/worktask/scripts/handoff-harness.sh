@@ -1883,20 +1883,21 @@ validate_frontmatter() {
   # runners into one entry, since a verbatim summary line cannot be shortened.
   #
   #   discretionary = toks(frontmatter) - min( toks(stub block), 4 x 16 )
-  #                                     - min( toks(tests_executed block), 4 x 24 )
+  #                                     - min( toks(tests_executed block), min(entries, 8) x 24 )
   #   fail  when discretionary > 200
-  #   warn  when total        > 360      # advisory; keeps the real absolute cost visible
+  #   warn  when total        > 456      # advisory; keeps the real absolute cost visible
   #
-  # Each exclusion is capped (four stubs; four runner entries, a verbatim Xcode line being
-  # about 19 tokens), so neither can be gamed by inflating strings or emitting extra items:
-  # 360 is a deterministic ceiling. The cap is what makes an exclusion safe, not the order of
-  # the shape checks.
+  # Each exclusion is capped (four stubs; 24 tokens per runner entry, a verbatim Xcode line
+  # being about 19, for at most eight entries), so neither can be gamed by inflating strings
+  # or emitting extra items: 456 is a deterministic ceiling. The cap scales with the entry
+  # count because a flat four-entry cap charged a stage's prose for every runner past the
+  # fourth. The cap is what makes an exclusion safe, not the order of the shape checks.
   #
-  # So an invalid tests_executed block is excluded at the same cap and the note says so:
+  # So an invalid tests_executed block is excluded at a flat 96 and the note says so:
   # its fault is reported once, by check_summary_line, and the check still runs, so a
   # broken block cannot hide an over-budget frontmatter. A broken stub block is counted
   # in full.
-  local tcount stubtoks tetoks=0 discretionary budget_note="" te_shape
+  local tcount stubtoks tetoks=0 tecap discretionary budget_note="" te_shape
   tcount=$(toks "$fmfile")
   if [[ "$stub_shape_ok" -eq 1 ]]; then
     stubtoks=$(toks_key_block "$fmfile" open_questions)
@@ -1911,18 +1912,25 @@ validate_frontmatter() {
     if [[ ("$te_shape" == '!!seq' && "$te_arm_ok" -eq 1) \
       || ("$te_shape" != '!!null' && "$te_arm_ok" -eq 0) ]]; then
       tetoks=$(toks_key_block "$fmfile" tests_executed)
-      [[ "$tetoks" -le 96 ]] || tetoks=96
+      tecap=96
+      if [[ "$te_arm_ok" -eq 1 ]]; then
+        tecap=$(yq eval '.handoff.tests_executed | length' "$fmfile" 2> /dev/null) || tecap=4
+        [[ "$tecap" =~ ^[0-9]+$ ]] || tecap=4
+        [[ "$tecap" -le 8 ]] || tecap=8
+        tecap=$((tecap * 24))
+      fi
+      [[ "$tetoks" -le "$tecap" ]] || tetoks=$tecap
       [[ "$te_arm_ok" -eq 1 ]] \
         || budget_note="${budget_note}(tests_executed invalid: excluded at the 96-token cap) "
     fi
   fi
   discretionary=$((tcount - stubtoks - tetoks))
-  # The advisory line is emitted BEFORE the failure, not after: 360 is exactly 200 plus both
-  # exclusion caps, so every artifact over the ceiling is already over the budget and a warn
-  # placed after the `return 1` could never print. Ordering it first is what keeps the
+  # The advisory line is emitted BEFORE the failure, not after: 456 is exactly 200 plus both
+  # maximum exclusion caps, so every artifact over the ceiling is already over the budget and
+  # a warn placed after the `return 1` could never print. Ordering it first is what keeps the
   # absolute cost visible on the report that matters — the failing one.
-  if [[ "$tcount" -gt 360 ]]; then
-    echo "warn: stage=$stage frontmatter ${tcount} tokens > 360 absolute ceiling" >&2
+  if [[ "$tcount" -gt 456 ]]; then
+    echo "warn: stage=$stage frontmatter ${tcount} tokens > 456 absolute ceiling" >&2
   fi
   if [[ "$discretionary" -gt 200 ]]; then
     echo "fail: ${budget_note}stage=$stage frontmatter ${discretionary} discretionary tokens > 200 budget (${tcount} total - ${stubtoks} sweep-stub tokens - ${tetoks} tests_executed tokens excluded)" >&2

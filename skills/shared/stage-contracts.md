@@ -848,6 +848,10 @@ Each command must fail closed: a missing match, a tool error or a wrong count ex
 top-level `|| true`, `|| :`, `|| echo …` or `|| printf …` tail exits 0 whatever it found, so
 `acceptance-check.sh --dv` reports it as `fail-open:` in both modes and exits 1.
 
+Each pattern is anchored to the whole token it checks (`^T-subject:`, not `^T-subject`). An
+unanchored prefix also matches a sibling added later, such as `T-subject-shape`, so the command
+goes stale without failing.
+
 ##### DV runs its acceptance commands green first (tpl-dv)
 
 DV runs every line green before it hands off. It records each run under its own heading, outside
