@@ -2,6 +2,7 @@
 name: estimate
 description: Use when the user invokes $estimate or asks for the canonical Corpflow estimate workflow.
 argument-hint: "[\"<task description>\"] [--quick|--detailed] [--stages] [--sequential] [--compare \"<opt1> | <opt2>\"] [--multiplier <hours>] [--ai-rate <amount>] [--dev-rate <amount>] [--no-review] [--review [--focus <areas>] [--update]] [--export csv [--dir <path>] [--delimiter <char>] [--validate]] [--platform <p>]"
+user-invocable: false
 ---
 
 # estimate (Codex adapter)

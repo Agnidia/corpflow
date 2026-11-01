@@ -2,6 +2,7 @@
 name: test-plan
 description: Use when the user invokes $test-plan or asks for the canonical Corpflow test-plan workflow.
 argument-hint: "\"<feature or requirement>\" | --from-pr <number> | --from-file <path> [--automation] [--platform <p>]"
+user-invocable: false
 ---
 
 # test-plan (Codex adapter)

@@ -2,6 +2,7 @@
 name: prompt-audit
 description: Use when the user invokes $prompt-audit or asks for the canonical Corpflow prompt-audit workflow.
 argument-hint: "[--agents|--commands|--skills] [--report] [--fix] [--severity warning|error]"
+user-invocable: false
 ---
 
 # prompt-audit (Codex adapter)

@@ -2,6 +2,7 @@
 name: docs-readme
 description: Use when the user invokes $docs-readme or asks for the canonical Corpflow docs-readme workflow.
 argument-hint: "[--path <dir>] [--section installation|usage|api|contributing] [--from-changes] [--validate]"
+user-invocable: false
 ---
 
 # docs-readme (Codex adapter)

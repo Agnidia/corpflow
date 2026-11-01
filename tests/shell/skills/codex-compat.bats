@@ -8,7 +8,7 @@ CAPTURE="tests/fixtures/hooks/codex-capture.sh"
 @test "manifests: portable, Codex, Claude and marketplace versions agree" {
   run jq -er '
     input as $codex | input as $claude | input as $market
-    | .version == "4.1.3"
+    | .version == "4.1.4"
       and $codex.version == .version
       and $claude.version == .version
       and $market.metadata.version == .version
@@ -42,6 +42,7 @@ CAPTURE="tests/fixtures/hooks/codex-capture.sh"
       abort("argument-hint drift: #{name}") unless c["argument-hint"] == s["argument-hint"]
       abort("trigger-first description missing: #{name}") unless s["description"].to_s.match?(/\b(Use|Apply|Invoke|Run)\b/)
       abort("canonical command link missing: #{name}") unless File.read(skill).include?("commands/#{name}.md")
+      abort("adapter listed in / menu (needs user-invocable: false): #{name}") unless s["user-invocable"] == false
     end
     puts "28 command adapters OK"
   '

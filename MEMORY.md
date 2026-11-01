@@ -4,7 +4,7 @@ Repository-tracked memory (lean rolling format). Narratives live in git history,
 
 ## Version Tracking
 
-- Plugin version: **4.1.3** (2026-10-19; orchestration fixes and Claude Code 2.1.303 integration.)
+- Plugin version: **4.1.4** (2026-11-01; hide Codex adapter skills from the Claude Code `/` menu.)
 - Claude Code min required: **2.1.303** (hook failure blocking, bounded headless retries, resume messaging, and cross-host subagent defaults)
 - Claude Code latest integrated band: **2.1.295→2.1.303**
 
@@ -46,6 +46,7 @@ Canonical band files live in the authoritative memory directory (`~/.claude/proj
 
 ## Release History (last 12, newest first)
 
+- 2026-11-01: v4.1.4 — hide Codex adapter skills from the Claude Code `/` menu (`user-invocable: false`).
 - 2026-10-19: v4.1.3 — Claude Code 2.1.303 update (28 files, dispatch controls, hook enforcement; min CC 2.1.303).
 - 2026-10-19: v4.1.3 — worktask orchestration, evidence validation, and sibling contract fixes.
 - 2026-10-18: v4.1.2 — suite green (#483, #488), cli-fallback font fix, igrsoft→agnidia marketplace rename.

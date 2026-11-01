@@ -3,6 +3,7 @@ name: request-plan
 description: Use when the user asks for a plan, an approach, a breakdown, "how would you tackle this", or scoping — even without the word "plan". Turn a free-form request into a context-aware plan (goal, scope, phases, effort, risks) and recommend `/worktask`.
 argument-hint: '"<request>" [--save]'
 version: 0.5.0
+user-invocable: false
 ---
 
 # Request Plan

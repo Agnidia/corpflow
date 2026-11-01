@@ -2,6 +2,7 @@
 name: docs-release-notes
 description: Use when the user invokes $docs-release-notes or asks for the canonical Corpflow docs-release-notes workflow.
 argument-hint: "[--version <v>] [--from <tag>] [--to <tag|HEAD>] [--from-commits] [--from-worktask] [--format markdown|slack] [--audience internal|external|all]"
+user-invocable: false
 ---
 
 # docs-release-notes (Codex adapter)

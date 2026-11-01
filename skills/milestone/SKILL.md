@@ -2,6 +2,7 @@
 name: milestone
 description: Use when the user invokes $milestone or asks for the canonical Corpflow milestone workflow.
 argument-hint: "\"<description>\" | --from-prd <path> [--milestone N] [--platform apple|android|web|systems|backend|ai|all] [--dry-run] [--secure] [--labels <extra>]"
+user-invocable: false
 ---
 
 # milestone (Codex adapter)

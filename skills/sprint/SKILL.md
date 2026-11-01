@@ -2,6 +2,7 @@
 name: sprint
 description: Use when the user invokes $sprint or asks for the canonical Corpflow sprint workflow.
 argument-hint: "[<sprint name or number>] [--capacity <points>] [--from-backlog <file>] [--duration 1|2|3|4] [--export]"
+user-invocable: false
 ---
 
 # sprint (Codex adapter)
