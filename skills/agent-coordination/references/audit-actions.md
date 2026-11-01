@@ -56,7 +56,7 @@ actions: `facts_items_rejected`, `lock_release_foreign`, `state_write_unlocked`,
 
 Writers: `hooks/`: audit-subagent, audit-tooluse, precompact, agent-stop, state-merge, session-end-finalize, test-execution-gate.
 
-actions: `subagent_stopped`, `subagent_stops_suppressed`, `tool_invoked`, `precompact_checkpoint`, `stage_completion_hook`, `state_repair`, `state_merge_noop`, `session_end_finalize`, `test_execution_blocked`, `test_execution_deduped`, `test_dedupe_skipped_zero_prior`, `test_delegation_observed`, `test_gate_disabled`, `test_dedupe_disabled`
+actions: `subagent_stopped`, `subagent_stops_suppressed`, `tool_invoked`, `precompact_checkpoint`, `stage_completion_hook`, `state_repair`, `session_end_finalize`, `test_execution_blocked`, `test_execution_deduped`, `test_dedupe_skipped_zero_prior`, `test_delegation_observed`, `test_gate_disabled`, `test_dedupe_disabled`
 
 ## Plugin hooks — model switch, decisions, DV gates
 

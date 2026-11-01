@@ -221,7 +221,7 @@ One row per test invocation, keyed on the invocation's shape rather than the pla
 |-------|-----------------|
 | `hook:audit-subagent` (SubagentStop, plugin) | `subagent_stopped` |
 | `hook:audit-tooluse` (PostToolUse, plugin) | `tool_invoked` for `Bash\|Write\|Edit` with `duration_ms` + `effort`, a redacted `command_head` on Bash, scrubbed paths — never the command line or file content |
-| `hook:state-merge` (SubagentStop, via `state-patch.sh --via hook`) | `stage_transition` or one-shot `state_merge_noop` with metadata per artifact |
+| `hook:state-merge` (SubagentStop, via `state-patch.sh --via hook`) | `stage_transition` with metadata per artifact |
 | `hook:precompact` (PreCompact, plugin) | `precompact_checkpoint` with state file, run index and artifacts |
 | `hook:agent-stop` (SubagentStop, matched to the PL/FN/ST agents) | `stage_completion_hook` with metadata.stage |
 | `hook:test-execution-gate` (PreToolUse, plugin) | `test_execution_blocked`, `test_execution_deduped`, `test_dedupe_skipped_zero_prior`, `test_delegation_observed`, plus gate control one-shots |

@@ -193,33 +193,27 @@ _backup_paths() {
   [ "$dv_status" = "completed" ]
 }
 
-@test "neither stage nor artifact -> exit 0, and the no-op leaves ONE audit row (F-19)" {
+@test "neither stage nor artifact -> exit 0 with no audit row, no WARN, no sentinel (#522)" {
   _seed_state
-  # The 335-occurrence condition. Fail-open is correct and unchanged; what
-  # changes is that a sweep over audit.jsonl can now see it happened.
   run bash -c "cd '$WD' && bash '$PLUGIN_ROOT/$SCRIPT'"
   assert_success
-  run jq -e 'select(.action == "state_merge_noop") | .actor == "hook:state-merge"
-    and .result == "skipped" and .task_id == "none" and .subject == "none"' \
-    "$WD/.context/logs/audit.jsonl"
-  assert_success
-
-  # Once per run, not once per call: the volume is the reason it was unreadable.
   run bash -c "cd '$WD' && bash '$PLUGIN_ROOT/$SCRIPT'"
   assert_success
-  local n
-  n=$(grep -c '"state_merge_noop"' "$WD/.context/logs/audit.jsonl" || true)
-  [ "$n" = "1" ] || fail "expected exactly 1 state_merge_noop row, got $n"
+  [ ! -s "$WD/.context/logs/audit.jsonl" ] || fail "a stage-less stop wrote an audit row"
+  if [ -f "$WD/.context/logs/state-merge.log" ]; then
+    run grep -q 'WARN' "$WD/.context/logs/state-merge.log"
+    assert_failure
+  fi
+  run find "$WD/.context/logs" -name '.state-merge-noop-noted-*'
+  assert_output ""
 }
 
-@test "a stage present -> no state_merge_noop row (the arm is not a catch-all)" {
+@test "stage set, no artifact -> still logs 'no artifact resolved' no-op" {
   _seed_state
   run bash -c "cd '$WD' && CLAUDE_TASK_METADATA_STAGE=DV bash '$PLUGIN_ROOT/$SCRIPT'"
   assert_success
-  if [ -f "$WD/.context/logs/audit.jsonl" ]; then
-    run grep -q '"state_merge_noop"' "$WD/.context/logs/audit.jsonl"
-    assert_failure
-  fi
+  run grep -F 'no artifact resolved (stage=DV artifact=) — no-op' "$WD/.context/logs/state-merge.log"
+  assert_success
 }
 
 @test "absent artifact -> no-op exit 0, DV stage remains in_progress" {
