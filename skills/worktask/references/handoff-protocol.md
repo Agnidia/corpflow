@@ -2258,6 +2258,7 @@ is identifier lines copied verbatim from the ledger (`task_id`, `stage`, `agent`
 - `artifact#anchor` — an artifact in the resolved `.context` directory with a `## <anchor>` heading;
 - a plain path to an existing file — from `metadata.context_refs` only.
 
+Each `ref:` value appears once; the first occurrence keeps its place.
 A ref that does not resolve fails the compose with exit 1 and an empty stdout.
 
 ### Forbidden tokens in sections [1], [2], [4], [4b]

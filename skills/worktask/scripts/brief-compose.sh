@@ -22,6 +22,8 @@
 #   The whole brief is buffered before anything reaches stdout: a guard failure — an
 #   absolute path outside the allowed roots, or a `ref:` line that does not resolve — must
 #   never leak a partial brief, since a partial brief reads as verified when it is not.
+#   Before the guard, <<<task-description>>> keeps each `ref:` value once, first kept: PL0
+#   seeds the plan and architecture anchors into context_refs, which repeat the fixed refs.
 #
 #   [6] holds a REMEDIATION block when the row carries a non-empty metadata.gate_from_stage
 #   and a non-empty metadata.gate_blockers: one numbered line per blocker, control bytes
@@ -47,7 +49,8 @@
 # @exitcode 2  Usage error, malformed/unknown task id, unreadable ledger, malformed
 #              metadata.context_refs (incl. a non-string entry), a malformed
 #              metadata.gate_from_stage, a metadata.gate_blockers neither null nor an array,
-#              missing jq, a canon source file/section absent, or ledger-digest.sh failure.
+#              missing jq, a canon source file/section absent, ledger-digest.sh failure, or
+#              a failed ref dedup pass.
 #
 # Minimum shell: bash 3.2+ (macOS default).
 
@@ -56,7 +59,7 @@ set -euo pipefail
 # Stdout, exit 0: help is a normal invocation, not a failure; usage_error/die2
 # below are the stderr, exit-2 paths for an actual error.
 print_help() {
-  sed -n '2,50s/^# \{0,1\}//p' "$0"
+  sed -n '2,53s/^# \{0,1\}//p' "$0"
   exit 0
 }
 
@@ -618,8 +621,9 @@ cmd_render() {
 
   # ---- Assemble: buffer the whole brief before anything reaches stdout ----
   BUF=$(mktemp)
-  # shellcheck disable=SC2064  # expand now: BUF is a plain path, gone by EXIT time otherwise
-  trap "rm -f '$BUF'" EXIT
+  BUF_DEDUP=$(mktemp)
+  # shellcheck disable=SC2064  # expand now: both are plain paths, gone by EXIT time otherwise
+  trap "rm -f '$BUF' '$BUF_DEDUP'" EXIT
   emit() { printf '%s\n' "$1" >> "$BUF"; }
 
   emit "<<<contract-reminder>>>"
@@ -670,6 +674,17 @@ cmd_render() {
 
   emit "<<<stage-banners>>>"
   emit "WORKSPACE_ROOT=${WORKSPACE_ROOT}"
+
+  # Deduped on the buffer, not at emit, so the emit lines above stay one per source. The
+  # first copy keeps its place, so a fixed ref outranks a context_refs or AR repeat. Only
+  # task-description is filtered: the verbatim canon blocks must reach the agent unchanged.
+  if ! { awk '
+    /^<<<[a-z-]+>>>$/ { in_td = ($0 == "<<<task-description>>>") }
+    in_td && /^ref: / && seen[$0]++ { next }
+    { print }
+  ' "$BUF" > "$BUF_DEDUP" && mv "$BUF_DEDUP" "$BUF"; }; then
+    die2 "ref dedup failed"
+  fi
 
   # ---- Guard: buffered content only, never partial ----
   while IFS= read -r r; do
