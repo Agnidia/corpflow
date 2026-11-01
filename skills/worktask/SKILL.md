@@ -409,7 +409,9 @@ Each section opens with its own `<<<marker>>>` line and runs to the next marker 
 
 #### Composing the brief
 
-Build every stage prompt by running `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/brief-compose.sh <TASK_ID> --orch-root <orch root>` and dispatching its stdout. The orchestrator is its only caller. The composer emits all eight markers: [1]–[5] complete, [6] empty, and [7] opening with the task's `WORKSPACE_ROOT=` line. The Steps 4.5–5e injections write only into [6] and [7]; nothing edits [1]–[5]. Exit 1 (guard failure) or exit 2 (usage, unknown task id, unreadable ledger, missing jq or canon, failed ledger digest) leaves stdout empty: do not call `Agent()` — surface stderr and treat the row as a blocked dispatch (Step 6).
+Build every stage prompt by running `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/brief-compose.sh <TASK_ID> --orch-root <orch root>` and dispatching its stdout. The orchestrator is its only caller. The composer emits all eight markers: [1]–[5] complete, [6] empty unless the row carries `gate_from_stage` + `gate_blockers` (§ Step 4.6), and [7] opening with the task's `WORKSPACE_ROOT=` line. The Steps 4.5–5e injections write only into [6] and [7]; nothing edits [1]–[5]. Exit 1 (guard failure) or exit 2 (usage, unknown task id, unreadable ledger, missing jq or canon, failed ledger digest) leaves stdout empty: do not call `Agent()` — surface stderr and treat the row as a blocked dispatch (Step 6).
+
+##### Cite sources in [6] and [7] by path
 
 If text you write into [6] or [7] needs the PR section order or an allowed H2, cite the source by path instead of restating it: `skills/shared/git-conventions.md § Pull Request Format`, `skills/worktask/references/handoff-protocol.md#anchor-allow-list`. A copy drifts from its source, and the stage obeys the copy.
 
@@ -423,7 +425,7 @@ If text you write into [6] or [7] needs the PR section order or an allowed H2, c
 [4b] Model discipline block                ← stable WITHIN stage type (cacheable)
 ─────── (cache prefix boundary) ───────
 [5] Task identifiers + ref: lines          ← dynamic per delegation
-[6] retry hints + gate remediation (if retry_count > 0 or fix_round > 0) ← dynamic per delegation
+[6] retry hints (if retry_count > 0) + REMEDIATION (brief-compose.sh) ← dynamic per delegation
 [7] Stage-specific banners (DR Skill, FN Conductor, MCP fallback) ← SUFFIX, dynamic
 ```
 
@@ -701,19 +703,20 @@ while (tasks.some(t => !SETTLED.has(t.status))) {
 
 #### Prompt-injection steps 4.6–4.8b — shared rules
 
-These steps mutate only `full.description`: remediation/resume blocks are prepended (dynamic
-section [6]), enforcement banners appended (suffix [7]) — cache prefix [1][2][4][4b] is never touched.
-Each fires one `appendAudit` row, whose absence for a dispatch shows the loop was bypassed. Readers
-(DR, TL) surface a missing row as an advisory finding, not a hard fail, because a stale plugin cache
-serving an older loop would otherwise block a blameless DV.
+These steps mutate only `full.description`: resume blocks are prepended (dynamic section [6]),
+enforcement banners appended (suffix [7]) — cache prefix [1][2][4][4b] is never touched. Each
+fires one audit row; 4.6's block and row come from `brief-compose.sh`, not from this loop. A
+missing row for a dispatch shows the loop was bypassed. Readers (DR, TL) surface it as an advisory
+finding, not a hard fail, because a stale plugin cache serving an older loop would otherwise block
+a blameless DV.
 
 #### Step 4.6
 
 ```typescript
-    // 4.6. Gate-feedback injection — the one remediation brief builder, for a target of ANY stage.
+    // 4.6. Gate-feedback injection — rendered by brief-compose.sh, for a target of ANY stage.
     //      Two sources write the row it reads. A gate loop-back: a prior DR `verdict:fail` /
     //      QA `verdict:no-go` re-dispatches DV (run_index unchanged, retry_count up by 1) carrying the
-    //      upstream remediation VERBATIM. Source for N = the failing upstream run_index:
+    //      upstream remediation, one flattened line per item. Source for N = the failing upstream run_index:
     //      `.context/developer-review-N.md` (DRHandoff.blockers[]) and/or `.context/testing-N.md`
     //      (QAHandoff.blocking_defects[]). Or a typed correction: `--task-reopen` wrote the same two
     //      keys on the re-opened target and raised `fix_round`
@@ -724,25 +727,15 @@ serving an older loop would otherwise block a blameless DV.
 
 ##### Step 4.6 — remediation injection & audit
 
-Correction re-opens a task of any stage; gate loop-back reaches DV. When `fix_round` > 0 or `retry_count` > 0, inject remediation brief:
-
-###### Remediation injection code
-
-```typescript
-    // The stage code that raised it: "DR" | "QA" | "ST" copied by the Step 7 loop-back from the gate
-    // row, or the correcting stage's own code written by --task-reopen. state-patch.sh writes both.
-    const fromStage = full.metadata.gate_from_stage;
-    const blockers = full.metadata.gate_blockers ?? []; // blockers[] | blocking_defects[] | [finding]
-    if (fromStage && blockers.length > 0) {
-      full.description =
-        `REMEDIATION (from ${fromStage} gate — fix these specific findings before re-stop):\n` +
-        blockers.map((b, i) => `  ${i + 1}. ${b}`).join("\n") + "\n\n" + full.description;
-      appendAudit({ actor: "orchestrator", action: "gate_remediation_injected",
-                    subject: full.metadata.stage, result: "ok",
-                    metadata: { from_stage: fromStage, to_stage: full.metadata.stage,
-                                count: blockers.length } });
-    }
-```
+Correction re-opens a task of any stage; gate loop-back reaches DV. `brief-compose.sh` is the only
+writer of the remediation block: the orchestrator neither prepends it nor appends its audit row.
+When the row carries a non-empty `gate_from_stage` (the raising stage's code, written by the
+Step 7 loop-back or `--task-reopen`) and a non-empty `gate_blockers`, the composer writes into [6]
+the line `REMEDIATION (from <code> gate — fix these specific findings before re-stop):` and one
+numbered line per blocker. Control bytes become spaces and off-root paths become
+`[off-root path]`. After printing, it appends one `gate_remediation_injected` row with
+subject = task id. A failed write warns and keeps exit 0 (§ Prompt-injection steps 4.6–4.8b —
+shared rules). Contract: the script's header.
 
 #### Step 4.7
 
@@ -1285,8 +1278,10 @@ Nothing to warm: corpflow holds no platform build/test grants — DV/DR/QA deleg
 ```typescript
     // …continued: step 6 body. Each injection keeps its section; [1]–[5] stay as composed.
     const [hints, banners] = full.description.split(INJECTION_SPLIT).map(s => s.trim());
+    // Line-anchored first match: a blocker line in [6] can end in the marker text, and
+    // lastIndexOf would cut there. The hints land above the composer's REMEDIATION block.
     const HINTS = "<<<retry-hints>>>\n";
-    const cut = composed.stdout.lastIndexOf(HINTS) + HINTS.length;
+    const cut = composed.stdout.indexOf("\n" + HINTS) + 1 + HINTS.length;
     const prompt = composed.stdout.slice(0, cut) + (hints ? `${hints}\n` : "") +
                    composed.stdout.slice(cut) + (banners ? `\n${banners}\n` : "");
 ```

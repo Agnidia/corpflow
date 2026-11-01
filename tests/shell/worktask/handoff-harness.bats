@@ -2256,3 +2256,90 @@ ANCHORS="$FIXTURES/worktask/anchors"
   [ "$rc" -ne 0 ] || fail "the harness passed a decision stub beside a ledger escalate"
   grep -qF -- "$want" "$d/err" || fail "exact divergence line absent from stderr: $(cat "$d/err")"
 }
+
+# mk_qa_bd <path> <verdict> <blocking_defects yaml line(s)|-> — a QA artifact that passes every
+# other gate, so a failure names blocking_defects alone. `-` omits the key.
+mk_qa_bd() {
+  {
+    printf -- '---\nhandoff:\n  stage: QA\n  verdict: %s\n' "$2"
+    [ "$3" = "-" ] || printf '%s\n' "$3"
+    printf '  summary: "blocking_defects fixture"\n'
+    printf '  tests_executed: [{ runner: bats, count: 3, summary_line: "1..3" }]\n'
+    printf '  files_touched: [a.sh]\n  key_decisions: []\n  open_questions: []\n'
+    printf '  refs: { results: testing-0.md#results }\n---\n\n# QA\n\n### verification-command\n\n1..3\n'
+    anchor_h2s QA
+    printf '\n## elicitation-sweep\n\nnothing to ask\n'
+  } > "$1"
+}
+
+# _bd_run <file> <hide yes|no> — the validator on one host shape.
+_bd_run() {
+  if [ "$2" = yes ]; then
+    run_script_env --separate-stderr --hide yq "$SCRIPT" --validate-frontmatter "$1"
+  else
+    run_script_env --separate-stderr "$SCRIPT" --validate-frontmatter "$1"
+  fi
+}
+
+@test "blocking_defects: a QA no-go with the list absent, empty or not a list fails by name, with and without yq" {
+  local spec name bd hide
+  local want='fail: stage=QA verdict=no-go requires handoff.blocking_defects: a non-empty list, one string per defect'
+  for spec in 'absent|-' 'empty|  blocking_defects: []  # required on no-go; one string per defect' \
+    'scalar|  blocking_defects: "AC-3 fails"' 'null|  blocking_defects: ~'; do
+    name="${spec%%|*}" bd="${spec#*|}"
+    mk_qa_bd "$WD/bd-$name.md" no-go "$bd"
+    for hide in no yes; do
+      _bd_run "$WD/bd-$name.md" "$hide"
+      [ "$status" -eq 1 ] || fail "$name (hide yq: $hide): exit $status, want 1: $stderr"
+      [[ "$stderr" == *"$want"* ]] || fail "$name (hide yq: $hide): no '$want' in: $stderr"
+    done
+  done
+}
+
+@test "blocking_defects: an empty, blank or mapping entry fails per entry, with and without yq" {
+  local hide
+  mk_qa_bd "$WD/bd-entries.md" no-go '  blocking_defects:
+    - ""
+    - "AC-3 fails: x"
+    - { id: d1, summary: "a map" }
+    - "   "'
+  for hide in no yes; do
+    _bd_run "$WD/bd-entries.md" "$hide"
+    [ "$status" -eq 1 ] || fail "hide yq: $hide: exit $status, want 1: $stderr"
+    [[ "$stderr" == *"handoff.blocking_defects[0] is empty or not a string"* ]] || fail "[0] ($hide): $stderr"
+    [[ "$stderr" != *"handoff.blocking_defects[1]"* ]] || fail "[1] flagged ($hide): $stderr"
+    [[ "$stderr" == *"handoff.blocking_defects[2] is empty or not a string"* ]] || fail "[2] ($hide): $stderr"
+    [[ "$stderr" == *"handoff.blocking_defects[3] is empty or not a string"* ]] || fail "[3] ($hide): $stderr"
+  done
+}
+
+@test "blocking_defects: one string per defect passes, and a QA go needs no list, with and without yq" {
+  local hide
+  mk_qa_bd "$WD/bd-ok.md" no-go '  blocking_defects:
+    - "AC-3 fails: x"'
+  mk_qa_bd "$WD/bd-flow.md" no-go '  blocking_defects: ["AC-3 fails: x", "missing test for y"]'
+  mk_qa_bd "$WD/bd-go.md" go -
+  for hide in no yes; do
+    _bd_run "$WD/bd-ok.md" "$hide"
+    [ "$status" -eq 0 ] || fail "one string (hide yq: $hide): exit $status: $stderr"
+    _bd_run "$WD/bd-flow.md" "$hide"
+    [ "$status" -eq 0 ] || fail "flow list (hide yq: $hide): exit $status: $stderr"
+    _bd_run "$WD/bd-go.md" "$hide"
+    [ "$status" -eq 0 ] || fail "go (hide yq: $hide): exit $status: $stderr"
+  done
+}
+
+@test "blocking_defects: a stage other than QA is never asked for the list" {
+  sed 's/^  verdict: .*/  verdict: no-go/' "$WD/development-0.md" > "$WD/dv-nogo.md"
+  run_script_env --separate-stderr "$SCRIPT" --validate-frontmatter "$WD/dv-nogo.md"
+  [[ "$stderr" != *"blocking_defects"* ]] || fail "a DV artifact was checked for blocking_defects: $stderr"
+}
+
+@test "blocking_defects: the QA native-UI no-go fixtures carry the list and pass the check" {
+  local f
+  for f in testing-0 testing-bad-reason; do
+    run_script_env --separate-stderr "$SCRIPT" --validate-frontmatter \
+      "$FIXTURES/skills/qa-native-ui-legs/$f.md"
+    [[ "$stderr" != *"blocking_defects"* ]] || fail "$f: $stderr"
+  done
+}

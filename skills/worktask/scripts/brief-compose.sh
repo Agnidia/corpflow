@@ -23,7 +23,16 @@
 #   absolute path outside the allowed roots, or a `ref:` line that does not resolve — must
 #   never leak a partial brief, since a partial brief reads as verified when it is not.
 #
-# @arg <TASK_ID>            Ledger task id (e.g. DV0). Required unless --self-test or --help.
+#   [6] holds a REMEDIATION block when the row carries a non-empty metadata.gate_from_stage
+#   and a non-empty metadata.gate_blockers: one numbered line per blocker, control bytes
+#   flattened to spaces so blocker text cannot open a marker or a `ref:` line, off-root paths
+#   redacted to `[off-root path]`. This script is the block's only writer. Otherwise [6] is
+#   empty and the brief is byte-identical to a row without those keys.
+#
+#   Side effect: when the block is printed (exit 0), one gate_remediation_injected audit row
+#   is appended through `state-patch.sh --audit-row`. A failed write warns and keeps exit 0.
+#
+# @arg <TASK_ID>          Ledger task id (e.g. DV0). Required unless --self-test or --help.
 # @arg --state <path>       state.json path (default: corpflow_context_dir()/state.json,
 #                            never the invoking cwd).
 # @arg --orch-root <path>   Passed through to workspace-root-banner.sh.
@@ -31,12 +40,14 @@
 # @arg -h | --help          Show this header.
 #
 # @stdout The composed brief (exit 0 only). Empty on exit 1 and exit 2.
-# @exitcode 0  Brief printed.
+# @exitcode 0  Brief printed. Stderr may carry a `brief-compose: note:` redaction line and a
+#              `brief-compose: warn:` audit-write line.
 # @exitcode 1  Guard failure: an absolute path outside the allowed roots, or an unresolved
 #              `ref:` line. One `brief-compose: <reason>: <token>` stderr line per finding.
 # @exitcode 2  Usage error, malformed/unknown task id, unreadable ledger, malformed
-#              metadata.context_refs (incl. a non-string entry), missing jq, a canon source
-#              file/section absent, or ledger-digest.sh failure.
+#              metadata.context_refs (incl. a non-string entry), a malformed
+#              metadata.gate_from_stage, a metadata.gate_blockers neither null nor an array,
+#              missing jq, a canon source file/section absent, or ledger-digest.sh failure.
 #
 # Minimum shell: bash 3.2+ (macOS default).
 
@@ -45,7 +56,7 @@ set -euo pipefail
 # Stdout, exit 0: help is a normal invocation, not a failure; usage_error/die2
 # below are the stderr, exit-2 paths for an actual error.
 print_help() {
-  sed -n '2,39s/^# \{0,1\}//p' "$0"
+  sed -n '2,50s/^# \{0,1\}//p' "$0"
   exit 0
 }
 
@@ -145,8 +156,13 @@ record_issue() {
 # scanned. Allowed roots are masked out first (literal match, longest first, whole path
 # components only) so a root holding a space or "@" is never cut into a false off-root
 # prefix.
-scan_abs_paths() {
-  local buf="$1" scrubbed masked roots_file dq sq bt tb cls boundary pattern lineno match token
+#
+# offroot_tokens <in> <out> writes the off-root tokens of <in> to <out>, one per line, in
+# scan order. A file, not a pipe or process substitution: die2 must stop this shell, or a
+# failed mask would let the guard pass.
+offroot_tokens() {
+  local buf="$1" tokens_out="$2" scrubbed masked roots_file dq sq bt tb cls boundary pattern lineno match token
+  : > "$tokens_out"
   scrubbed=$(mktemp)
   masked=$(mktemp)
   roots_file=$(mktemp)
@@ -207,9 +223,50 @@ scan_abs_paths() {
       continue
     fi
     if is_allowed_path "$token"; then continue; fi
-    record_issue "absolute path outside allowed roots" "$token"
+    printf '%s\n' "$token" >> "$tokens_out"
   done < <(grep -noE "$pattern" "$masked" || true)
   rm -f "$scrubbed" "$masked"
+}
+
+scan_abs_paths() {
+  local toks token
+  toks=$(mktemp)
+  offroot_tokens "$1" "$toks"
+  while IFS= read -r token; do
+    record_issue "absolute path outside allowed roots" "$token"
+  done < "$toks"
+  rm -f "$toks"
+}
+
+# redact_offroot <file> — prints <file> with every off-root token replaced, literally and
+# longest first, by "[off-root path]". A blocker that cites a temp path (QA's bats dirs)
+# would otherwise trip the whole-brief guard and turn the loop-back into a blocked dispatch;
+# the guard still runs afterwards as the backstop. Sets REDACTED to the distinct-token count.
+REDACTED=0
+redact_offroot() {
+  local in="$1" toks sorted tb
+  toks=$(mktemp)
+  sorted=$(mktemp)
+  tb=$'\t'
+  offroot_tokens "$in" "$toks"
+  sort -u "$toks" | awk 'NF { print length($0) "\t" $0 }' | sort -t "$tb" -k1,1nr | cut -f2- > "$sorted"
+  REDACTED=$(grep -c . "$sorted" || true)
+  awk -v tf="$sorted" '
+    BEGIN { n = 0; while ((getline t < tf) > 0) if (t != "") { n++; T[n] = t }; close(tf) }
+    {
+      line = $0
+      for (k = 1; k <= n; k++) {
+        out = ""
+        while ((i = index(line, T[k])) > 0) {
+          out = out substr(line, 1, i - 1) "[off-root path]"
+          line = substr(line, i + length(T[k]))
+        }
+        line = out line
+      }
+      print line
+    }
+  ' "$in" || die2 "blocker redaction awk failed"
+  rm -f "$toks" "$sorted"
 }
 
 # plain_path_exists <path> — rc 0 when a plain-path ref names an existing file:
@@ -524,6 +581,41 @@ cmd_render() {
     fi
   done <<< "$RAW_CTXREFS_STR"
 
+  # ---- Section [6]: gate remediation. A bad container type is a ledger defect and exits 2,
+  # like context_refs; a bad entry is coerced, since a DR row may carry a mapping and a die
+  # there would block the loop-back. Flattening runs inside jq: bash command substitution
+  # drops NUL, and bash 3.2 character classes depend on the locale. ----
+  local REM_FROM="" REM_COUNT=0 REM_LINES="" gb_type
+  REM_FROM=$(jq -r --arg id "$TASK_ID" '.tasks[$id].metadata.gate_from_stage // empty' "$STATE")
+  if [[ -n "$REM_FROM" && ! "$REM_FROM" =~ ^[A-Z]{2}$ ]]; then
+    die2 "tasks.$TASK_ID.metadata.gate_from_stage is malformed"
+  fi
+  gb_type=$(jq -r --arg id "$TASK_ID" '.tasks[$id].metadata.gate_blockers | type' "$STATE")
+  case "$gb_type" in
+    null | array) : ;;
+    *) die2 "tasks.$TASK_ID.metadata.gate_blockers has unexpected type: $gb_type (expected an array)" ;;
+  esac
+  if [[ -n "$REM_FROM" && "$gb_type" == "array" ]]; then
+    local rem_raw rem_red
+    rem_raw=$(mktemp)
+    rem_red=$(mktemp)
+    jq -r --arg id "$TASK_ID" '
+      .tasks[$id].metadata.gate_blockers
+      | map(if type == "string" then . else tojson end
+            | gsub("[[:cntrl:]\u0085  ]"; " ") | sub("^ +"; "") | sub(" +$"; ""))
+      | map(select(length > 0))
+      | to_entries[] | "  \(.key + 1). \(.value)"' "$STATE" > "$rem_raw" \
+      || die2 "tasks.$TASK_ID.metadata.gate_blockers could not be rendered"
+    # Direct redirect, not $(…): die2 and REDACTED must act in this shell.
+    redact_offroot "$rem_raw" > "$rem_red"
+    REM_COUNT=$(grep -c . "$rem_red" || true)
+    REM_LINES=$(cat "$rem_red")
+    rm -f "$rem_raw" "$rem_red"
+    if [[ "$REM_COUNT" -gt 0 && "$REDACTED" -gt 0 ]]; then
+      printf >&2 'brief-compose: note: %s off-root path(s) in gate_blockers redacted\n' "$REDACTED"
+    fi
+  fi
+
   # ---- Assemble: buffer the whole brief before anything reaches stdout ----
   BUF=$(mktemp)
   # shellcheck disable=SC2064  # expand now: BUF is a plain path, gone by EXIT time otherwise
@@ -571,6 +663,10 @@ cmd_render() {
   if [[ -n "$AR_REF" ]]; then emit "ref: ${AR_REF}"; fi
 
   emit "<<<retry-hints>>>"
+  if [[ "$REM_COUNT" -gt 0 ]]; then
+    emit "REMEDIATION (from ${REM_FROM} gate — fix these specific findings before re-stop):"
+    printf '%s\n' "$REM_LINES" >> "$BUF"
+  fi
 
   emit "<<<stage-banners>>>"
   emit "WORKSPACE_ROOT=${WORKSPACE_ROOT}"
@@ -591,6 +687,23 @@ cmd_render() {
     exit 1
   fi
   cat "$BUF"
+
+  # After cat, never before: a row must not claim a brief that was not printed. The row
+  # carries no blocker text, only counts (correction-row redaction rule).
+  if [[ "$REM_COUNT" -gt 0 ]]; then
+    local row arc=0
+    row=$(jq -cn --arg id "$TASK_ID" --arg from "$REM_FROM" --arg to "$STAGE" --argjson n "$REM_COUNT" \
+      '{action: "gate_remediation_injected", result: "ok", subject: $id, task_id: $id,
+        actor: "orchestrator:brief-compose",
+        metadata: {from_stage: $from, to_stage: $to, count: $n}}') || arc=$?
+    if [[ "$arc" -eq 0 ]]; then
+      bash "$PROOT/skills/worktask/scripts/state-patch.sh" --state "$STATE" --audit-row "$row" \
+        > /dev/null 2>&1 || arc=$?
+    fi
+    if [[ "$arc" -ne 0 ]]; then
+      printf >&2 'brief-compose: warn: gate_remediation_injected audit row not recorded (state-patch exit %s)\n' "$arc"
+    fi
+  fi
 }
 
 main() {

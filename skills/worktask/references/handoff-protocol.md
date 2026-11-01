@@ -843,9 +843,19 @@ fails an undeclared one.
     "tests_failed": { "type": "integer", "minimum": 0 },
     "blocking_defects": { "type": "array", "items": { "type": "string" } },
     "open_questions": { "type": "array", "items": { "$ref": "#/$defs/SweepItem" } }
-  }
+  },
+  "allOf": [{ "if": { "properties": { "verdict": { "const": "no-go" } } },
+              "then": { "required": ["blocking_defects"],
+                        "properties": { "blocking_defects": { "minItems": 1,
+                          "items": { "type": "string", "minLength": 1 } } } } }]
 }
 ```
+
+#### QAHandoff — a no-go names its defects
+
+A `no-go` names each defect in `blocking_defects`, one string each; `handoff-harness.sh
+--validate-frontmatter` enforces it with or without `yq` (a whitespace-only entry counts as
+empty). The Step 7 loop-back copies the list into the DV row's `gate_blockers`.
 
 ### DCHandoff
 
@@ -2184,7 +2194,7 @@ Anthropic prompt cache matches by prefix equality, not full-block equality, so t
 <<<task-description>>>
 [5]  Task identifiers + ref: lines          ← dynamic per delegation
 <<<retry-hints>>>
-[6]  retry hints (if retry_count > 0)       ← dynamic per delegation
+[6]  retry hints (if retry_count > 0); REMEDIATION block written by brief-compose.sh ← dynamic per delegation
 <<<stage-banners>>>
 [7]  Stage-specific banners (DR Skill, FN Conductor, MCP fallback) ← suffix only
 ```

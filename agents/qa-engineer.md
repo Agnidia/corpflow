@@ -297,6 +297,8 @@ Each native UI leg is one row of a `### Native UI Legs` table under `## results`
 
 Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read it in the steady path. Per-stage frontmatter template (paste verbatim at artifact top): `stage-contracts.md#tpl-qa`. Prev→this label: `DR→QA` (or `SR→QA` when SR runs).
 
+Every `verdict: no-go` lists each defect under `handoff.blocking_defects`, one short string per defect, citing repo-relative paths; detail goes in `testing-N.md#results`. The re-dispatched DV brief carries that list as its remediation, and the stage gate fails a no-go without it.
+
 **Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
 User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.

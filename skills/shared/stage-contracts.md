@@ -937,6 +937,7 @@ A question whose options include accepting a known vulnerability, a CVE or a sec
 handoff:
   stage: QA
   verdict: go                  # go / no-go
+  blocking_defects: []  # required on no-go; one string per defect
   summary: "<N unit tests pass, M integration checks. Coverage X%>"
   tests_executed:              # one entry per runner; cases RUN; QA holds full-suite authority
     - { runner: bats, count: 840, summary_line: "1..840" }  # line verbatim; required when count > 0
