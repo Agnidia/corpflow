@@ -116,7 +116,7 @@ Every worktask gate — hook-enforced or orchestrator-mediated — returns struc
 | Surface | Mechanism | Reference user |
 |---------|-----------|----------------|
 | Hook gate | `hookSpecificOutput.additionalContext` alongside `decision:block` | `hooks/dv-screenshot-gate.sh` (block path) |
-| Orchestrator gate | inject `blockers[]` / `blocking_defects[]` verbatim into the re-dispatched stage prompt | `skills/worktask/SKILL.md` DR→DV / QA→DV loop-back (`gate_remediation_injected` audit row) |
+| Orchestrator gate | `blockers[]` / `blocking_defects[]` into the re-dispatched prompt's [6], one flattened line each | `brief-compose.sh`, fed by the `SKILL.md` DR→DV / QA→DV loop-back (`gate_remediation_injected` row) |
 
 The surfaces are symmetric — the hook embeds remediation in the block JSON, the orchestrator embeds the upstream blocker list in the retry prompt — so change them together. The `decision:block` verb, the exit-0 discipline and the `screenshot_gate_block` audit-row schema are unchanged by it; `hookSpecificOutput` is an additive stdout field.
 

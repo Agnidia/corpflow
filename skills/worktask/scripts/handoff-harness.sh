@@ -67,6 +67,10 @@
 #       unknown resume_with, or a missing or empty detail each print one `fail:` line and
 #       exit 1. The enums are blocked-on-lib.sh's.
 #
+#       A QA `verdict: no-go` needs handoff.blocking_defects as a non-empty list of non-empty
+#       strings, with or without yq: one `fail:` line for an absent, non-list or empty value,
+#       and one per bad entry. A QA `go` and every other stage are unaffected.
+#
 #   handoff-harness.sh --read-blocked-on <artifact.md>
 #       Prints the artifact's need normalized through blocked-on-lib.sh as one compact JSON
 #       line, then `source: blocked_on`.
@@ -236,7 +240,9 @@ fi
 # usually takes, and it must reach the same verdict as yq. It reads the YAML subset a stage
 # writes — block mappings, flow mappings and sequences (JSON included), quoted and plain scalars,
 # `|`/`>` block scalars — and prints {"blocked_on":<json|null>}. Exit 1 on a value it cannot
-# parse, which the gate reports as a failure rather than reading as absent.
+# parse, which the gate reports as a failure rather than reading as absent. `-v want="k1 k2"`
+# reads other top-level handoff keys into one object, null for each one that is absent; empty
+# `want` means blocked_on.
 read -r -d '' _FM_BO_AWK << 'AWK' || true
 function jstr(s,    i, c, o, n) {
   o = ""; n = length(s)
@@ -407,7 +413,9 @@ function pblock(start, pind, seqok,    j, ind, out, first, key, v, s, rest, col,
 }
 { sub(/\r$/, ""); n++; T[n] = $0; match($0, /^ */); I[n] = RLENGTH; B[n] = ($0 ~ /^[ \t]*(#.*)?$/) }
 END {
-  bo = "null"
+  if (want == "") want = "blocked_on"
+  WN = split(want, WK, " ")
+  for (w = 1; w <= WN; w++) WV[WK[w]] = "null"
   for (h = 1; h <= n; h++) if (T[h] ~ /^handoff:[ \t]*(#.*)?$/) break
   if (h <= n) {
     ci = -1
@@ -416,14 +424,17 @@ END {
       if (I[k] == 0) break
       if (ci < 0) ci = I[k]
       if (I[k] != ci || !splitkey(T[k])) continue
-      if (KEY != "blocked_on") continue
+      if (!(KEY in WV)) continue
+      wkey = KEY
       v = inline_block(REST, k, ci, 1)
       if (ERR) exit 1
-      bo = v
+      WV[wkey] = v
       k = NX - 1
     }
   }
-  printf "{\"blocked_on\":%s}\n", bo
+  fo = "{"
+  for (w = 1; w <= WN; w++) fo = fo (w > 1 ? "," : "") jstr(WK[w]) ":" WV[WK[w]]
+  print fo "}"
 }
 AWK
 
@@ -1782,7 +1793,12 @@ validate_frontmatter() {
   if [[ -n "$fm_stage" && "$fm_stage" != "null" && -n "$(required_for "$fm_stage")" ]]; then
     check_anchors "$f" "$fm_stage" || anchor_rc=1
   fi
-  local pre_rc=$((bo_rc | anchor_rc))
+  # Here, not after the yq gate, so a host without yq refuses the same QA no-go artifacts.
+  local bd_rc=0
+  if [[ "$fm_stage" == "QA" ]]; then
+    check_blocking_defects "$fmfile" || bd_rc=1
+  fi
+  local pre_rc=$((bo_rc | anchor_rc | bd_rc))
 
   command -v yq >/dev/null 2>&1 || {
     echo "frontmatter: yq required for full validation; running grep-only fallback" >&2
@@ -1932,6 +1948,47 @@ check_blocked_on() {
   raw=$(fm_blocked_on_raw "$1") || { echo "fail: handoff.blocked_on could not be parsed" >&2; return 1; }
   norm=$(blocked_on_normalize "$raw") || return 0
   blocked_on_validate "$(printf '%s' "$norm" | jq -c '.blocked_on')"
+}
+
+# check_blocking_defects <fmfile> — a QA no-go must name each defect, because the Step 7
+# loop-back copies this list into the re-dispatched DV brief as its only remediation text.
+# Always the awk reader, never yq: awk reads every scalar as a string and yq does not, so
+# preferring yq when present would give `- 42` a different verdict on a different host.
+check_blocking_defects() {
+  local raw out line
+  raw=$(awk -v want="verdict blocking_defects" "$_FM_BO_AWK" "$1" 2> /dev/null) || raw=""
+  if [[ -z "$raw" ]]; then
+    echo "fail: handoff.blocking_defects could not be parsed" >&2
+    return 1
+  fi
+  if ! command -v jq > /dev/null 2>&1; then
+    # The awk object is jstr-encoded, so a literal match is exact; anything but a no-go passes.
+    [[ "$raw" == *'"verdict":"no-go"'* ]] || return 0
+    if [[ "$raw" == *'"blocking_defects":null'* ]]; then
+      echo "fail: stage=QA verdict=no-go requires handoff.blocking_defects: a non-empty list, one string per defect" >&2
+    else
+      echo "fail: handoff.blocking_defects present but jq is not installed to validate it" >&2
+    fi
+    return 1
+  fi
+  out=$(printf '%s' "$raw" | jq -r '
+    if .verdict != "no-go" then empty
+    elif (.blocking_defects | type) != "array" or (.blocking_defects | length) == 0 then "list"
+    else .blocking_defects | to_entries[]
+      | select((.value | type) != "string" or (.value | test("^\\s*$")))
+      | "entry \(.key)"
+    end' 2> /dev/null) || {
+    echo "fail: handoff.blocking_defects could not be parsed" >&2
+    return 1
+  }
+  [[ -n "$out" ]] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      list) echo "fail: stage=QA verdict=no-go requires handoff.blocking_defects: a non-empty list, one string per defect" >&2 ;;
+      "entry "*) echo "fail: stage=QA handoff.blocking_defects[${line#entry }] is empty or not a string" >&2 ;;
+    esac
+  done <<< "$out"
+  return 1
 }
 
 # read_blocked_on <artifact> — the --read-blocked-on mode.
