@@ -629,7 +629,7 @@ is never returned as `fail`, `no-go` or `reject`.
 
 Frontmatter is the canonical compression form: downstream stages read this block instead of the full upstream artifact whenever they only need the verdict, decisions, or refs. Over ≤200 tokens, every downstream stage pays.
 
-A valid `tests_executed` list is excluded from that count up to 96 proxy tokens (about four entries), so recording every runner never costs budget. A `tests_executed` block that fails validation is excluded at the same 96-token cap, and the budget failure line says `(tests_executed invalid: excluded at the 96-token cap)`: the fault is reported once, and the rest of the prose is still checked against 200.
+A valid `tests_executed` list is excluded from that count up to 24 proxy tokens per entry, for at most eight entries (192 tokens), so recording every runner never costs budget. A `tests_executed` block that fails validation is excluded at a flat 96-token cap, and the budget failure line says `(tests_executed invalid: excluded at the 96-token cap)`: the fault is reported once, and the rest of the prose is still checked against 200.
 
 ---
 

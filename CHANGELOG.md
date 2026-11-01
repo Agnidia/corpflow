@@ -12,6 +12,8 @@ All notable changes to this project are documented here. The format is based on 
 - Reconcile the AR consult section with `key_decisions`: AR gains a reconcile step and checkbox, the consult prompt passes decision ids to cite, and `handoff-harness.sh` warns on an AR consult line that cites an id and contradicts it (#518).
 - Run DV acceptance commands green before handoff, and require them to fail closed: `acceptance-check.sh --dv` alone checks DV's own `- exit=<n>` rows, both modes report a `|| true`/`|| :`/`|| echo`/`|| printf` tail as `fail-open:`, and `handoff-harness.sh --validate-frontmatter` fails a DV artifact on each finding (#524).
 - Refresh a stale project copy of `state-merge.sh` at worktask start: Step 3b and the initialization snippet run `hook-install.sh` instead of copying only when missing, and each replace writes one `hook_refreshed` audit row naming the recovery source (#523).
+- Stop charging DV prose for extra test runners: the `tests_executed` budget exclusion is 24 tokens per entry for up to eight entries instead of a flat 96, and the advisory ceiling moves from 360 to 456.
+- Anchor DV acceptance-command patterns to the whole token, and re-derive the list from the current code on every rework round, so a later sibling name cannot leave a command stale.
 
 ## [4.1.3] — 2026-10-19
 
