@@ -48,9 +48,9 @@ actions: `artifact_created`, `error_recorded`, `retry_attempt`, `escalation`, `f
 
 ## Ledger scripts
 
-Writers: `state-patch.sh`, `handoff-harness.sh`.
+Writers: `state-patch.sh`, `handoff-harness.sh`, `hook-install.sh` (`hook_refreshed`).
 
-actions: `facts_items_rejected`, `lock_release_foreign`, `state_write_unlocked`, `model_override`, `model_override_unknown`, `model_override_unparsed`, `model_unresolved`, `count_corroboration`
+actions: `facts_items_rejected`, `lock_release_foreign`, `state_write_unlocked`, `model_override`, `model_override_unknown`, `model_override_unparsed`, `model_unresolved`, `count_corroboration`, `hook_refreshed`
 
 ## Plugin hooks
 
