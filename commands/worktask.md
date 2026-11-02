@@ -7,7 +7,7 @@ version: 0.7.0
 # plugin (`pl0-procedure.md § Stage → agent table`, a project or user-scope CORPFLOW.md § Routing
 # override included), and the Step C.0a resolver and Phase 3 re-dispatch those agents,
 # `corpflow:prompt-engineer` or `corpflow:workflow-engineer`.
-allowed-tools: Read, AskUserQuestion, SendMessage, ListAgents, Monitor, TaskStop, Bash(claude:*), Glob, Grep, Bash(mkdir:*), Bash(gh:*), Bash(git:*), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/preflight-issue-scan.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/branch-name.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/refine-branch-target.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/publish-pl-issue.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/handoff-harness.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/effort-ladder-cli.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/model-matrix.sh --resolve *), Agent, Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/autonomy-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/seed-state.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/workspace-root-banner.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/brief-compose.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --producer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --consumer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --list-landed *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/megatask-settle.sh *)
+allowed-tools: Read, AskUserQuestion, SendMessage, ListAgents, Monitor, TaskStop, Bash(claude:*), Glob, Grep, Bash(mkdir:*), Bash(gh:*), Bash(git:*), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/hook-install.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/preflight-issue-scan.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/branch-name.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/refine-branch-target.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/publish-pl-issue.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/handoff-harness.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/effort-ladder-cli.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/model-matrix.sh --resolve *), Agent, Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/autonomy-preflight.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/seed-state.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/workspace-root-banner.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/brief-compose.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --producer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --consumer *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --list-landed *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/megatask-settle.sh *), Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/loopback-targets.sh *)
 related:
   - skills/worktask/SKILL.md
   - commands/megatask.md
@@ -430,25 +430,24 @@ fi
 
 ### Step 3b — Verify SubagentStop hook installed
 
-3b. After the seed, verify `.claude/hooks/state-merge.sh` exists and is executable and that the
-plugin's `plugin.json` registers the SubagentStop hook — the Layer 2 safety net that patches
-state.json when agents skip self-patching (`initialization-patterns.md#hook-installation`).
+3b. After the seed, run `hook-install.sh` so `.claude/hooks/state-merge.sh` matches the running
+plugin's copy — a missing or stale copy is replaced, with one `hook_refreshed` audit row per
+replace — and the plugin's `plugin.json` registration is verified. This is the Layer 2 safety
+net that patches state.json when agents skip self-patching
+(`initialization-patterns.md#hook-installation`).
 
    ```bash
-   # $PLUGIN_ROOT per § Snippet preamble
-   hook_src="$PLUGIN_ROOT/hooks/state-merge.sh"
-   hook_dst=".claude/hooks/state-merge.sh"
-   if [[ ! -x "$hook_dst" ]] && [[ -f "$hook_src" ]]; then
-     mkdir -p .claude/hooks
-     cp "$hook_src" "$hook_dst" && chmod +x "$hook_dst"
-   fi
+   # Non-blocking: a failure warns, the worktask continues. The script resolves the
+   # plugin root from its own path, so the copy it installs is the running plugin's.
+   bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/hook-install.sh \
+     || echo "⚠ state-merge.sh hook not installed — state.json will only be patched if agents self-merge (Layer 1) or orchestrator Step 6.5 fires (Layer 3). Re-run the hook installer to fix." >&2
    ```
 
 #### Step 3b regression guard
 
-If neither the plugin-registered hook nor the project-local copy exists, warn without blocking:
+If the installer exits non-zero for any reason, warn without blocking:
 `"⚠ state-merge.sh hook not installed — state.json will only be patched if agents self-merge
-(Layer 1) or orchestrator Step 6.5 fires (Layer 3). Run hook-install.sh to fix."`
+(Layer 1) or orchestrator Step 6.5 fires (Layer 3). Re-run the hook installer to fix."`
 
 ### Step 3c — Name the branch once (PL start)
 
@@ -940,11 +939,10 @@ Execute the loop from `skills/worktask/SKILL.md § Orchestrator Execution Loop`.
 
 ##### After Step A — scripts the loop runs directly
 
-The loop body lives in the skill, but these four run under this file's grants, so they are named
-here too: a grant invoked only in the skill reads as unused to an audit.
+These five run under this file's grants; a grant used only in the skill reads as unused.
 
 ```bash
-# Assigned root for a row, after any stream re-pin — SKILL.md § Step 4.8
+# Assigned root after any re-pin — SKILL.md § Step 4.8
 bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/workspace-root-banner.sh --task "<TASK_ID>"
 # Land a producer's artifacts — SKILL.md § Step 4.7a
 bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --producer "<TASK_ID>"
@@ -952,9 +950,11 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --producer 
 bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --consumer "<TASK_ID>"
 # The tree's landed set — SKILL.md § Step 6.5a3
 bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/land-artifacts.sh --list-landed --tree "$_orch_root"
+# Loop-back rows — SKILL.md § Step 7
+bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/loopback-targets.sh --state .context/state.json --gate "<GATE_ID>"
 ```
 
-A refused landing is reported, never worked around: SKILL.md § Step 6.5d.
+A refused landing is reported, never worked around (SKILL.md § Step 6.5d).
 
 #### Workspace-root cross-check
 
@@ -1147,6 +1147,25 @@ a sweep line and a decision line together. Pass every `fail:` line, not the firs
 reads the structure the failed one was validating. A re-dispatch that fixes a shape line can
 therefore return failures that were present but unreachable: the check working, not a regression.
 Do not promise one-shot batching when the first line is a shape line.
+
+##### Step B.1 — the consult divergence warn (AR only)
+
+On an AR artifact the harness also runs `check_consult_divergence`. It fires when a consult line
+cites a `key_decisions` id and conflicts with that decision. The consult lines are the artifact's
+`## <Platform> App Architecture` sections and each `*-architecture.md` beside it. On stderr:
+
+```
+warn: consult <source>:<lineno> restates decision <id> with different content (<reason>) — key_decisions says "…" but the consult says "…". Reconcile it in <artifact> or raise an AR sweep item
+```
+
+The warn never blocks. It does not change the exit status, and `--strict` does not promote it.
+
+###### Step B.1 — carrying the consult warn
+
+For each warn line, append `{"action":"consult_divergence","subject":"AR<N>","result":"warn"}`
+with the line as `reason`. Carry the line verbatim into the DV and DR dispatch prompts, with the
+rule that `key_decisions` prevail. A consult line that cites no id is not compared; AR's
+reconcile step covers it (`agents/software-architector.md § Delegation Flow`).
 
 ### Step C — Closing-sweep collection and render (loop step 4.9)
 

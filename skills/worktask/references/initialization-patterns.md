@@ -63,14 +63,9 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"  # Claude Code substitutes this token when l
 # Empty? Substitute <plugin-root>: the dir containing .claude-plugin/plugin.json — two levels
 # above this skill's base directory (see skills/shared/plugin-root-resolution.md).
 [ -d "$PLUGIN_ROOT" ] || PLUGIN_ROOT="<plugin-root>"
-hook_src="$PLUGIN_ROOT/hooks/state-merge.sh"
-hook_dst=".claude/hooks/state-merge.sh"
-
-if [[ ! -x "$hook_dst" ]]; then
-  mkdir -p .claude/hooks
-  cp "$hook_src" "$hook_dst"
-  chmod +x "$hook_dst"
-fi
+# Refreshes a stale copy too, not only a missing one; a failure warns and never blocks.
+CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$PLUGIN_ROOT/skills/worktask/scripts/hook-install.sh" \
+  || echo "⚠ state-merge.sh hook not installed — run hook-install.sh to fix." >&2
 ```
 
 ### PL0 invariant
@@ -275,8 +270,8 @@ PL0 → AR0 → TL0 ─┤→ DV1 ─├→ DR0 → QA0
 #### Narrow scope & seed the streams
 
 TL first narrows DV0 to the primary stream, then seeds DV1…DVN with the § Canonical seed call —
-same `stage`/`agent`/`model`/`context_refs` as the DV0 row; `description`, `stream` and `artifact`
-differ per row (`handoff-protocol.md § DV fan-out — ledger tasks`). All DVN share
+same `stage`/`agent`/`model`/`context_refs` as the DV0 row; `description`, `subject`, `stream` and
+`artifact` differ per row (`handoff-protocol.md § DV fan-out — ledger tasks`). All DVN share
 `error_file: ".context/errors/developer.md"` with distinct section headers per sub-task
 (`## DV1 Retry N`, `## DV2 Retry N`).
 
@@ -285,14 +280,14 @@ differ per row (`handoff-protocol.md § DV fan-out — ledger tasks`). All DVN s
 ```bash
 state-patch.sh --task-meta DV0 --set \
   '{"description":"Implement theme color tokens (owns: Source/Theme/Colors/)",
-    "stream":"tokens","artifact":".context/development-0-tokens.md"}'
+    "subject":"Implement theme color tokens","stream":"tokens","artifact":".context/development-0-tokens.md"}'
 
 # DV1: "Add toggle and persistence (owns: Source/Settings/Theme/)"
 # DV2: "Create dark variants for all image assets (owns: Assets/Dark/)"
 state-patch.sh --task-create DV1 --metadata "$(jq -n \
   --argjson m "$(jq -c '.tasks.DV0.metadata' .context/state.json)" \
   '$m + {description:"Add toggle and persistence (owns: Source/Settings/Theme/)",
-         stream:"toggle", artifact:".context/development-0-toggle.md"}')"
+         subject:"Add theme toggle and persistence", stream:"toggle", artifact:".context/development-0-toggle.md"}')"
 ```
 
 #### Dependency wiring
@@ -316,7 +311,7 @@ The splitting DV agent is the rows' creator, so it assigns every slug (`handoff-
 Artifact naming (S1)`). The split takes the run to ≥ 2 DV rows, so DV0 gets `stream` + `artifact`
 first. DV1 and DV2 then clone DV0's metadata with the § Canonical seed call's shape, and the clone
 drops every `coordination-*.md` ref from `context_refs` (a JSON-encoded list; no TL split here).
-`description`, `stream` and `artifact` differ per row — e.g. DV1 "Create semantic color tokens for
+`description`, `subject`, `stream` and `artifact` differ per row — e.g. DV1 "Create semantic color tokens for
 light/dark themes", DV2 "Add toggle and persistence for theme preference".
 
 ##### Stamp DV0, then clone it
@@ -324,17 +319,17 @@ light/dark themes", DV2 "Add toggle and persistence for theme preference".
 ```bash
 N=$(jq -r '.tasks.DV0.metadata.run_index' .context/state.json)
 state-patch.sh --task-meta DV0 --set "$(jq -cn --arg n "$N" \
-  '{stream:"core", artifact:".context/development-\($n)-core.md"}')"
+  '{subject:"Build the theme core", stream:"core", artifact:".context/development-\($n)-core.md"}')"
 
 m=$(jq -c '.tasks.DV0.metadata
   | .context_refs |= (fromjson | map(select(startswith("coordination-") | not)) | tojson)' \
   .context/state.json)
 state-patch.sh --task-create DV1 --metadata "$(jq -n --argjson m "$m" \
   '$m + {description:"Create semantic color tokens for light/dark themes",
-         stream:"tokens", artifact:".context/development-\($m.run_index)-tokens.md"}')"
+         subject:"Create semantic color tokens", stream:"tokens", artifact:".context/development-\($m.run_index)-tokens.md"}')"
 state-patch.sh --task-create DV2 --metadata "$(jq -n --argjson m "$m" \
   '$m + {description:"Add toggle and persistence for theme preference",
-         stream:"toggle", artifact:".context/development-\($m.run_index)-toggle.md"}')"
+         subject:"Add theme toggle and persistence", stream:"toggle", artifact:".context/development-\($m.run_index)-toggle.md"}')"
 ```
 
 ##### Chain the rows

@@ -2,6 +2,7 @@
 name: create-agent
 description: Use when the user invokes $create-agent or asks for the canonical Corpflow create-agent workflow.
 argument-hint: "<name> --purpose \"<description>\" [--model haiku|sonnet|opus] [--template minimal|standard|comprehensive] [--tools <preset|list>] [--stage <code>] [--output <path>]"
+user-invocable: false
 ---
 
 # create-agent (Codex adapter)

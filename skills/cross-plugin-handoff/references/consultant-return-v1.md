@@ -17,7 +17,7 @@ summaries.
 |---|---|---|
 | `schema_version` | string | Exactly `consultant-return.v1`. Absent → accepted with `warn: version_absent` and stamped; any other value, `null` included → `version_mismatch` |
 | `verdict` | string | `pass` or `fail`. `needs_changes` → `fail` with `warn: needs_changes_normalized`; absent or any other value → `invalid_verdict` |
-| `severity_counts` | object | Exactly the keys `critical`, `high`, `medium`, `low`, each an integer ≥ 0. Absent → `missing_severity_counts`; any other shape → `invalid_severity_counts` |
+| `severity_counts` | object | Exactly the keys `critical`, `high`, `medium`, `low`, plus an optional `info`, each an integer ≥ 0. Absent → `missing_severity_counts`; any other shape → `invalid_severity_counts` |
 | `findings` | array | Finding objects. Absent or not an array → `missing_findings`; `[]` is valid |
 
 ### Finding
@@ -25,7 +25,7 @@ summaries.
 | Key | Type | Rule |
 |---|---|---|
 | `id` | string | Required, non-empty |
-| `severity` | string | Required: `critical`, `high`, `medium` or `low` |
+| `severity` | string | Required: `critical`, `high`, `medium`, `low` or `info` |
 | `summary` | string | Required, non-empty |
 | `location` | string | Optional, `path:line` |
 
@@ -33,10 +33,14 @@ A broken item is `invalid_finding`, located as `findings[<i>].<key>`.
 
 ### Severity spelling is strict
 
-Lowercase only. `Critical`, `P0`–`P3` and every other spelling are rejected, never mapped: a mapping
-would move hand-normalization into code and hide which consultant is non-compliant. DR's P0–P2 scale
-is a judgment it applies after the merge (`commands/tech-code-review.md § Severity scheme`), not a
-translation of these four words.
+Lowercase only. `Critical`, `Info`, `informational`, `P0`–`P3` and every other spelling are
+rejected, never mapped: a mapping would move hand-normalization into code and hide which consultant
+is non-compliant. DR's P0–P2 scale is a judgment it applies after the merge
+(`commands/tech-code-review.md § Severity scheme`), not a translation of these words.
+
+`info` is a level of its own, matching the Info tier of `agents/security-reviewer.md § Severity
+Classification`, and is never mapped to `low`. It is advisory: an `info` finding or count is never a
+blocker on its own. It is optional, so a return that never uses it stays valid as before.
 
 ## What a sibling returns
 
@@ -57,12 +61,15 @@ Tightening that to a reject is a planned follow-up, so a sibling stamps the vers
 Exit 0 prints one line of compact JSON with a fixed key order — `schema_version`, `verdict`,
 `severity_counts`, `findings` — and each finding keeps only `id`, `severity`, `summary` and
 `location`. Unknown keys are dropped, the version is stamped, `needs_changes` becomes `fail`, and a
-count written `1.0` prints as `1`.
+count written `1.0` prints as `1`. `severity_counts` carries `info`, last after `low`, only when
+the input does, so a four-key return prints the same bytes as before.
 
 `severity_counts` are kept as given, never recomputed. When they disagree with the per-severity
 tally of `findings[]` the return still passes, with `warn: count_mismatch`, so a consultant that
-summarizes rather than listing every finding is not rejected. Re-validating the output yields
-identical bytes, and no warnings unless the counts disagree.
+summarizes rather than listing every finding is not rejected. The comparison covers `info` and
+reads an absent `info` count as 0. The detail adds ` info=<n>` to both lists only when the return
+uses `info` (the key, or a finding of that severity). Re-validating the output yields identical
+bytes, and no warnings unless the counts disagree.
 
 ## CLI
 

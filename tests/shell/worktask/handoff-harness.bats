@@ -1133,7 +1133,7 @@ spill_state() {  # <path> <run_index> <ids-json>
 
 # ---------------------------------------------------------------------------
 # Frontmatter token budget (AD-2): discretionary = total - min(stub block, 64)
-# - min(tests_executed block, 96), fail > 200, advisory warn > 360. Sweep stubs and
+# - min(tests_executed block, min(entries, 8) x 24), fail > 200, advisory warn > 456. Sweep stubs and
 # runner entries are mandatory evidence, so excluding them stops the budget from
 # penalising a stage for asking questions or for recording every runner it ran.
 # ---------------------------------------------------------------------------
@@ -1208,6 +1208,13 @@ budget_artifact() {  # <path> <filler-words> <stubs> [runners|bad|bad:N]
   assert_success
 }
 
+@test "budget: eight runner entries cannot push a compliant artifact over" {
+  # A flat four-entry cap charged the prose for every runner past the fourth (#521).
+  budget_artifact "$WD/dv-run8.md" 120 1 8
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/dv-run8.md"
+  assert_success
+}
+
 @test "budget: the exclusion is capped, so extra stubs cannot buy prose room" {
   # Twelve stubs is three times the per-stage cap; the exclusion still stops at 64
   # tokens, so an artifact this size fails on its prose exactly as it would at four.
@@ -1219,12 +1226,13 @@ budget_artifact() {  # <path> <filler-words> <stubs> [runners|bad|bad:N]
   assert_output --partial "- 64 sweep-stub tokens -"
 }
 
-@test "budget: the tests_executed exclusion is capped at 96 tokens" {
-  budget_artifact "$WD/dv-gamed-te.md" 200 1 12
+@test "budget: the tests_executed exclusion stops at eight entries (192 tokens)" {
+  # Sixteen entries are about 235 tokens; only 192 of them are excluded.
+  budget_artifact "$WD/dv-gamed-te.md" 200 1 16
   run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/dv-gamed-te.md"
   assert_failure 1
   assert_output --partial "discretionary tokens > 200 budget"
-  assert_output --partial "- 96 tests_executed tokens excluded)"
+  assert_output --partial "- 192 tests_executed tokens excluded)"
 }
 
 @test "budget: an invalid tests_executed list is excluded at the cap and the prose is still checked" {
@@ -1261,11 +1269,11 @@ budget_artifact() {  # <path> <filler-words> <stubs> [runners|bad|bad:N]
   [ "$(printf '%s\n' "$output" | grep -c '^fail:')" -eq 1 ] || fail "expected one fail line: $output"
 }
 
-@test "budget: the 360 absolute ceiling is reported alongside the failure" {
-  budget_artifact "$WD/dv-huge.md" 260 4
+@test "budget: the 456 absolute ceiling is reported alongside the failure" {
+  budget_artifact "$WD/dv-huge.md" 340 4
   run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/dv-huge.md"
   assert_failure 1
-  assert_output --partial "> 360 absolute ceiling"
+  assert_output --partial "> 456 absolute ceiling"
 }
 
 @test "budget: every stage artifact this repo ships passes the promoted gate" {
@@ -1593,6 +1601,140 @@ mk_qa_dec_bullet() {
     "Selection runs the full suite because the harness itself changed"
   run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/all-filenames.md"
   assert_success
+}
+
+# --- AR consult vs key_decisions (#518) --------------------------------------
+
+AD6="Player names compare case-sensitively"
+AD6_CONFLICT="- Per ad6, the duplicate-name check is case-insensitive."
+
+# mk_ar_consult <file> [section-line] — an AR artifact whose key_decisions holds ad6; with a
+# second argument it also carries a `## Swift App Architecture` section holding that line.
+mk_ar_consult() {
+  {
+    echo '---'
+    echo 'handoff:'
+    echo '  stage: AR'
+    echo '  task_id: AR0'
+    echo '  verdict: ok'
+    echo '  summary: "consult fixture"'
+    echo '  key_decisions:'
+    echo "    - { id: ad6, summary: \"$AD6\", anchor: \"architecture-0.md#decisions\" }"
+    echo '  next_stage_focus: "build the roster"'
+    echo '  open_questions: []'
+    echo '  refs: { decisions: architecture-0.md#decisions }'
+    echo '---'
+    anchor_h2s AR; echo
+    if [[ $# -ge 2 ]]; then
+      echo '## Swift App Architecture'
+      echo
+      echo "$2"
+      echo
+    fi
+    echo '## elicitation-sweep'
+    echo
+    echo 'open_questions: [] — nothing to elicit.'
+  } > "$1"
+}
+
+@test "consult: a cited contradiction in an App Architecture section warns, naming id and source" {
+  mk_ar_consult "$WD/architecture-0.md" "$AD6_CONFLICT"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  assert_output --partial "warn: consult architecture-0.md § Swift App Architecture:"
+  assert_output --partial "restates decision ad6 with different content (polarity: sensitive vs insensitive)"
+  [ "$(grep -c '^warn: consult ' <<< "$output")" -eq 1 ]
+}
+
+@test "consult: the warn leaves the exit status of the same artifact without the line unchanged" {
+  # A second, unrelated failure makes both runs exit 1, so equal statuses prove the warn added
+  # nothing rather than two successes agreeing by default.
+  mk_ar_consult "$WD/architecture-0.md" "$AD6_CONFLICT"
+  sed -i.bak 's/^  next_stage_focus: .*$//' "$WD/architecture-0.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  local with="$status"
+  assert_output --partial "warn: consult "
+  mkdir "$WD/plain" && mk_ar_consult "$WD/plain/architecture-0.md"
+  sed -i.bak 's/^  next_stage_focus: .*$//' "$WD/plain/architecture-0.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/plain/architecture-0.md"
+  [ "$with" -eq 1 ] && [ "$status" -eq "$with" ]
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: --strict does not turn the warn into a failure" {
+  mk_ar_consult "$WD/architecture-0.md" "$AD6_CONFLICT"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md" --strict
+  assert_success
+  assert_output --partial "warn: consult "
+}
+
+@test "consult: a sibling *-architecture.md is read, its frontmatter skipped" {
+  mk_ar_consult "$WD/architecture-0.md"
+  printf -- '---\nnote: per ad6 names are case-insensitive\n---\n# Apple\n\n%s\n' "$AD6_CONFLICT" \
+    > "$WD/apple-architecture.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  assert_output --partial "warn: consult apple-architecture.md:6 restates decision ad6"
+  [ "$(grep -c '^warn: consult ' <<< "$output")" -eq 1 ]
+}
+
+@test "consult: a cited restatement quoting a different number warns" {
+  mk_ar_consult "$WD/architecture-0.md" "- Per ad6, the roster holds 8 names; case-sensitive, as 2 decided."
+  sed -i.bak "s/$AD6/Player names compare case-sensitively, at most 12 per roster/" \
+    "$WD/architecture-0.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  assert_output --partial "(numbers differ)"
+}
+
+@test "consult: a faithful restatement in other words does not warn" {
+  mk_ar_consult "$WD/architecture-0.md" \
+    "- Per ad6, names compare case-sensitively, so Bob and bob are two players."
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: a contradicting line that cites no decision id does not warn" {
+  mk_ar_consult "$WD/architecture-0.md" "- The duplicate-name check is case-insensitive."
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: ad6 is matched as a whole word, never inside ad60" {
+  mk_ar_consult "$WD/architecture-0.md" "- Per ad60, the duplicate-name check is case-insensitive."
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: an AR artifact with no consult source does not warn" {
+  mk_ar_consult "$WD/architecture-0.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: an id with an empty summary is skipped, not compared on shifted fields" {
+  # Without the skip the empty field collapses under the tab-split read and the source label
+  # ("… § Swift App Architecture") takes the summary's place, so "unswift" warns on polarity.
+  mk_ar_consult "$WD/architecture-0.md" "- Per ad7, the build stays unswift."
+  sed -i.bak 's/^  next_stage_focus:/    - { id: ad7, summary: "" }\n  next_stage_focus:/' "$WD/architecture-0.md"
+  grep -q 'id: ad7, summary: ""' "$WD/architecture-0.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/architecture-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
+}
+
+@test "consult: a non-AR stage is never compared against a consult source" {
+  # The sibling would warn under AR; QA carries the same id, so only the stage gate is silent.
+  mk_qa_dec "$WD/testing-0.md" "$AD6" "$AD6"
+  sed -i.bak 's/id: qa-1/id: ad6/; s/| qa-1 |/| ad6 |/' "$WD/testing-0.md"
+  printf '# Apple\n\n%s\n' "$AD6_CONFLICT" > "$WD/apple-architecture.md"
+  run bash "$PLUGIN_ROOT/$SCRIPT" --validate-frontmatter "$WD/testing-0.md"
+  assert_success
+  refute_output --partial "warn: consult "
 }
 
 # --- collect-all frontmatter reporting (REQ-13) ------------------------------
@@ -2121,4 +2263,144 @@ ANCHORS="$FIXTURES/worktask/anchors"
     > "$d/out" 2> "$d/err" || rc=$?
   [ "$rc" -ne 0 ] || fail "the harness passed a decision stub beside a ledger escalate"
   grep -qF -- "$want" "$d/err" || fail "exact divergence line absent from stderr: $(cat "$d/err")"
+}
+
+# mk_qa_bd <path> <verdict> <blocking_defects yaml line(s)|-> — a QA artifact that passes every
+# other gate, so a failure names blocking_defects alone. `-` omits the key.
+mk_qa_bd() {
+  {
+    printf -- '---\nhandoff:\n  stage: QA\n  verdict: %s\n' "$2"
+    [ "$3" = "-" ] || printf '%s\n' "$3"
+    printf '  summary: "blocking_defects fixture"\n'
+    printf '  tests_executed: [{ runner: bats, count: 3, summary_line: "1..3" }]\n'
+    printf '  files_touched: [a.sh]\n  key_decisions: []\n  open_questions: []\n'
+    printf '  refs: { results: testing-0.md#results }\n---\n\n# QA\n\n### verification-command\n\n1..3\n'
+    anchor_h2s QA
+    printf '\n## elicitation-sweep\n\nnothing to ask\n'
+  } > "$1"
+}
+
+# _bd_run <file> <hide yes|no> — the validator on one host shape.
+_bd_run() {
+  if [ "$2" = yes ]; then
+    run_script_env --separate-stderr --hide yq "$SCRIPT" --validate-frontmatter "$1"
+  else
+    run_script_env --separate-stderr "$SCRIPT" --validate-frontmatter "$1"
+  fi
+}
+
+@test "blocking_defects: a QA no-go with the list absent, empty or not a list fails by name, with and without yq" {
+  local spec name bd hide
+  local want='fail: stage=QA verdict=no-go requires handoff.blocking_defects: a non-empty list, one string per defect'
+  for spec in 'absent|-' 'empty|  blocking_defects: []  # required on no-go; one string per defect' \
+    'scalar|  blocking_defects: "AC-3 fails"' 'null|  blocking_defects: ~'; do
+    name="${spec%%|*}" bd="${spec#*|}"
+    mk_qa_bd "$WD/bd-$name.md" no-go "$bd"
+    for hide in no yes; do
+      _bd_run "$WD/bd-$name.md" "$hide"
+      [ "$status" -eq 1 ] || fail "$name (hide yq: $hide): exit $status, want 1: $stderr"
+      [[ "$stderr" == *"$want"* ]] || fail "$name (hide yq: $hide): no '$want' in: $stderr"
+    done
+  done
+}
+
+@test "blocking_defects: an empty, blank or mapping entry fails per entry, with and without yq" {
+  local hide
+  mk_qa_bd "$WD/bd-entries.md" no-go '  blocking_defects:
+    - ""
+    - "AC-3 fails: x"
+    - { id: d1, summary: "a map" }
+    - "   "'
+  for hide in no yes; do
+    _bd_run "$WD/bd-entries.md" "$hide"
+    [ "$status" -eq 1 ] || fail "hide yq: $hide: exit $status, want 1: $stderr"
+    [[ "$stderr" == *"handoff.blocking_defects[0] is empty or not a string"* ]] || fail "[0] ($hide): $stderr"
+    [[ "$stderr" != *"handoff.blocking_defects[1]"* ]] || fail "[1] flagged ($hide): $stderr"
+    [[ "$stderr" == *"handoff.blocking_defects[2] is empty or not a string"* ]] || fail "[2] ($hide): $stderr"
+    [[ "$stderr" == *"handoff.blocking_defects[3] is empty or not a string"* ]] || fail "[3] ($hide): $stderr"
+  done
+}
+
+@test "blocking_defects: one string per defect passes, and a QA go needs no list, with and without yq" {
+  local hide
+  mk_qa_bd "$WD/bd-ok.md" no-go '  blocking_defects:
+    - "AC-3 fails: x"'
+  mk_qa_bd "$WD/bd-flow.md" no-go '  blocking_defects: ["AC-3 fails: x", "missing test for y"]'
+  mk_qa_bd "$WD/bd-go.md" go -
+  for hide in no yes; do
+    _bd_run "$WD/bd-ok.md" "$hide"
+    [ "$status" -eq 0 ] || fail "one string (hide yq: $hide): exit $status: $stderr"
+    _bd_run "$WD/bd-flow.md" "$hide"
+    [ "$status" -eq 0 ] || fail "flow list (hide yq: $hide): exit $status: $stderr"
+    _bd_run "$WD/bd-go.md" "$hide"
+    [ "$status" -eq 0 ] || fail "go (hide yq: $hide): exit $status: $stderr"
+  done
+}
+
+@test "blocking_defects: a stage other than QA is never asked for the list" {
+  sed 's/^  verdict: .*/  verdict: no-go/' "$WD/development-0.md" > "$WD/dv-nogo.md"
+  run_script_env --separate-stderr "$SCRIPT" --validate-frontmatter "$WD/dv-nogo.md"
+  [[ "$stderr" != *"blocking_defects"* ]] || fail "a DV artifact was checked for blocking_defects: $stderr"
+}
+
+@test "blocking_defects: the QA native-UI no-go fixtures carry the list and pass the check" {
+  local f
+  for f in testing-0 testing-bad-reason; do
+    run_script_env --separate-stderr "$SCRIPT" --validate-frontmatter \
+      "$FIXTURES/skills/qa-native-ui-legs/$f.md"
+    [[ "$stderr" != *"blocking_defects"* ]] || fail "$f: $stderr"
+  done
+}
+
+# mk_dv_ac <path> <fence lines> [row lines...] — the shared DV fixture plus an acceptance-commands
+# section, so a failure names the acceptance arm alone.
+mk_dv_ac() {
+  local out="$1" fence="$2"; shift 2
+  { cat "$FIXTURES/worktask/development-0.sample.md"
+    printf '\n## acceptance-commands\n\n```bash\n%s\n```\n\n' "$fence"
+    [ "$#" -eq 0 ] || printf '%s\n' "$@"; } > "$out"
+}
+
+@test "dv-acceptance: one fail line per self-check finding, exit 1, with and without yq" {
+  local hide
+  mk_dv_ac "$WD/dv-ac.md" "$(printf 'test -f missing.txt\ntest -s out.txt\ngrep -q x f || true')" \
+    "- exit=1 test -f missing.txt" "- exit=0 grep -q x f || true"
+  for hide in no yes; do
+    _bd_run "$WD/dv-ac.md" "$hide"
+    [ "$status" -eq 1 ] || fail "hide yq: $hide: exit $status, want 1: $stderr"
+    [[ "$stderr" == *"fail: stage=DV acceptance failed: test -f missing.txt — "* ]] || fail "failed ($hide): $stderr"
+    [[ "$stderr" == *"fail: stage=DV acceptance missing: test -s out.txt — "* ]] || fail "missing ($hide): $stderr"
+    [[ "$stderr" == *"fail: stage=DV acceptance fail-open: grep -q x f || true — "* ]] || fail "fail-open ($hide): $stderr"
+    [ "$(grep -c 'stage=DV acceptance' <<< "$stderr")" -eq 3 ] || fail "want 3 lines ($hide): $stderr"
+  done
+}
+
+@test "dv-acceptance: every row exit 0 and no fail-open tail passes, from a foreign cwd" {
+  mk_dv_ac "$WD/dv-ac-ok.md" 'test -f missing.txt' "- exit=0 test -f missing.txt"
+  run_script_env --separate-stderr --cwd "$BATS_TEST_TMPDIR" "$PLUGIN_ROOT/$SCRIPT" \
+    --validate-frontmatter "$WD/dv-ac-ok.md"
+  [ "$status" -eq 0 ] || fail "exit $status: $stderr"
+  [[ "$stderr" != *"acceptance"* ]] || fail "$stderr"
+  run_script_env --separate-stderr --cwd "$BATS_TEST_TMPDIR" "$PLUGIN_ROOT/$SCRIPT" \
+    --validate-frontmatter "$WD/development-0.md"
+  [ "$status" -eq 0 ] || fail "no-fence fixture: exit $status: $stderr"
+}
+
+@test "dv-acceptance: a stage other than DV is never self-checked" {
+  mk_qa_bd "$WD/qa-ac.md" go -
+  printf '\n## acceptance-commands\n\n```bash\ntest -f missing.txt\n```\n' >> "$WD/qa-ac.md"
+  run_script_env --separate-stderr "$SCRIPT" --validate-frontmatter "$WD/qa-ac.md"
+  [ "$status" -eq 0 ] || fail "exit $status: $stderr"
+  [[ "$stderr" != *"acceptance"* ]] || fail "$stderr"
+}
+
+@test "dv-acceptance: an unreachable acceptance-check.sh fails closed" {
+  local p="$BATS_TEST_TMPDIR/plugin/skills/worktask"
+  mkdir -p "$p"
+  cp -R "$PLUGIN_ROOT/skills/worktask/scripts" "$p/"
+  rm "$p/scripts/acceptance-check.sh"
+  mk_dv_ac "$WD/dv-ac-ok.md" 'test -f missing.txt' "- exit=0 test -f missing.txt"
+  run_script_env --separate-stderr "$p/scripts/handoff-harness.sh" --validate-frontmatter "$WD/dv-ac-ok.md"
+  [ "$status" -eq 1 ] || fail "exit $status: $stderr"
+  [[ "$stderr" == *"fail: stage=DV acceptance gate cannot run: acceptance-check.sh unreachable"* ]] || fail "$stderr"
 }

@@ -187,6 +187,12 @@ evidence is invisible; `probe_timeout`/`token_invalid` is resolved by exporting
   PR head is the **planned** name PL0 stamped on the ledger, never a live `git rev-parse` of FN's
   own cwd. Validate the value first (below).
 - **Workspace mode**: create the PR from the workspace/worktree branch.
+##### Ledger and close
+
+- **Record the PR on the ledger**: right after `gh pr create` succeeds, run
+  `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --ledger-meta --set '{"pr_url":"<url>"}'`
+  with the URL `gh pr create` printed. The completion comment resolves the PR from it when the
+  checkout is not on the PR head branch.
 - **Record the close a non-default base needs**: GitHub honours `Closes #N` only on a merge into
   the DEFAULT branch. FN opens the PR and does not merge it, so it never closes the issue. Run
   `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh issue-close-required`; on `yes` record the printed `gh issue close <N>` as an
@@ -297,6 +303,7 @@ Before marking FN complete:
 ### PR, branch and evidence
 
 - [ ] `complete-summary-N.md ## artifacts` carries the PR URL, and `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/fn-preflight.sh all` exited 0 on the body that reached `gh pr create`
+- [ ] The ledger carries `metadata.pr_url` (`state-patch.sh --ledger-meta`) so the completion comment finds the PR off the head branch
 - [ ] Branch continuity validated before merge/push (ancestor check passed, OR cherry-pick
       fallback used AND documented in `complete-summary-N.md`; multi-stream arm: every stream
       `stream_merged`)

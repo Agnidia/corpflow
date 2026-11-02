@@ -6,9 +6,9 @@ Each group's `actions:` line is the registry: `tests/shell/skills/agent-coordina
 
 ## Orchestrator — stage loop
 
-Writers: `skills/worktask/SKILL.md` Steps 4–7 and § Hand-back guard, `commands/worktask.md`, `skills/megatask/SKILL.md` (track hold).
+Writers: `skills/worktask/SKILL.md` Steps 4–7 and § Hand-back guard, `commands/worktask.md`, `skills/megatask/SKILL.md` (track hold), `brief-compose.sh` (`gate_remediation_injected`).
 
-actions: `worktask_init`, `stage_transition`, `approval_received`, `resume`, `stage_replay`, `permission_mode_pinned`, `dispatch_depth_projected`, `stage_returned_incomplete`, `reattach_send_result`, `gate_remediation_injected`, `dv_checkpoint_resume`, `dv_worktree_enforced`, `dv_test_scope_enforced`, `stage_test_ban_enforced`, `brief_compose_failed`, `model_resolution_constrained`, `artifact_path_resolved`, `routing_override`, `routing_override_partial`, `effort_clamped`, `resolver_skipped`, `workspace_path_unstamped`, `worktree_isolation_waived`, `handback_guard`
+actions: `worktask_init`, `stage_transition`, `approval_received`, `resume`, `stage_replay`, `permission_mode_pinned`, `dispatch_depth_projected`, `stage_returned_incomplete`, `reattach_send_result`, `gate_remediation_injected`, `dv_checkpoint_resume`, `dv_worktree_enforced`, `dv_test_scope_enforced`, `stage_test_ban_enforced`, `brief_compose_failed`, `model_resolution_constrained`, `artifact_path_resolved`, `routing_override`, `routing_override_partial`, `effort_clamped`, `resolver_skipped`, `workspace_path_unstamped`, `worktree_isolation_waived`, `handback_guard`, `consult_divergence`
 
 ## Orchestrator — parks, mailbox and contracts
 
@@ -48,15 +48,15 @@ actions: `artifact_created`, `error_recorded`, `retry_attempt`, `escalation`, `f
 
 ## Ledger scripts
 
-Writers: `state-patch.sh`, `handoff-harness.sh`.
+Writers: `state-patch.sh`, `handoff-harness.sh`, `hook-install.sh` (`hook_refreshed`).
 
-actions: `facts_items_rejected`, `lock_release_foreign`, `state_write_unlocked`, `model_override`, `model_override_unknown`, `model_override_unparsed`, `model_unresolved`, `count_corroboration`
+actions: `facts_items_rejected`, `lock_release_foreign`, `state_write_unlocked`, `model_override`, `model_override_unknown`, `model_override_unparsed`, `model_unresolved`, `count_corroboration`, `hook_refreshed`
 
 ## Plugin hooks
 
 Writers: `hooks/`: audit-subagent, audit-tooluse, precompact, agent-stop, state-merge, session-end-finalize, test-execution-gate.
 
-actions: `subagent_stopped`, `subagent_stops_suppressed`, `tool_invoked`, `precompact_checkpoint`, `stage_completion_hook`, `state_repair`, `state_merge_noop`, `session_end_finalize`, `test_execution_blocked`, `test_execution_deduped`, `test_dedupe_skipped_zero_prior`, `test_delegation_observed`, `test_gate_disabled`, `test_dedupe_disabled`
+actions: `subagent_stopped`, `subagent_stops_suppressed`, `tool_invoked`, `precompact_checkpoint`, `stage_completion_hook`, `state_repair`, `session_end_finalize`, `test_execution_blocked`, `test_execution_deduped`, `test_dedupe_skipped_zero_prior`, `test_delegation_observed`, `test_gate_disabled`, `test_dedupe_disabled`
 
 ## Plugin hooks — model switch, decisions, DV gates
 

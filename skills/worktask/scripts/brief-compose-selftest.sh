@@ -293,6 +293,43 @@ EOF
   check "refs: context_refs non-array JSON string exits 2" [ "$rc10" -eq 2 ]
   check "refs: context_refs non-array JSON string prints no stdout" [ -z "$out10" ]
 
+  # ---- refs: PL0-seeded context_refs repeating the plan refs and AR0's decisions ref
+  # compose to one ref: line per value, first occurrence kept in place ----
+  local d11="$td/ac1e"
+  mkdir -p "$d11/.context"
+  cp "$d1/.context/planning-0.md" "$d11/.context/planning-0.md"
+  printf '## decisions\n\nFixture decision.\n' > "$d11/.context/architecture-0.md"
+  printf '## findings\n\nFixture finding.\n' > "$d11/.context/research-0.md"
+  cat > "$d11/.context/state.json" << EOF
+{
+  "worktask_id": "brief-compose-selftest",
+  "plan_file": ".context/planning-0.md",
+  "run_index": 0,
+  "tasks": {
+    "AR0": {"status": "completed", "metadata": {"stage": "AR", "run_index": 0}},
+    "DV0": {
+      "metadata": {
+        "stage": "DV",
+        "model": "opus",
+        "run_index": 0,
+        "workspace_path": "$d11",
+        "context_refs": ["planning-0.md#requirements", "research-0.md#findings",
+          "planning-0.md#acceptance-criteria", "architecture-0.md#decisions"]
+      }
+    }
+  }
+}
+EOF
+  local out11 rc11=0 refs11
+  out11=$(bash "$SELF" DV0 --state "$d11/.context/state.json" --orch-root "$d11" 2>/dev/null) || rc11=$?
+  refs11=$(extract_section "$out11" "task-description" | grep '^ref: ' | grep -v 'stage-contracts\|^ref: agents/' || true)
+  check "refs: dedup fixture composes (exit 0)" [ "$rc11" -eq 0 ]
+  check "refs: no ref: line repeats in the brief" \
+    str_eq "" "$(grep '^ref: ' <<< "$out11" | sort | uniq -d)"
+  check "refs: first occurrences keep their relative order" \
+    str_eq "$(printf 'ref: %s\n' planning-0.md#requirements planning-0.md#acceptance-criteria \
+      research-0.md#findings architecture-0.md#decisions)" "$refs11"
+
   # ---- guard: absolute-path guard — off-root fails closed, on-root passes ----
   local d2="$td/ac2"
   mkdir -p "$d2/.context"

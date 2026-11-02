@@ -2,7 +2,28 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [4.1.4] — 2026-11-02
+
+### Changed
+
+- Require Claude Code 2.1.316+ (was 2.1.303+), and raise the `headless-dispatch.sh` floor to match: below 2.1.314 a `claude -p` that failed at startup exited 0 with no output and read as a successful run.
+- Integrate Claude Code 2.1.304→2.1.316: document `CLAUDE_CODE_SUBAGENT_EFFORT`, the lower-only subagent `autoCompactWindow`, the single `SubagentStop`, Bash hooks on `Monitor` commands (the test gate covers them unchanged), the reattach and `/rename` fixes, and `ultrathink` = `xhigh`.
+- Cache an admin effort cap: Step 6.5b-cap writes `facts.capabilities.effort_cap.<model>` when a stage ran below its requested tier, and `effort-route.sh --cap` lowers later requests to it (`capped_from` records the original).
+- Shorten the worktask completion comment: `attach-visual-evidence.sh --post completion` adds a `PR: <url>` line (only a github.com PR URL naming this repository) and posts the first `## summary` paragraph, else `facts.goal`, else the PR title, capped at 300 characters (keeping the last whole word that fits) instead of the whole FN summary file.
+
+### Fixed
+
+- Report a headless child that failed before its stream-json `init` event as `startup_failed` instead of `exit_before_artifact`, and match the CLI's own `--agent '<id>' not found` line as `agent_unresolved`.
+- Match a resume row by `name` only when exactly one live row carries it: `stale-check.sh` reads a name two rows share as `liveness-unknown`, never as a first-match hit.
+- Hide the 28 Codex adapter skills from the Claude Code `/` menu: each `skills/<name>/SKILL.md` that shadows a `commands/<name>.md` sets `user-invocable: false`, stays model-invocable, and `codex-compat.bats` fails an adapter without it. Plugin version 4.1.4.
+- Silence stage-less SubagentStops in `state-merge.sh`: with neither stage nor artifact the hook exits 0 before delegating, so no WARN line, audit row or sentinel is written (#522).
+- Post the completion comment when the checkout is off the PR head branch: FN records `metadata.pr_url` on the ledger and `attach-visual-evidence.sh --post completion` falls back to it (#519).
+- Accept the optional `info` severity in `consultant-return.v1`: the validator takes an `info` count and `info` findings, and four-key returns keep byte-identical output (#520).
+- Reconcile the AR consult section with `key_decisions`: AR gains a reconcile step and checkbox, the consult prompt passes decision ids to cite, and `handoff-harness.sh` warns on an AR consult line that cites an id and contradicts it (#518).
+- Run DV acceptance commands green before handoff, and require them to fail closed: `acceptance-check.sh --dv` alone checks DV's own `- exit=<n>` rows, both modes report a `|| true`/`|| :`/`|| echo`/`|| printf` tail as `fail-open:`, and `handoff-harness.sh --validate-frontmatter` fails a DV artifact on each finding (#524).
+- Refresh a stale project copy of `state-merge.sh` at worktask start: Step 3b and the initialization snippet run `hook-install.sh` instead of copying only when missing, and each replace writes one `hook_refreshed` audit row naming the recovery source (#523).
+- Stop charging DV prose for extra test runners: the `tests_executed` budget exclusion is 24 tokens per entry for up to eight entries instead of a flat 96, and the advisory ceiling moves from 360 to 456.
+- Anchor DV acceptance-command patterns to the whole token, and re-derive the list from the current code on every rework round, so a later sibling name cannot leave a command stale.
 
 ## [4.1.3] — 2026-10-19
 

@@ -2,6 +2,7 @@
 name: ethics-review
 description: Use when the user invokes $ethics-review or asks for the canonical Corpflow ethics-review workflow.
 argument-hint: "[<target>] [--lens full|harm] [--focus safety|honesty|harm|autonomy|all] [--stakeholders users|operators|society|all] [--include-benefits true|false] [--mitigation true|false] [--output summary|detailed|checklist|matrix]"
+user-invocable: false
 ---
 
 # ethics-review (Codex adapter)

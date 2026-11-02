@@ -40,6 +40,10 @@ MD
   #   $GH_PR_BODY    → PR body for keyword scan + title/body fallback
   #   $GH_PR_REFS    → space-separated issue numbers for closingIssuesReferences
   #   $GH_PR_TITLE   → PR title (title,body fallback)
+  #   $GH_NO_CURRENT_PR → a ref-less `pr view` fails; $GH_PR_BODY_<n>/$GH_PR_TITLE_<n> → data
+  #                   for PR <n>; $GH_CALL_LOG → file receiving every `pr view` argv
+  #   $GH_PR_URL     → answer to `pr view --json url`; $GH_URL_FAIL=1 → that call fails
+  #   $GH_BODY_DIR   → dir receiving each posted body byte-exact, one file per issue
   #   $GH_FAIL_ISSUES→ space-separated issue numbers whose `issue comment` fails
   _mk_gh() { # $1=dir
     cat > "$1/bin/gh" <<'MOCK'
@@ -57,9 +61,24 @@ _store() {
 }
 case "$1 $2" in
   "pr view")
+    [ -n "${GH_CALL_LOG:-}" ] && printf '%s\n' "$*" >> "$GH_CALL_LOG"
+    # Ref-less call = the checkout's branch PR (the ledger pr_url is the fallback). GH_NO_CURRENT_PR=1 → none.
+    case "${3:-}" in
+      --*) [ -n "${GH_NO_CURRENT_PR:-}" ] && exit 1 ;;
+      *)   # per-ref data: GH_PR_BODY_<n>, GH_PR_TITLE_<n> (n = trailing number of the ref)
+           _n=${3##*/}; _b="GH_PR_BODY_$_n"; _t="GH_PR_TITLE_$_n"
+           if [ -n "${!_b:-}" ] || [ -n "${!_t:-}" ]; then
+             GH_PR_BODY=${!_b:-}; GH_PR_TITLE=${!_t:-}
+           fi ;;
+    esac
     # Determine which --json field was asked for.
     if printf '%s' "$*" | grep -q 'closingIssuesReferences'; then
       for n in ${GH_PR_REFS:-}; do printf '%s\n' "$n"; done
+    elif printf '%s' "$*" | grep -q -- '--json url'; then
+      [ -n "${GH_URL_FAIL:-}" ] && exit 1
+      printf '%s\n' "${GH_PR_URL:-}"
+    elif printf '%s' "$*" | grep -q -- '--json title --jq'; then
+      printf '%s\n' "${GH_PR_TITLE:-}"
     elif printf '%s' "$*" | grep -q 'title,body'; then
       printf '%s\n\n%s\n' "${GH_PR_TITLE:-}" "${GH_PR_BODY:-}"
     else
@@ -74,8 +93,13 @@ case "$1 $2" in
   "issue comment")
     # Simulated failure for selected issues (f12).
     for f in ${GH_FAIL_ISSUES:-}; do [ "$f" = "$3" ] && exit 1; done
-    body=$(cat); s=$(_store "$3"); printf '%s\n' "$body" >> "$s"
+    # $GH_BODY_DIR keeps the stdin bytes verbatim (command substitution would strip
+    # trailing newlines), so a case can assert nothing follows the final character.
+    _raw=$(mktemp); cat > "$_raw"; body=$(cat "$_raw"); s=$(_store "$3"); printf '%s\n' "$body" >> "$s"
+    [ -n "${GH_BODY_DIR:-}" ] && cp "$_raw" "$GH_BODY_DIR/$3"
+    rm -f "$_raw"
     echo "https://github.com/o/r/issues/$3#comment-1"; exit 0 ;;
+  "repo view") echo "${GH_ORIGIN_REPO:-o/r}"; exit 0 ;;
   "auth status") exit 0 ;;
 esac
 exit 0
@@ -276,15 +300,17 @@ MD
     && mv "$d11/.context/state.json.t" "$d11/.context/state.json"
   mkdir -p "$d11/bin" "$d11/markers"; _mk_gh "$d11"
   ( PATH="$d11/bin:$PATH" STATE_FILE="$d11/.context/state.json" WORKSPACE_ROOT="$d11" \
-    GH_BIN=gh GH_MARKER_DIR="$d11/markers" GH_PR_BODY="Closes #10" GH_PR_REFS="" DRY_RUN=1 \
+    GH_BIN=gh GH_MARKER_DIR="$d11/markers" GH_PR_BODY="Closes #10 B-BODY" GH_PR_TITLE="T-TITLE" GH_PR_REFS="" DRY_RUN=1 \
     bash "$self" --post completion >/dev/null 2>&1 )
   local f11_ok=1
   [ -f "$d11/markers/10" ] || f11_ok=0
-  # Summary present (heading), but NO image embeds and NO hosting note spam.
+  # Short summary (title fallback), but NO image embeds and NO hosting note spam.
   grep -qF "## Worktask completed" "$d11/markers/10" || f11_ok=0
   grep -qE '!\[' "$d11/markers/10" && f11_ok=0
   grep -qi 'inline hosting unavailable' "$d11/markers/10" && f11_ok=0
   grep -qF "## Visual evidence" "$d11/markers/10" && f11_ok=0
+  grep -qF "T-TITLE" "$d11/markers/10" || f11_ok=0
+  grep -qF "B-BODY" "$d11/markers/10" && f11_ok=0
   if [ "$f11_ok" = "1" ]; then
     _ok "f11-completion-summary-only"
   else
@@ -370,6 +396,306 @@ MD
     _fail "f15-task-id-mime" "rc=$rc15 $(printf '%s' "$out15" | tr '\n' '~')"
   fi
   rm -rf "$d15"
+
+
+  # ---- f16-f21: ledger pr_url fallback (#519) ----
+  # Sandbox builders and runner for the ledger pr_url cases. _run_completion takes the
+  # case dir, env assignments, then `-- <args>` for --post completion.
+  _mk_ledger_case() { # $1=pr_url ; echoes dir
+    local d; d=$(_mk_sandbox)
+    jq --arg u "$1" 'if $u=="" then . else .metadata.pr_url=$u end | .metadata.requires_screenshots=false' \
+      "$d/.context/state.json" > "$d/.context/state.json.t" && mv "$d/.context/state.json.t" "$d/.context/state.json"
+    mkdir -p "$d/bin" "$d/markers"; _mk_gh "$d"
+    printf '%s' "$d"
+  }
+  _run_completion() { # $1=dir, rest: env assignments, then optional args after --
+    local d="$1"; shift
+    local envs=() args=()
+    while [ "$#" -gt 0 ] && [ "$1" != "--" ]; do envs+=("$1"); shift; done
+    [ "${1:-}" = "--" ] && shift; args=("$@")
+    ( env PATH="$d/bin:$PATH" STATE_FILE="$d/.context/state.json" WORKSPACE_ROOT="$d" \
+        GH_BIN=gh GH_MARKER_DIR="$d/markers" GH_CALL_LOG="$d/calls.log" DRY_RUN=1 ${envs[@]+"${envs[@]}"} \
+        bash "$self" --post completion ${args[@]+"${args[@]}"} >/dev/null 2>&1 )
+  }
+  _issues_commented() { find "$1/markers" -type f -exec basename {} \; 2>/dev/null | sort -n | tr '\n' ' '; }
+
+  local d16; d16=$(_mk_ledger_case "https://github.com/o/r/pull/19")
+  _run_completion "$d16" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10"
+  if [ "$(_issues_commented "$d16")" = "10 " ] && \
+     [ "$(grep -cF '<!-- completion-summary:wid-test:0:10 -->' "$d16/markers/10")" -eq 1 ] && \
+     [ "$(grep -c '"action":"completion_summary_commented".*"result":"ok"' "$d16/.context/logs/audit.jsonl")" -eq 1 ] && \
+     ! grep -q no_related_issues "$d16/.context/logs/audit.jsonl"; then
+    _ok "f16-completion-ledger-fallback"
+  else
+    _fail "f16-completion-ledger-fallback" "$(_issues_commented "$d16") $(tail -1 "$d16/.context/logs/audit.jsonl" 2>/dev/null)"
+  fi
+  rm -rf "$d16"
+
+  local d17; d17=$(_mk_ledger_case "")
+  _run_completion "$d17" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10"; local rc17=$?
+  if [ "$rc17" -eq 0 ] && [ -z "$(_issues_commented "$d17")" ] && \
+     [ "$(grep -c '"result":"skipped".*"reason":"no_related_issues"' "$d17/.context/logs/audit.jsonl")" -eq 1 ]; then
+    _ok "f17-completion-no-ledger-ref"
+  else
+    _fail "f17-completion-no-ledger-ref" "rc=$rc17 $(tail -1 "$d17/.context/logs/audit.jsonl" 2>/dev/null)"
+  fi
+  rm -rf "$d17"
+
+  local d18; d18=$(_mk_ledger_case "19")
+  _run_completion "$d18" GH_PR_BODY="Closes #12" GH_PR_BODY_19="Closes #10"
+  if [ "$(_issues_commented "$d18")" = "12 " ]; then
+    _ok "f18-completion-current-branch-wins"
+  else
+    _fail "f18-completion-current-branch-wins" "$(_issues_commented "$d18")"
+  fi
+  rm -rf "$d18"
+
+  local d19; d19=$(_mk_ledger_case "19")
+  _run_completion "$d19" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" GH_PR_BODY_21="Closes #14" -- 21
+  if [ "$(_issues_commented "$d19")" = "14 " ]; then
+    _ok "f19-completion-argument-wins"
+  else
+    _fail "f19-completion-argument-wins" "$(_issues_commented "$d19")"
+  fi
+  rm -rf "$d19"
+
+  # f22: a hostile <pr-ref> ARGUMENT is dropped like a hostile ledger value.
+  local d22; d22=$(_mk_ledger_case "")
+  _run_completion "$d22" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- '--repo=evil/x'; local rc22=$?
+  if [ "$rc22" -eq 0 ] && [ -z "$(_issues_commented "$d22")" ] && \
+     ! grep -qF -- 'evil' "$d22/calls.log" 2>/dev/null && \
+     grep -q '"reason":"no_related_issues"' "$d22/.context/logs/audit.jsonl"; then
+    _ok "f22-completion-argument-validated"
+  else
+    _fail "f22-completion-argument-validated" "rc=$rc22 $(cat "$d22/calls.log" 2>/dev/null | tr '\n' '~')"
+  fi
+  rm -rf "$d22"
+
+  local d22b; d22b=$(_mk_ledger_case "")
+  _run_completion "$d22b" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- $'--repo=evil/x\n19'; local rc22b=$?
+  if [ "$rc22b" -eq 0 ] && [ -z "$(_issues_commented "$d22b")" ] && \
+     ! grep -qF -- 'evil' "$d22b/calls.log" 2>/dev/null && \
+     grep -q '"reason":"no_related_issues"' "$d22b/.context/logs/audit.jsonl"; then
+    _ok "f22b-completion-multiline-argument-validated"
+  else
+    _fail "f22b-completion-multiline-argument-validated" "rc=$rc22b"
+  fi
+  rm -rf "$d22b"
+
+  # f24: a foreign-repo PR URL (ledger value or argument) counts as absent; origin match is case-insensitive.
+  local d24 rc24 d24b rc24b d24c
+  d24=$(_mk_ledger_case "https://github.com/other/repo/pull/19")
+  _run_completion "$d24" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10"; rc24=$?
+  d24b=$(_mk_ledger_case "")
+  _run_completion "$d24b" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- https://github.com/other/repo/pull/19; rc24b=$?
+  d24c=$(_mk_ledger_case "https://github.com/O/R/pull/19")
+  _run_completion "$d24c" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10"
+  if [ "$rc24" -eq 0 ] && [ "$rc24b" -eq 0 ] && \
+     [ -z "$(_issues_commented "$d24")" ] && [ -z "$(_issues_commented "$d24b")" ] && \
+     ! grep -q 'other/repo' "$d24/calls.log" 2>/dev/null && \
+     grep -q '"reason":"no_related_issues"' "$d24/.context/logs/audit.jsonl" && \
+     grep -q '"reason":"no_related_issues"' "$d24b/.context/logs/audit.jsonl" && \
+     [ "$(_issues_commented "$d24c")" = "10 " ]; then
+    _ok "f24-completion-foreign-repo-url-dropped"
+  else
+    _fail "f24-completion-foreign-repo-url-dropped" "$(_issues_commented "$d24")|$(_issues_commented "$d24b")|$(_issues_commented "$d24c")"
+  fi
+  rm -rf "$d24" "$d24b" "$d24c"
+
+  # f23: the current-branch PR exists but closes nothing → the ledger PR still wins.
+  local d23; d23=$(_mk_ledger_case "19")
+  _run_completion "$d23" GH_PR_BODY="no keywords" GH_PR_BODY_19="Closes #10"
+  if [ "$(_issues_commented "$d23")" = "10 " ]; then
+    _ok "f23-completion-empty-branch-pr-falls-through"
+  else
+    _fail "f23-completion-empty-branch-pr-falls-through" "$(_issues_commented "$d23")"
+  fi
+  rm -rf "$d23"
+
+  local f20_ok=1 v20 d20 rc20
+  # The two-line value has a valid last line: a per-line matcher would accept it.
+  for v20 in '--repo=evil/x' '19; touch pwned' $'--repo=evil/x\n19'; do
+    d20=$(_mk_ledger_case "$v20")
+    _run_completion "$d20" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10"; rc20=$?
+    [ "$rc20" -eq 0 ] || f20_ok=0
+    [ -z "$(_issues_commented "$d20")" ] || f20_ok=0
+    [ ! -e "$d20/pwned" ] && [ ! -e pwned ] || f20_ok=0
+    grep -qF -- "${v20%%$'\n'*}" "$d20/calls.log" 2>/dev/null && f20_ok=0
+    grep -q '"reason":"no_related_issues"' "$d20/.context/logs/audit.jsonl" || f20_ok=0
+    rm -rf "$d20"
+  done
+  if [ "$f20_ok" = "1" ]; then
+    _ok "f20-completion-ledger-ref-validated"
+  else
+    _fail "f20-completion-ledger-ref-validated"
+  fi
+
+  local d21; d21=$(_mk_ledger_case "https://github.com/o/r/pull/19")
+  _run_completion "$d21" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" GH_PR_TITLE_19=RIGHT GH_PR_TITLE=WRONG
+  if grep -q RIGHT "$d21/markers/10" 2>/dev/null && ! grep -q WRONG "$d21/markers/10" 2>/dev/null; then
+    _ok "f21-completion-summary-uses-ledger-pr"
+  else
+    _fail "f21-completion-summary-uses-ledger-pr" "$(tr '\n' '~' < "$d21/markers/10" 2>/dev/null)"
+  fi
+  rm -rf "$d21"
+
+  # ---- f30-f36: PR line + 300-char short summary ----
+  # _mk_short_case <summary-file-content|""> : ledger-less sandbox, screenshots off.
+  _mk_short_case() {
+    local d; d=$(_mk_sandbox)
+    jq '.metadata.requires_screenshots=false' "$d/.context/state.json" > "$d/.context/state.json.t" \
+      && mv "$d/.context/state.json.t" "$d/.context/state.json"
+    [ -n "${1:-}" ] && printf '%s\n' "$1" > "$d/.context/complete-summary-0.md"
+    mkdir -p "$d/bin" "$d/markers"; _mk_gh "$d"
+    printf '%s' "$d"
+  }
+  _short_summary() { # $1=dir ; the line after the heading/PR line (last line of the comment)
+    tail -n 1 "$1/markers/10" 2>/dev/null
+  }
+  local SUMM=$'# Done\n\n## summary\n\nAdds the X step.\n\n## artifacts\n\nARTIFACT-LINE'
+
+  local d30 f30_ok=1; d30=$(_mk_short_case "$SUMM"); mkdir -p "$d30/raw"
+  _run_completion "$d30" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" GH_PR_URL=https://github.com/o/r/pull/19 GH_BODY_DIR="$d30/raw" -- 19
+  printf '<!-- completion-summary:wid-test:0:10 -->\n## Worktask completed\n\nPR: https://github.com/o/r/pull/19\n\nAdds the X step.' > "$d30/expected"
+  cmp -s "$d30/raw/10" "$d30/expected" || f30_ok=0
+  if [ "$f30_ok" = "1" ]; then
+    _ok "f30-completion-pr-line"
+  else
+    _fail "f30-completion-pr-line" "$(od -c "$d30/raw/10" 2>/dev/null | tail -3 | tr '\n' '~')"
+  fi
+  rm -rf "$d30"
+
+  local d31 d31b d31c exp31 f31_ok=1; exp31=$(printf '<!-- completion-summary:wid-test:0:10 -->\n## Worktask completed\n\nAdds the X step.\n')
+  d31=$(_mk_short_case "$SUMM"); d31b=$(_mk_short_case "$SUMM"); d31c=$(_mk_short_case "$SUMM")
+  _run_completion "$d31" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" GH_URL_FAIL=1 -- 19
+  _run_completion "$d31b" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" GH_PR_URL=https://github.com/x/y/pull/1 -- 19
+  _run_completion "$d31c" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" GH_PR_URL=--repo=x -- 19
+  for dd in "$d31" "$d31b" "$d31c"; do
+    [ "$(cat "$dd/markers/10" 2>/dev/null)" = "$exp31" ] || f31_ok=0
+  done
+  if [ "$f31_ok" = "1" ]; then _ok "f31-completion-no-pr-line"; else _fail "f31-completion-no-pr-line" "$(tr '\n' '~' < "$d31b/markers/10" 2>/dev/null)"; fi
+  rm -rf "$d31" "$d31b" "$d31c"
+
+  local d32 f32_ok=1; d32=$(_mk_short_case $'## summary\nline one\nline two\n  line three\n\n## artifacts\nARTIFACT-LINE')
+  _run_completion "$d32" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- 19
+  [ "$(_short_summary "$d32")" = "line one line two line three" ] || f32_ok=0
+  grep -qF "ARTIFACT-LINE" "$d32/markers/10" && f32_ok=0
+  grep -qF "## artifacts" "$d32/markers/10" && f32_ok=0
+  if [ "$f32_ok" = "1" ]; then _ok "f32-completion-paragraph"; else _fail "f32-completion-paragraph" "$(tr '\n' '~' < "$d32/markers/10" 2>/dev/null)"; fi
+  rm -rf "$d32"
+
+  local para450 para300 d33 d33b f33_ok=1 got33 pre33 rest33
+  para450=$(awk 'BEGIN{for(i=1;i<=75;i++) printf "word%02d ", i}' | sed 's/ $//')   # 75 x 7 - 1 = 524 chars
+  para300=$(printf 'a%.0s' $(seq 1 300))
+  d33=$(_mk_short_case $'## summary\n'"$para450"); d33b=$(_mk_short_case $'## summary\n'"$para300")
+  _run_completion "$d33" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- 19
+  _run_completion "$d33b" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- 19
+  got33=$(_short_summary "$d33"); pre33=${got33%...}
+  [ "${#got33}" -le 303 ] && [ "$got33" != "$pre33" ] || f33_ok=0
+  case "$para450" in "$pre33"*) ;; *) f33_ok=0 ;; esac
+  case "$pre33" in *" ") f33_ok=0 ;; esac
+  rest33=${para450#"$pre33"}; [ "${rest33:0:1}" = " " ] || f33_ok=0
+  [ "$(_short_summary "$d33b")" = "$para300" ] || f33_ok=0
+  if [ "$f33_ok" = "1" ]; then _ok "f33-completion-truncate"; else _fail "f33-completion-truncate" "$got33"; fi
+  rm -rf "$d33" "$d33b"
+
+  # Hard cut with no whitespace must not split a multibyte character (400 x U+00E9).
+  local d33c longmb f33c_ok=1; longmb=$(awk 'BEGIN{for(i=0;i<400;i++) printf "\303\251"}')
+  d33c=$(_mk_short_case $'## summary\n'"$longmb")
+  _run_completion "$d33c" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- 19
+  got33=$(_short_summary "$d33c")
+  [ "$(printf '%s' "${got33%...}" | LC_ALL=C awk '{print length($0)}')" -eq 600 ] || f33c_ok=0
+  case "$got33" in *...) ;; *) f33c_ok=0 ;; esac
+  printf '%s' "${got33%...}" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1 || f33c_ok=0
+  if [ "$f33c_ok" = "1" ]; then _ok "f33c-completion-hardcut-multibyte"; else _fail "f33c-completion-hardcut-multibyte" "$(printf '%s' "$got33" | wc -c)"; fi
+  rm -rf "$d33c"
+
+  local d34 d34b d34c f34_ok=1
+  d34=$(_mk_short_case ""); d34b=$(_mk_short_case ""); d34c=$(_mk_short_case "# Done"$'\n\n'"No heading here.")
+  jq '.facts.goal="Fix the Y gate"' "$d34/.context/state.json" > "$d34/s.t" && mv "$d34/s.t" "$d34/.context/state.json"
+  jq '.facts.goal="Fix the Y gate"' "$d34c/.context/state.json" > "$d34c/s.t" && mv "$d34c/s.t" "$d34c/.context/state.json"
+  _run_completion "$d34" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- 19
+  _run_completion "$d34b" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10 B-BODY" GH_PR_TITLE_19="T-TITLE" -- 19
+  _run_completion "$d34c" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- 19
+  [ "$(_short_summary "$d34")" = "Fix the Y gate" ] || f34_ok=0
+  [ "$(_short_summary "$d34b")" = "T-TITLE" ] || f34_ok=0
+  grep -qF "B-BODY" "$d34b/markers/10" && f34_ok=0
+  [ "$(_short_summary "$d34c")" = "Fix the Y gate" ] || f34_ok=0
+  if [ "$f34_ok" = "1" ]; then _ok "f34-completion-fallback"; else _fail "f34-completion-fallback" "$(_short_summary "$d34")|$(_short_summary "$d34b")|$(_short_summary "$d34c")"; fi
+  rm -rf "$d34" "$d34b" "$d34c"
+
+  local d35 d35b f35_ok=1 leak='Fixed /Users/a/p/.context/x.md and .context/planning-0.md, see corpflow:developer notes'
+  d35=$(_mk_short_case $'## summary\n'"$leak"$'\nKEEP-ME clean line'); d35b=$(_mk_short_case "")
+  jq --arg g "$leak"$'\nKEEP-ME' '.facts.goal=$g' "$d35b/.context/state.json" > "$d35b/s.t" && mv "$d35b/s.t" "$d35b/.context/state.json"
+  _run_completion "$d35" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- 19
+  _run_completion "$d35b" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- 19
+  for dd in "$d35" "$d35b"; do
+    grep -qF "KEEP-ME" "$dd/markers/10" || f35_ok=0   # positive control: a summary was posted
+    grep -qF "/Users/" "$dd/markers/10" && f35_ok=0
+    grep -qF ".context/" "$dd/markers/10" && f35_ok=0
+    grep -qF "corpflow:developer" "$dd/markers/10" && f35_ok=0
+  done
+  if [ "$f35_ok" = "1" ]; then _ok "f35-completion-scrub"; else _fail "f35-completion-scrub" "$(tail -n1 "$d35/markers/10" 2>/dev/null)|$(tail -n1 "$d35b/markers/10" 2>/dev/null)"; fi
+  rm -rf "$d35" "$d35b"
+
+  local d37 d37b f37_ok=1
+  d37=$(_mk_short_case $'## summary\nFixed #123 in the gate\n#tag stays prose\n\n## artifacts\nARTIFACT-LINE')
+  d37b=$(_mk_short_case "")
+  printf '# Done\r\n\r\n## summary\r\n\r\nCRLF line one\r\nCRLF line two\r\n\r\n## artifacts\r\nARTIFACT-LINE\r\n' > "$d37b/.context/complete-summary-0.md"
+  _run_completion "$d37" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- 19
+  _run_completion "$d37b" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- 19
+  [ "$(_short_summary "$d37")" = "Fixed #123 in the gate #tag stays prose" ] || f37_ok=0
+  [ "$(_short_summary "$d37b")" = "CRLF line one CRLF line two" ] || f37_ok=0
+  grep -q $'\r' "$d37b/markers/10" && f37_ok=0
+  if [ "$f37_ok" = "1" ]; then _ok "f37-completion-hash-line-and-crlf"; else _fail "f37-completion-hash-line-and-crlf" "$(_short_summary "$d37")|$(_short_summary "$d37b")"; fi
+  rm -rf "$d37" "$d37b"
+
+  # Character 301 is a space: the first 300 characters are whole words and all stay.
+  local d38 f38_ok=1 w38 exp38; w38=$(printf 'b%.0s' $(seq 1 295))
+  d38=$(_mk_short_case $'## summary\n'"$w38 abcd efgh ijkl")   # 295 + " abcd" = 300, char 301 = space
+  _run_completion "$d38" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" -- 19
+  exp38="$w38 abcd..."
+  [ "$(_short_summary "$d38")" = "$exp38" ] || f38_ok=0
+  if [ "$f38_ok" = "1" ]; then _ok "f38-completion-boundary-keeps-last-word"; else _fail "f38-completion-boundary-keeps-last-word" "$(_short_summary "$d38" | tail -c 20)"; fi
+  rm -rf "$d38"
+
+  # \r in a facts.goal or PR-title fallback must not reach the posted body (byte-exact).
+  local d39 d39b f39_ok=1 exp39
+  d39=$(_mk_short_case ""); d39b=$(_mk_short_case ""); mkdir -p "$d39/raw" "$d39b/raw"
+  jq --arg g $'Fix\rthe Y\r\ngate' '.facts.goal=$g' "$d39/.context/state.json" > "$d39/s.t" && mv "$d39/s.t" "$d39/.context/state.json"
+  _run_completion "$d39" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" GH_BODY_DIR="$d39/raw" -- 19
+  _run_completion "$d39b" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" GH_PR_TITLE_19=$'T\rTITLE\r' GH_BODY_DIR="$d39b/raw" -- 19
+  printf '<!-- completion-summary:wid-test:0:10 -->\n## Worktask completed\n\nFix the Y gate' > "$d39/expected"
+  printf '<!-- completion-summary:wid-test:0:10 -->\n## Worktask completed\n\nT TITLE' > "$d39b/expected"
+  cmp -s "$d39/raw/10" "$d39/expected" || f39_ok=0
+  cmp -s "$d39b/raw/10" "$d39b/expected" || f39_ok=0
+  if [ "$f39_ok" = "1" ]; then _ok "f39-completion-cr-in-goal-and-title"; else _fail "f39-completion-cr-in-goal-and-title" "$(od -c "$d39/raw/10" 2>/dev/null | tail -3 | tr '\n' '~')|$(od -c "$d39b/raw/10" 2>/dev/null | tail -3 | tr '\n' '~')"; fi
+  rm -rf "$d39" "$d39b"
+
+  # Two closing issues: the cached summary and PR line reach the second body byte-exact,
+  # also when the first issue is already published and the cache fills on the second.
+  local d40 d40b f40_ok=1 i
+  d40=$(_mk_short_case "$SUMM"); d40b=$(_mk_short_case "$SUMM"); mkdir -p "$d40/raw" "$d40b/raw"
+  printf '<!-- completion-summary:wid-test:0:10 -->\n' > "$d40b/markers/10"
+  _run_completion "$d40" GH_NO_CURRENT_PR=1 GH_PR_BODY_19=$'Closes #10\nCloses #12' GH_PR_URL=https://github.com/o/r/pull/19 GH_BODY_DIR="$d40/raw" -- 19
+  _run_completion "$d40b" GH_NO_CURRENT_PR=1 GH_PR_BODY_19=$'Closes #10\nCloses #12' GH_PR_URL=https://github.com/o/r/pull/19 GH_BODY_DIR="$d40b/raw" -- 19
+  for i in 10 12; do
+    printf '<!-- completion-summary:wid-test:0:%s -->\n## Worktask completed\n\nPR: https://github.com/o/r/pull/19\n\nAdds the X step.' "$i" > "$d40/expected$i"
+  done
+  cmp -s "$d40/raw/10" "$d40/expected10" || f40_ok=0
+  cmp -s "$d40/raw/12" "$d40/expected12" || f40_ok=0
+  cmp -s "$d40b/raw/12" "$d40/expected12" || f40_ok=0
+  [ -e "$d40b/raw/10" ] && f40_ok=0
+  if [ "$f40_ok" = "1" ]; then _ok "f40-completion-cached-body-second-issue"; else _fail "f40-completion-cached-body-second-issue" "$(od -c "$d40/raw/12" 2>/dev/null | tail -3 | tr '\n' '~')"; fi
+  rm -rf "$d40" "$d40b"
+
+  local d36 f36_ok=1; d36=$(_mk_short_case "$SUMM")
+  _run_completion "$d36" GH_NO_CURRENT_PR=1 GH_PR_BODY_19="Closes #10" GH_URL_FAIL=1 -- 19; local rc36=$?
+  [ "$rc36" -eq 0 ] || f36_ok=0
+  [ -f "$d36/markers/10" ] && ! grep -qF "PR:" "$d36/markers/10" || f36_ok=0
+  grep -q '"issue":10,"reason":"commented"' "$d36/.context/logs/audit.jsonl" 2>/dev/null || f36_ok=0
+  if [ "$f36_ok" = "1" ]; then _ok "f36-completion-url-lookup-fails"; else _fail "f36-completion-url-lookup-fails" "rc=$rc36"; fi
+  rm -rf "$d36"
 
   echo "attach-visual-evidence: self-test summary — pass=$pass fail=$fail"
   [ "$fail" -eq 0 ]

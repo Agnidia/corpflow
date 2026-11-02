@@ -100,14 +100,28 @@ Carve-out the marker tables don't express: a `Package.swift` with no UI imports 
 
 ### Delegation Flow
 
-0. Pass § Consult Gate (AR); a closed gate skips steps 2–4
+0. Pass § Consult Gate (AR); a closed gate skips steps 2–5
 1. Settle system-level decisions first
 2. Delegate to the platform's architect (§ Architect routing) with `model: "sonnet"`, planning context and system constraints
 3. It writes its routing-row artifact (≤80 lines, decisions only) and returns ≤300 tokens (inside the sibling contract's 500-token ceiling)
 4. Read that artifact; merge into `architecture-N.md` under `## <Platform> App Architecture` (apple: `## Swift App Architecture`)
-5. Resolve system-vs-app conflicts for the system constraint; document the trade-off in an ADR
+5. Check each merged statement that touches a `key_decisions` entry; reconcile each conflict per § Reconcile step
+6. Resolve system-vs-app conflicts for the system constraint; document the trade-off in an ADR
 
 Prompt template and merge protocol: `skills/cross-plugin-handoff/SKILL.md`.
+
+#### Reconcile step
+
+Before handoff, each conflict between a consult statement and a `key_decisions` entry ends in one of
+two states:
+
+- **Reconciled**: rewrite the wrong side. Fix a wrong consult statement in the merged section and in
+  the routing-row artifact. A right one changes the decision's `key_decisions` stub and its
+  `## decisions` entry.
+- **Swept**: you cannot tell which side is right. Raise a `decision`-class sweep item
+  `sw-AR<N>-<n>` with both versions as options.
+
+Read the uncited statements too. The stage gate warns only on a line that cites a decision id.
 
 ### Graceful Degradation
 
@@ -236,6 +250,7 @@ Before marking AR stage complete, verify:
 - [ ] `architecture-N.md` frontmatter `key_decisions` records the validated or adjusted PL score
 - [ ] `architecture-N.md ## risks` gives each technical risk a mitigation; one that blocks DV is also an `open_questions[]` entry with `blocks_next_stage: true`
 - [ ] § Consult Gate (AR) open → its architect consulted, its App Architecture section merged in; closed → outcome in `key_decisions`
+- [ ] Each consult statement that contradicts a `key_decisions` entry is reconciled, or carried as a `sw-AR<N>-<n>` sweep item (§ Reconcile step)
 - [ ] Each system-vs-app conflict resolved in `architecture-N.md ## trade-offs` or an ADR it names
 
 ## Handoff Protocol

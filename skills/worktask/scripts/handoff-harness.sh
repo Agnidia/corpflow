@@ -45,6 +45,10 @@
 #       The inverse guard (an architecture reference with no tasks.AR<N> entry)
 #       always warns and never fails, in either mode.
 #
+#       On an AR artifact, a consult line (an `## <Platform> App Architecture` section or a
+#       sibling *-architecture.md) that cites a key_decisions id and contradicts it prints one
+#       `warn: consult ...` line. It never changes the exit status, --strict included.
+#
 #       The artifact's H2 set is checked for every stage against cache-lint.sh
 #       --anchor-diff (missing required or unexpected H2 = one `fail:` line each), in both
 #       modes and with or without yq; an unreachable lint fails the gate.
@@ -62,6 +66,14 @@
 #       A handoff.blocked_on fails the same way with or without yq: an unknown kind, an
 #       unknown resume_with, or a missing or empty detail each print one `fail:` line and
 #       exit 1. The enums are blocked-on-lib.sh's.
+#
+#       A DV artifact with an `## acceptance-commands` heading runs acceptance-check.sh --dv
+#       on itself, with or without yq: one `fail: stage=DV acceptance …` line per command not
+#       recorded, recorded non-zero, or failing open, and exit 1. Other stages are unaffected.
+#
+#       A QA `verdict: no-go` needs handoff.blocking_defects as a non-empty list of non-empty
+#       strings, with or without yq: one `fail:` line for an absent, non-list or empty value,
+#       and one per bad entry. A QA `go` and every other stage are unaffected.
 #
 #   handoff-harness.sh --read-blocked-on <artifact.md>
 #       Prints the artifact's need normalized through blocked-on-lib.sh as one compact JSON
@@ -201,14 +213,16 @@ if [ ! -r "$_FM_LIB" ]; then
   printf >&2 'fail: frontmatter-lib.sh unreachable at %s — the frontmatter reader cannot run\n' "$_FM_LIB"
   exit 1
 fi
-# shellcheck source=frontmatter-lib.sh
+# SC1091 here and at the other sourced libraries: shellcheck follows a sibling file only under
+# -x, and a plain `shellcheck` run on this script must exit 0.
+# shellcheck source=frontmatter-lib.sh disable=SC1091
 . "$_FM_LIB"
 
 # Fail closed like the two libraries above: a gate that cannot scan for raw bytes must not
 # hand yq an artifact it may silently truncate at a NUL.
 _CB_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/control-byte-lib.sh"
 if [ -r "$_CB_LIB" ]; then
-  # shellcheck source=control-byte-lib.sh
+  # shellcheck source=control-byte-lib.sh disable=SC1091
   . "$_CB_LIB"
 fi
 if ! command -v cb_scan_file > /dev/null 2>&1; then
@@ -220,7 +234,7 @@ fi
 # router then refuses. Fail closed like the libraries above.
 _BO_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/blocked-on-lib.sh"
 if [ -r "$_BO_LIB" ]; then
-  # shellcheck source=blocked-on-lib.sh
+  # shellcheck source=blocked-on-lib.sh disable=SC1091
   . "$_BO_LIB"
 fi
 if ! command -v blocked_on_validate > /dev/null 2>&1; then
@@ -232,7 +246,9 @@ fi
 # usually takes, and it must reach the same verdict as yq. It reads the YAML subset a stage
 # writes — block mappings, flow mappings and sequences (JSON included), quoted and plain scalars,
 # `|`/`>` block scalars — and prints {"blocked_on":<json|null>}. Exit 1 on a value it cannot
-# parse, which the gate reports as a failure rather than reading as absent.
+# parse, which the gate reports as a failure rather than reading as absent. `-v want="k1 k2"`
+# reads other top-level handoff keys into one object, null for each one that is absent; empty
+# `want` means blocked_on.
 read -r -d '' _FM_BO_AWK << 'AWK' || true
 function jstr(s,    i, c, o, n) {
   o = ""; n = length(s)
@@ -403,7 +419,9 @@ function pblock(start, pind, seqok,    j, ind, out, first, key, v, s, rest, col,
 }
 { sub(/\r$/, ""); n++; T[n] = $0; match($0, /^ */); I[n] = RLENGTH; B[n] = ($0 ~ /^[ \t]*(#.*)?$/) }
 END {
-  bo = "null"
+  if (want == "") want = "blocked_on"
+  WN = split(want, WK, " ")
+  for (w = 1; w <= WN; w++) WV[WK[w]] = "null"
   for (h = 1; h <= n; h++) if (T[h] ~ /^handoff:[ \t]*(#.*)?$/) break
   if (h <= n) {
     ci = -1
@@ -412,14 +430,17 @@ END {
       if (I[k] == 0) break
       if (ci < 0) ci = I[k]
       if (I[k] != ci || !splitkey(T[k])) continue
-      if (KEY != "blocked_on") continue
+      if (!(KEY in WV)) continue
+      wkey = KEY
       v = inline_block(REST, k, ci, 1)
       if (ERR) exit 1
-      bo = v
+      WV[wkey] = v
       k = NX - 1
     }
   }
-  printf "{\"blocked_on\":%s}\n", bo
+  fo = "{"
+  for (w = 1; w <= WN; w++) fo = fo (w > 1 ? "," : "") jstr(WK[w]) ":" WV[WK[w]]
+  print fo "}"
 }
 AWK
 
@@ -983,6 +1004,87 @@ check_files_touched_cap() {  # <fmfile> <stage> <artname>
   return 0
 }
 
+# The decision comparator, shared by the body check (fail) and the consult check (warn) so the
+# two cannot drift on what counts as a word. Run as
+#   awk -v a=<statement> -v b=<statement> -v arms=<comma list> "$_DECISION_CMP_AWK"
+# Exit 1 means the two conflict, with the reason on stdout; exit 0 means no enabled arm fired.
+# Arms:
+#   vocab     the two share no significant vocabulary at all;
+#   digits    both quote numbers and no number is common (a restated bound or count);
+#   polarity  one side holds `<prefix><stem>` and the other the bare stem (in+sensitive).
+# Deliberately narrow. A frontmatter summary is a ≤160-char precis of a longer entry, so
+# paraphrase is the NORM and an equality or high-overlap test would fail honest artifacts — a
+# boundary-blocking false failure is worse than the divergence it would catch. Every arm
+# reports a shape that means two different statements rather than two phrasings of one.
+# Filenames are stripped BEFORE the split: `<stage>-<run_index>.md` would otherwise contribute
+# its index as a bare digit, and the digits arm fires on an unmatched numeral. A digit counts
+# only as a whole whitespace-delimited word — `newest-8` is a name, not a count. Residual: a
+# bare `planning-0` carrying no extension survives the strip, and the whole-word rule covers it.
+# POSIX awk only: BSD awk on macOS runs this, so no gensub, no \y, no arrays of arrays.
+readonly _DECISION_CMP_AWK='
+  function harvest(x, W, D,   i, n, w, m, t, tok) {
+    x = tolower(x)
+    gsub(/[a-z0-9_\/.-]+\.(md|yml|yaml|json|jsonl|sh|bats|txt|log)/, " ", x)
+    m = split(x, t, /[ \t\n]+/)
+    for (i = 1; i <= m; i++) {
+      tok = t[i]
+      sub(/^[^a-z0-9]+/, "", tok)
+      sub(/[^a-z0-9]+$/, "", tok)
+      if (tok ~ /^[0-9]+$/) D[tok] = 1
+    }
+    n = split(x, w, /[^a-z0-9]+/)
+    for (i = 1; i <= n; i++) {
+      if (w[i] == "") continue
+      if (w[i] ~ /^[0-9]+$/) continue
+      if (length(w[i]) >= 4) W[w[i]] = 1
+    }
+  }
+  function on(arm) { return index("," arms ",", "," arm ",") > 0 }
+  # An adverb and its adjective are one stem here: "sensitively" must meet "insensitive".
+  function stems(W, S,   k, s) {
+    for (k in W) {
+      s = k
+      if (length(s) >= 7 && substr(s, length(s) - 1) == "ly") s = substr(s, 1, length(s) - 2)
+      S[s] = 1
+    }
+  }
+  # A word w = p + r on side X conflicts when r stands bare on side Y, X never says r itself,
+  # and Y never says w: then the two sides take opposite polarity on one stem. The r >= 5 floor
+  # drops short accidental stems (in+put); a longer one (dis+patched) still needs "patched" bare
+  # on the other side and "dispatched" absent from it. The warn names the pair, so a residual
+  # false hit is cheap to dismiss.
+  function polar(X, Y,   w, j, p, r) {
+    for (w in X) {
+      for (j = 1; j <= NP; j++) {
+        p = PFX[j]
+        if (substr(w, 1, length(p)) != p) continue
+        r = substr(w, length(p) + 1)
+        if (length(r) >= 5 && (r in Y) && !(r in X) && !(w in Y)) { HIT = r " vs " w; return 1 }
+        break
+      }
+    }
+    return 0
+  }
+  BEGIN {
+    NP = split("non dis un in im ir il", PFX, " ")
+    harvest(a, AW, AD); harvest(b, BW, BD)
+    if (on("polarity")) {
+      stems(AW, AS); stems(BW, BS)
+      if (polar(AS, BS) || polar(BS, AS)) { print "polarity: " HIT; exit 1 }
+    }
+    if (on("vocab")) {
+      for (k in AW) { ca++; if (k in BW) hit++ }
+      for (k in BW) cb++
+      if (ca > 0 && cb > 0 && hit == 0) { print "no shared vocabulary"; exit 1 }
+    }
+    if (on("digits")) {
+      for (k in AD) { na++; if (k in BD) dhit++ }
+      for (k in BD) nb++
+      if (na > 0 && nb > 0 && dhit == 0) { print "numbers differ"; exit 1 }
+    }
+    exit 0
+  }'
+
 # key_decisions vs the body: the same id must not carry two different summaries. Until this
 # existed the harness read the frontmatter slice alone, so a decision could be restated in the
 # body with a different meaning and every downstream reader picked whichever copy it happened
@@ -1023,52 +1125,92 @@ check_decision_divergence() {  # <artifact> <fmfile> <stage>
         print line; exit
       }' "$body")
     [[ -n "$bsum" ]] || continue
-    if ! awk -v a="$fsum" -v b="$bsum" '
-      # Deliberately narrow. A frontmatter summary is a ≤160-char precis of a longer body
-      # entry, so paraphrase is the NORM and an equality or high-overlap test would fail
-      # honest artifacts — a boundary-blocking false failure is worse than the divergence it
-      # would catch. Two shapes are reported, both of which mean the id resolves to two
-      # different statements rather than two phrasings of one:
-      #   1. the two share no significant vocabulary at all;
-      #   2. both quote numbers and no number is common (a restated bound or count).
-      # Filenames are stripped BEFORE the split: `<stage>-<run_index>.md` would otherwise
-      # contribute its index as a bare digit, and arm 2 fires on an unmatched numeral. A
-      # digit counts only as a whole whitespace-delimited word — `newest-8` is a name, not a
-      # count. Residual: a bare `planning-0` carrying no extension survives the strip, and
-      # the whole-word rule is what covers it.
-      function harvest(x, W, D,   i, n, w, m, t, tok) {
-        x = tolower(x)
-        gsub(/[a-z0-9_\/.-]+\.(md|yml|yaml|json|jsonl|sh|bats|txt|log)/, " ", x)
-        m = split(x, t, /[ \t\n]+/)
-        for (i = 1; i <= m; i++) {
-          tok = t[i]
-          sub(/^[^a-z0-9]+/, "", tok)
-          sub(/[^a-z0-9]+$/, "", tok)
-          if (tok ~ /^[0-9]+$/) D[tok] = 1
-        }
-        n = split(x, w, /[^a-z0-9]+/)
-        for (i = 1; i <= n; i++) {
-          if (w[i] == "") continue
-          if (w[i] ~ /^[0-9]+$/) continue
-          if (length(w[i]) >= 4) W[w[i]] = 1
-        }
-      }
-      BEGIN {
-        harvest(a, AW, AD); harvest(b, BW, BD)
-        for (k in AW) { ca++; if (k in BW) hit++ }
-        for (k in BW) cb++
-        for (k in AD) { na++; if (k in BD) dhit++ }
-        for (k in BD) nb++
-        if (ca > 0 && cb > 0 && hit == 0) exit 1
-        if (na > 0 && nb > 0 && dhit == 0) exit 1
-        exit 0
-      }'; then
+    if ! awk -v a="$fsum" -v b="$bsum" -v arms=vocab,digits "$_DECISION_CMP_AWK" > /dev/null; then
       echo "fail: decision $id disagrees across transports — frontmatter says \"${fsum}\" but the ${artname} body says \"${bsum}\". Reconcile both to one statement; a reader resolving the id must not get two answers" >&2
       failed=1
     fi
   done <<< "$rows"
   rm -f "$body"
   return "$failed"
+}
+
+# AR consult text vs key_decisions: a platform architect's line that cites a decision id must
+# not say the opposite of that decision. AR merges the consult into its own artifact, so a
+# contradiction there reaches DV as two answers for one id. Advisory by design: the line prints
+# `warn:`, returns 0 on every path and ignores --strict, so it never changes the exit status
+# (Step B.1 records it and carries it forward). Only a cited line is compared — without an id
+# there is no decision to hold it to, and AR's own reconcile step covers the rest.
+#
+# Sources, by naming convention so no platform table is copied here: each
+# `## <Platform> App Architecture` H2 section of the artifact, and every `*-architecture.md`
+# beside it (its leading frontmatter skipped). The glob cannot match `architecture-N.md`.
+# The vocab arm stays off: a cited line often extends a decision rather than restating it.
+check_consult_divergence() {  # <artifact> <fmfile>
+  local artifact="$1" fmfile="$2"
+  local rows artname dir sf pairs
+  local -a srcs
+  artname=$(basename "$artifact")
+  rows=$(yq eval '(.handoff.key_decisions // []) | .[] | ((.id // "") + "\t" + (.summary // ""))' \
+    "$fmfile" 2> /dev/null || printf '')
+  [[ -n "$rows" ]] || return 0
+  dir=$(dirname "$artifact")
+  srcs=("$artifact")
+  for sf in "$dir"/*-architecture.md; do
+    [[ -f "$sf" && "$sf" != "$artifact" ]] && srcs+=("$sf")
+  done
+
+  # One pass emits each (cited id, line) pair: id, summary, source, line number, the line with
+  # that id removed (so the id never counts as a word), and the line as written. The id is
+  # matched by index(), not a regex, so an id carrying a metacharacter stays literal.
+  pairs=$(CONSULT_KEYS="$rows" awk -v art="$artifact" -v artname="$artname" '
+    BEGIN {
+      nk = split(ENVIRON["CONSULT_KEYS"], kl, "\n")
+      for (i = 1; i <= nk; i++) {
+        # An empty summary has nothing to compare, and its empty field would collapse under
+        # the tab-split read below and shift every later field.
+        t = index(kl[i], "\t"); if (t < 2 || t == length(kl[i])) continue
+        n++; ID[n] = substr(kl[i], 1, t - 1); SUM[n] = substr(kl[i], t + 1)
+      }
+    }
+    FNR == 1 { isart = (FILENAME == art); insec = 0; infm = 0
+      m = split(FILENAME, p, "/"); base = p[m]
+      if (!isart && $0 == "---") { infm = 1; next } }
+    infm { if ($0 == "---") infm = 0; next }
+    isart && /^## / {
+      insec = ($0 ~ /^## .+ App Architecture[[:space:]]*$/)
+      hdr = substr($0, 4); sub(/[[:space:]]+$/, "", hdr)
+      next
+    }
+    isart && !insec { next }
+    {
+      line = $0; gsub(/\t/, " ", line)
+      src = isart ? artname " § " hdr : base
+      for (k = 1; k <= n; k++) {
+        id = ID[k]; L = length(id); rest = line; out = ""; cited = 0
+        # Whole-word boundary class [^A-Za-z0-9_-], so ad6 never matches inside ad60.
+        while ((at = index(rest, id)) > 0) {
+          before = (at == 1) ? (out == "" ? "" : substr(out, length(out))) : substr(rest, at - 1, 1)
+          after = substr(rest, at + L, 1)
+          if (before !~ /[A-Za-z0-9_-]/ && after !~ /[A-Za-z0-9_-]/) {
+            cited = 1; out = out substr(rest, 1, at - 1) " "
+          } else {
+            out = out substr(rest, 1, at - 1 + L)
+          }
+          rest = substr(rest, at + L)
+        }
+        if (cited) printf "%s\t%s\t%s\t%d\t%s\t%s\n", id, SUM[k], src, FNR, out rest, line
+      }
+    }' "${srcs[@]}" 2> /dev/null || printf '')
+  [[ -n "$pairs" ]] || return 0
+
+  local id fsum src ln stripped orig reason
+  while IFS=$'\t' read -r id fsum src ln stripped orig; do
+    [[ -n "$id" && -n "$fsum" ]] || continue
+    reason=$(awk -v a="$fsum" -v b="$stripped" -v arms=digits,polarity "$_DECISION_CMP_AWK") && continue
+    [[ -n "$reason" ]] || continue
+    echo "warn: consult ${src}:${ln} restates decision $id with different content (${reason}) — key_decisions says \"${fsum}\" but the consult says \"${orig:0:200}\". Reconcile it in ${artname} or raise an AR sweep item" >&2
+  done <<< "$pairs"
+  return 0
 }
 
 # ---------- tests_executed evidence (DV, QA) ----------
@@ -1489,7 +1631,7 @@ summary_line_audit() {  # <artifact> <stage> <executed> <line> [runner]
   [[ -z "$runner" ]] || runner_kv=(--meta-kv "runner=$runner")
   lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../shared/lib/audit-lib.sh"
   [[ -r "$lib" ]] || return 0
-  # shellcheck source=../../shared/lib/audit-lib.sh
+  # shellcheck source=../../shared/lib/audit-lib.sh disable=SC1091
   . "$lib" 2> /dev/null || return 0
   command -v corpflow_audit_row > /dev/null 2>&1 || return 0
   corpflow_audit_row --file "$(dirname "$artifact")/logs/audit.jsonl" \
@@ -1657,7 +1799,17 @@ validate_frontmatter() {
   if [[ -n "$fm_stage" && "$fm_stage" != "null" && -n "$(required_for "$fm_stage")" ]]; then
     check_anchors "$f" "$fm_stage" || anchor_rc=1
   fi
-  local pre_rc=$((bo_rc | anchor_rc))
+  # Here, not after the yq gate, so a host without yq refuses the same QA no-go artifacts.
+  local bd_rc=0
+  if [[ "$fm_stage" == "QA" ]]; then
+    check_blocking_defects "$fmfile" || bd_rc=1
+  fi
+  # Same placement reason: a host without yq must still refuse a DV that never ran its checks.
+  local ac_rc=0
+  if [[ "$fm_stage" == "DV" ]]; then
+    check_dv_acceptance "$f" || ac_rc=1
+  fi
+  local pre_rc=$((bo_rc | anchor_rc | bd_rc | ac_rc))
 
   command -v yq >/dev/null 2>&1 || {
     echo "frontmatter: yq required for full validation; running grep-only fallback" >&2
@@ -1713,6 +1865,7 @@ validate_frontmatter() {
 
   check_files_touched_cap "$fmfile" "$stage" "$(basename "$f")" || rc=1
   check_decision_divergence "$f" "$fmfile" "$stage" || rc=1
+  if [[ "$stage" == "AR" ]]; then check_consult_divergence "$f" "$fmfile" || true; fi
   local stub_shape_ok=1
   check_sweep_stub_shape "$fmfile" || { rc=1; stub_shape_ok=0; }
   check_sweep_ref_anchor "$f" "$fmfile" || rc=1
@@ -1730,20 +1883,21 @@ validate_frontmatter() {
   # runners into one entry, since a verbatim summary line cannot be shortened.
   #
   #   discretionary = toks(frontmatter) - min( toks(stub block), 4 x 16 )
-  #                                     - min( toks(tests_executed block), 4 x 24 )
+  #                                     - min( toks(tests_executed block), min(entries, 8) x 24 )
   #   fail  when discretionary > 200
-  #   warn  when total        > 360      # advisory; keeps the real absolute cost visible
+  #   warn  when total        > 456      # advisory; keeps the real absolute cost visible
   #
-  # Each exclusion is capped (four stubs; four runner entries, a verbatim Xcode line being
-  # about 19 tokens), so neither can be gamed by inflating strings or emitting extra items:
-  # 360 is a deterministic ceiling. The cap is what makes an exclusion safe, not the order of
-  # the shape checks.
+  # Each exclusion is capped (four stubs; 24 tokens per runner entry, a verbatim Xcode line
+  # being about 19, for at most eight entries), so neither can be gamed by inflating strings
+  # or emitting extra items: 456 is a deterministic ceiling. The cap scales with the entry
+  # count because a flat four-entry cap charged a stage's prose for every runner past the
+  # fourth. The cap is what makes an exclusion safe, not the order of the shape checks.
   #
-  # So an invalid tests_executed block is excluded at the same cap and the note says so:
+  # So an invalid tests_executed block is excluded at a flat 96 and the note says so:
   # its fault is reported once, by check_summary_line, and the check still runs, so a
   # broken block cannot hide an over-budget frontmatter. A broken stub block is counted
   # in full.
-  local tcount stubtoks tetoks=0 discretionary budget_note="" te_shape
+  local tcount stubtoks tetoks=0 tecap discretionary budget_note="" te_shape
   tcount=$(toks "$fmfile")
   if [[ "$stub_shape_ok" -eq 1 ]]; then
     stubtoks=$(toks_key_block "$fmfile" open_questions)
@@ -1758,18 +1912,25 @@ validate_frontmatter() {
     if [[ ("$te_shape" == '!!seq' && "$te_arm_ok" -eq 1) \
       || ("$te_shape" != '!!null' && "$te_arm_ok" -eq 0) ]]; then
       tetoks=$(toks_key_block "$fmfile" tests_executed)
-      [[ "$tetoks" -le 96 ]] || tetoks=96
+      tecap=96
+      if [[ "$te_arm_ok" -eq 1 ]]; then
+        tecap=$(yq eval '.handoff.tests_executed | length' "$fmfile" 2> /dev/null) || tecap=4
+        [[ "$tecap" =~ ^[0-9]+$ ]] || tecap=4
+        [[ "$tecap" -le 8 ]] || tecap=8
+        tecap=$((tecap * 24))
+      fi
+      [[ "$tetoks" -le "$tecap" ]] || tetoks=$tecap
       [[ "$te_arm_ok" -eq 1 ]] \
         || budget_note="${budget_note}(tests_executed invalid: excluded at the 96-token cap) "
     fi
   fi
   discretionary=$((tcount - stubtoks - tetoks))
-  # The advisory line is emitted BEFORE the failure, not after: 360 is exactly 200 plus both
-  # exclusion caps, so every artifact over the ceiling is already over the budget and a warn
-  # placed after the `return 1` could never print. Ordering it first is what keeps the
+  # The advisory line is emitted BEFORE the failure, not after: 456 is exactly 200 plus both
+  # maximum exclusion caps, so every artifact over the ceiling is already over the budget and
+  # a warn placed after the `return 1` could never print. Ordering it first is what keeps the
   # absolute cost visible on the report that matters — the failing one.
-  if [[ "$tcount" -gt 360 ]]; then
-    echo "warn: stage=$stage frontmatter ${tcount} tokens > 360 absolute ceiling" >&2
+  if [[ "$tcount" -gt 456 ]]; then
+    echo "warn: stage=$stage frontmatter ${tcount} tokens > 456 absolute ceiling" >&2
   fi
   if [[ "$discretionary" -gt 200 ]]; then
     echo "fail: ${budget_note}stage=$stage frontmatter ${discretionary} discretionary tokens > 200 budget (${tcount} total - ${stubtoks} sweep-stub tokens - ${tetoks} tests_executed tokens excluded)" >&2
@@ -1806,6 +1967,78 @@ check_blocked_on() {
   raw=$(fm_blocked_on_raw "$1") || { echo "fail: handoff.blocked_on could not be parsed" >&2; return 1; }
   norm=$(blocked_on_normalize "$raw") || return 0
   blocked_on_validate "$(printf '%s' "$norm" | jq -c '.blocked_on')"
+}
+
+# check_blocking_defects <fmfile> — a QA no-go must name each defect, because the Step 7
+# loop-back copies this list into the re-dispatched DV brief as its only remediation text.
+# Always the awk reader, never yq: awk reads every scalar as a string and yq does not, so
+# preferring yq when present would give `- 42` a different verdict on a different host.
+check_blocking_defects() {
+  local raw out line
+  raw=$(awk -v want="verdict blocking_defects" "$_FM_BO_AWK" "$1" 2> /dev/null) || raw=""
+  if [[ -z "$raw" ]]; then
+    echo "fail: handoff.blocking_defects could not be parsed" >&2
+    return 1
+  fi
+  if ! command -v jq > /dev/null 2>&1; then
+    # The awk object is jstr-encoded, so a literal match is exact; anything but a no-go passes.
+    [[ "$raw" == *'"verdict":"no-go"'* ]] || return 0
+    if [[ "$raw" == *'"blocking_defects":null'* ]]; then
+      echo "fail: stage=QA verdict=no-go requires handoff.blocking_defects: a non-empty list, one string per defect" >&2
+    else
+      echo "fail: handoff.blocking_defects present but jq is not installed to validate it" >&2
+    fi
+    return 1
+  fi
+  out=$(printf '%s' "$raw" | jq -r '
+    if .verdict != "no-go" then empty
+    elif (.blocking_defects | type) != "array" or (.blocking_defects | length) == 0 then "list"
+    else .blocking_defects | to_entries[]
+      | select((.value | type) != "string" or (.value | test("^\\s*$")))
+      | "entry \(.key)"
+    end' 2> /dev/null) || {
+    echo "fail: handoff.blocking_defects could not be parsed" >&2
+    return 1
+  }
+  [[ -n "$out" ]] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      list) echo "fail: stage=QA verdict=no-go requires handoff.blocking_defects: a non-empty list, one string per defect" >&2 ;;
+      "entry "*) echo "fail: stage=QA handoff.blocking_defects[${line#entry }] is empty or not a string" >&2 ;;
+    esac
+  done <<< "$out"
+  return 1
+}
+
+# check_dv_acceptance <artifact> — DV must have run its own acceptance commands green, and each
+# must fail closed, before it hands off: acceptance-check.sh --dv alone, one `fail:` line per
+# finding. Without the heading there is nothing to replay, so the arm does not need the script.
+# Resolved beside this file, never from the cwd: the orchestrator calls the harness from the
+# project root, not the plugin.
+check_dv_acceptance() {
+  local f="$1" check out rc=0 line hint
+  grep -q '^## acceptance-commands[[:space:]]*$' "$f" || return 0
+  check="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/acceptance-check.sh"
+  if [[ ! -r "$check" ]]; then
+    echo "fail: stage=DV acceptance gate cannot run: acceptance-check.sh unreachable at $check" >&2
+    return 1
+  fi
+  out=$(bash "$check" --dv "$f" 2>&1) || rc=$?
+  [[ "$rc" -ne 0 ]] || return 0
+  if [[ "$rc" -ne 1 ]]; then
+    echo "fail: stage=DV acceptance gate cannot run on $(basename "$f"): ${out%%$'\n'*}" >&2
+    return 1
+  fi
+  while IFS= read -r line; do
+    case "$line" in
+      missing:*) hint="run it verbatim and record it as \`- exit=<n> <command>\` under ## acceptance-commands" ;;
+      failed:*) hint="fix the command or the code until it exits 0, then re-record the row" ;;
+      fail-open:*) hint="its tail swallows failure; make it fail closed (drop the tail, or end it with || exit 1)" ;;
+      *) continue ;;
+    esac
+    echo "fail: stage=DV acceptance $line — $hint" >&2
+  done <<< "$out"
+  return 1
 }
 
 # read_blocked_on <artifact> — the --read-blocked-on mode.
@@ -1851,6 +2084,7 @@ validate_state() {
   # Atomic-write idempotency check: re-merging the same patch must be a no-op.
   local td
   td=$(mktemp -d "${TMPDIR:-/tmp}/handoff-state-XXXXXX")
+  # shellcheck disable=SC2064  # baked at set time, as validate_frontmatter's trap explains
   trap "rm -rf '$td'" RETURN
   cp "$f" "$td/orig.json"
   local patch='{"tasks":{"PL0":{"status":"completed"}}}'
@@ -2133,7 +2367,7 @@ case "$MODE" in
     SELFTEST_LIB_PATH="$(dirname "${BASH_SOURCE[0]}")/handoff-harness-selftest.sh"
     if [ -r "$SELFTEST_LIB_PATH" ]; then
       # shellcheck source=handoff-harness-selftest.sh
-      # shellcheck disable=SC1090
+      # shellcheck disable=SC1090,SC1091
       . "$SELFTEST_LIB_PATH"
     else
       printf >&2 'handoff-harness: self-test harness unreachable at %s — plugin install broken\n' \

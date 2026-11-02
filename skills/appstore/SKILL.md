@@ -2,6 +2,7 @@
 name: appstore
 description: Use when the user invokes $appstore or asks for the canonical Corpflow appstore workflow.
 argument-hint: "--task <listing|screenshots|iap> [--platform apple|android] [--lang en|ua] [--path <dir>] [--dry-run] [--bundle <id>] [--apple-platform ios|macos|tvos|watchos] [--android-form-factor <factor>]"
+user-invocable: false
 ---
 
 # appstore (Codex adapter)

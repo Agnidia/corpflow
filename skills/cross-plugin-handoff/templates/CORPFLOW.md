@@ -245,8 +245,8 @@ artifact why one is not actionable, and dispute via `error_escalated_to:` rather
 ### Consultant return — consultant-return.v1
 
 DR and SR consultations end the return with exactly one `json` fence, placed last, holding one
-`consultant-return.v1` object (`schema_version`, `verdict`, `severity_counts`, `findings[]`) with
-lowercase severities. A rejected return is re-dispatched once and never hand-fixed.
+`consultant-return.v1` object (`schema_version`, `verdict`, `severity_counts`, `findings[]`). Severities are
+lowercase `critical`, `high`, `medium`, `low` and optional `info`. A rejected return is re-dispatched once and never hand-fixed.
 
 ## Orchestrator agent roles
 

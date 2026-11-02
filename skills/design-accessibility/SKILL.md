@@ -2,6 +2,7 @@
 name: design-accessibility
 description: Use when the user invokes $design-accessibility or asks for the canonical Corpflow design-accessibility workflow.
 argument-hint: "[<screen, component, or app path>] [--level A|AA|AAA] [--platform apple|android|web|all] [--scope quick|standard|comprehensive]"
+user-invocable: false
 ---
 
 # design-accessibility (Codex adapter)

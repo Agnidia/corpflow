@@ -3,6 +3,7 @@ name: worktask
 description: Use when executing multi-stage worktasks, initializing tasks, or managing worktask state. Holds dynamic sizing, the orchestrator loop, and stage handoff rules.
 argument-hint: '"<task description>" [--secure|--full] [--emergency] [--priority <High|Medium|Low>] [--platform <p>] [--ethics-review] [--with-design] [--sequential] [--no-gh-issue] [--auto=[plan,decision,finalization]] [--accept-absent=<tool[,tool]>] | --resume <STAGE_ID> [--cascade]'
 version: 0.7.1
+user-invocable: false
 ---
 
 > **INVOCATION GATE**: a worktask the user asked for runs through `/worktask` in Claude Code,
@@ -409,7 +410,9 @@ Each section opens with its own `<<<marker>>>` line and runs to the next marker 
 
 #### Composing the brief
 
-Build every stage prompt by running `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/brief-compose.sh <TASK_ID> --orch-root <orch root>` and dispatching its stdout. The orchestrator is its only caller. The composer emits all eight markers: [1]–[5] complete, [6] empty, and [7] opening with the task's `WORKSPACE_ROOT=` line. The Steps 4.5–5e injections write only into [6] and [7]; nothing edits [1]–[5]. Exit 1 (guard failure) or exit 2 (usage, unknown task id, unreadable ledger, missing jq or canon, failed ledger digest) leaves stdout empty: do not call `Agent()` — surface stderr and treat the row as a blocked dispatch (Step 6).
+Build every stage prompt by running `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/brief-compose.sh <TASK_ID> --orch-root <orch root>` and dispatching its stdout. The orchestrator is its only caller. The composer emits all eight markers: [1]–[5] complete, [6] empty unless the row carries `gate_from_stage` + `gate_blockers` (§ Step 4.6), and [7] opening with the task's `WORKSPACE_ROOT=` line. The Steps 4.5–5e injections write only into [6] and [7]; nothing edits [1]–[5]. Exit 1 (guard failure) or exit 2 (usage, unknown task id, unreadable ledger, missing jq or canon, failed ledger digest) leaves stdout empty: do not call `Agent()` — surface stderr and treat the row as a blocked dispatch (Step 6).
+
+##### Cite sources in [6] and [7] by path
 
 If text you write into [6] or [7] needs the PR section order or an allowed H2, cite the source by path instead of restating it: `skills/shared/git-conventions.md § Pull Request Format`, `skills/worktask/references/handoff-protocol.md#anchor-allow-list`. A copy drifts from its source, and the stage obeys the copy.
 
@@ -423,7 +426,7 @@ If text you write into [6] or [7] needs the PR section order or an allowed H2, c
 [4b] Model discipline block                ← stable WITHIN stage type (cacheable)
 ─────── (cache prefix boundary) ───────
 [5] Task identifiers + ref: lines          ← dynamic per delegation
-[6] retry hints + gate remediation (if retry_count > 0 or fix_round > 0) ← dynamic per delegation
+[6] retry hints (if retry_count > 0) + REMEDIATION (brief-compose.sh) ← dynamic per delegation
 [7] Stage-specific banners (DR Skill, FN Conductor, MCP fallback) ← SUFFIX, dynamic
 ```
 
@@ -506,6 +509,10 @@ function markDispatchStatus(state, taskId, status, modelResolved) {
 // (agent-coordination § Retry / Escalate Matrix); no new vocabulary. Rate-limit / API
 // cut-off = `transient`; other classes come from the artifact or return text.
 // errorBasename — last ":"-segment of subagent_type (corpflow:developer → developer).
+// effortRank — the tier's index on effort-ladder.sh's ladder (effort_rank; ascending).
+// effortResolvedFromHookRows — the stage's last `hook:audit-tooluse` row's metadata.effort
+// in .context/logs/audit.jsonl (the route row's effort_resolved source); null when no row
+// carries a real tier ("unknown" counts as none).
 
 ```
 
@@ -701,19 +708,20 @@ while (tasks.some(t => !SETTLED.has(t.status))) {
 
 #### Prompt-injection steps 4.6–4.8b — shared rules
 
-These steps mutate only `full.description`: remediation/resume blocks are prepended (dynamic
-section [6]), enforcement banners appended (suffix [7]) — cache prefix [1][2][4][4b] is never touched.
-Each fires one `appendAudit` row, whose absence for a dispatch shows the loop was bypassed. Readers
-(DR, TL) surface a missing row as an advisory finding, not a hard fail, because a stale plugin cache
-serving an older loop would otherwise block a blameless DV.
+These steps mutate only `full.description`: resume blocks are prepended (dynamic section [6]),
+enforcement banners appended (suffix [7]) — cache prefix [1][2][4][4b] is never touched. Each
+fires one audit row; 4.6's block and row come from `brief-compose.sh`, not from this loop. A
+missing row for a dispatch shows the loop was bypassed. Readers (DR, TL) surface it as an advisory
+finding, not a hard fail, because a stale plugin cache serving an older loop would otherwise block
+a blameless DV.
 
 #### Step 4.6
 
 ```typescript
-    // 4.6. Gate-feedback injection — the one remediation brief builder, for a target of ANY stage.
+    // 4.6. Gate-feedback injection — rendered by brief-compose.sh, for a target of ANY stage.
     //      Two sources write the row it reads. A gate loop-back: a prior DR `verdict:fail` /
     //      QA `verdict:no-go` re-dispatches DV (run_index unchanged, retry_count up by 1) carrying the
-    //      upstream remediation VERBATIM. Source for N = the failing upstream run_index:
+    //      upstream remediation, one flattened line per item. Source for N = the failing upstream run_index:
     //      `.context/developer-review-N.md` (DRHandoff.blockers[]) and/or `.context/testing-N.md`
     //      (QAHandoff.blocking_defects[]). Or a typed correction: `--task-reopen` wrote the same two
     //      keys on the re-opened target and raised `fix_round`
@@ -724,25 +732,15 @@ serving an older loop would otherwise block a blameless DV.
 
 ##### Step 4.6 — remediation injection & audit
 
-Correction re-opens a task of any stage; gate loop-back reaches DV. When `fix_round` > 0 or `retry_count` > 0, inject remediation brief:
-
-###### Remediation injection code
-
-```typescript
-    // The stage code that raised it: "DR" | "QA" | "ST" copied by the Step 7 loop-back from the gate
-    // row, or the correcting stage's own code written by --task-reopen. state-patch.sh writes both.
-    const fromStage = full.metadata.gate_from_stage;
-    const blockers = full.metadata.gate_blockers ?? []; // blockers[] | blocking_defects[] | [finding]
-    if (fromStage && blockers.length > 0) {
-      full.description =
-        `REMEDIATION (from ${fromStage} gate — fix these specific findings before re-stop):\n` +
-        blockers.map((b, i) => `  ${i + 1}. ${b}`).join("\n") + "\n\n" + full.description;
-      appendAudit({ actor: "orchestrator", action: "gate_remediation_injected",
-                    subject: full.metadata.stage, result: "ok",
-                    metadata: { from_stage: fromStage, to_stage: full.metadata.stage,
-                                count: blockers.length } });
-    }
-```
+Correction re-opens a task of any stage; gate loop-back reaches DV. `brief-compose.sh` is the only
+writer of the remediation block: the orchestrator neither prepends it nor appends its audit row.
+When the row carries a non-empty `gate_from_stage` (the raising stage's code, written by the
+Step 7 loop-back or `--task-reopen`) and a non-empty `gate_blockers`, the composer writes into [6]
+the line `REMEDIATION (from <code> gate — fix these specific findings before re-stop):` and one
+numbered line per blocker. Control bytes become spaces and off-root paths become
+`[off-root path]`. After printing, it appends one `gate_remediation_injected` row with
+subject = task id. A failed write warns and keeps exit 0 (§ Prompt-injection steps 4.6–4.8b —
+shared rules). Contract: the script's header.
 
 #### Step 4.7
 
@@ -1285,8 +1283,10 @@ Nothing to warm: corpflow holds no platform build/test grants — DV/DR/QA deleg
 ```typescript
     // …continued: step 6 body. Each injection keeps its section; [1]–[5] stay as composed.
     const [hints, banners] = full.description.split(INJECTION_SPLIT).map(s => s.trim());
+    // Line-anchored first match: a blocker line in [6] can end in the marker text, and
+    // lastIndexOf would cut there. The hints land above the composer's REMEDIATION block.
     const HINTS = "<<<retry-hints>>>\n";
-    const cut = composed.stdout.lastIndexOf(HINTS) + HINTS.length;
+    const cut = composed.stdout.indexOf("\n" + HINTS) + 1 + HINTS.length;
     const prompt = composed.stdout.slice(0, cut) + (hints ? `${hints}\n` : "") +
                    composed.stdout.slice(cut) + (banners ? `\n${banners}\n` : "");
 ```
@@ -1324,6 +1324,9 @@ Controlled rows without stamped effort must also reach the router and escalate i
       .some(key => Object.prototype.hasOwnProperty.call(full.metadata, key));
     const routed = (full.metadata.effort || hasDispatchControls) && spawnSync("bash", ["skills/worktask/scripts/effort-route.sh",
       "--agent", subagentType, "--model", effectiveModel, "--requested", full.metadata.effort ?? "",
+      // The cached account ceiling (Step 6.5b-cap) lowers the tier before either transport.
+      ...(state.facts?.capabilities?.effort_cap?.[effectiveModel]
+        ? ["--cap", state.facts.capabilities.effort_cap[effectiveModel]] : []),
       "--dispatch-controls", JSON.stringify(full.metadata)],
       { encoding: "utf8" });
     // A refused route (exit 2, no line) must not fall through to a dispatch without the tier.
@@ -1654,6 +1657,21 @@ const rowMatchesHandoff = (row, h) =>
           dispatched_agents: markDispatchStatus(stateForDispatch, task.id, "completed", launchAck?.model_resolved),
         },
       });
+      // 6.5b-cap. Cache an account effort ceiling. Claude Code 2.1.314+ lowers a tier an admin
+      //       capped and runs the turn at the lower one, so the stage's hook-reported effort.level
+      //       (the route row's effort_resolved source) comes in below route.requested. Cache it per
+      //       model so later stages route at the ceiling (effort-route.sh --cap) instead of paying
+      //       for the refused request each time. Only a LOWER observed tier is cached; "unknown"
+      //       or a missing hook row never is. An operator CLAUDE_CODE_EFFORT_LEVEL pin reads the
+      //       same way and lasts the whole session too, so caching it is equally correct.
+      const observedEffort = effortResolvedFromHookRows(task.id);  // null when no hook row
+      if (observedEffort && route.effort_transport !== "none"
+          && effortRank(observedEffort) < effortRank(route.requested)) {
+        atomicMergeStateJson({ facts: { capabilities: { effort_cap: {
+          [effectiveModel]: observedEffort, checked_at: new Date().toISOString() } } } });
+        appendAudit({ actor: "orchestrator", action: "effort_cap_cached", subject: task.id,
+          result: "ok", metadata: { model: effectiveModel, requested: route.requested, observed: observedEffort } });
+      }
     }
 ```
 
@@ -1908,12 +1926,23 @@ The boundary code above calls helpers whose bodies and rules live in
 function loopBackToDV(ledger, gateId, gateRow) {
   const h = parseFrontmatter(gateRow.artifact);
   const blockers = h?.blockers ?? h?.blocking_defects ?? [];  // DR/ST shape | QA shape
-  const deps = new Set(), stack = [...(gateRow.blocked_by ?? [])];
-  while (stack.length) {
-    const id = stack.pop();
-    if (!deps.has(id)) { deps.add(id); stack.push(...(ledger.tasks[id]?.blocked_by ?? [])); }
+  const picked = spawnSync("bash", ["skills/worktask/scripts/loopback-targets.sh",
+    "--state", ".context/state.json", "--gate", gateId], { encoding: "utf8" });
+  let dvRows = picked.status === 0 ? picked.stdout.split("\n").filter(Boolean) : [];
+```
+
+##### Step 7 — loop-back, full-set fallback
+
+```typescript
+  // …continued: loopBackToDV body. Helper failure or empty output: the full transitive set.
+  if (!dvRows.length) {
+    const deps = new Set(), stack = [...(gateRow.blocked_by ?? [])];
+    while (stack.length) {
+      const id = stack.pop();
+      if (!deps.has(id)) { deps.add(id); stack.push(...(ledger.tasks[id]?.blocked_by ?? [])); }
+    }
+    dvRows = [...deps].filter(id => /^DV\d+$/.test(id));
   }
-  const dvRows = [...deps].filter(id => /^DV\d+$/.test(id));
 ```
 
 ##### Step 7 — loop-back, replay then stamp
@@ -2162,15 +2191,24 @@ The helper self-gates: skips silently when `metadata.requires_screenshots == fal
 
 ## Post-merge completion comment
 
-After the post-capture issue update above (and after FN has created/merged the PR so the closing refs are real — "when the PR closes"): post a work-summary + screenshot completion comment to every related issue the PR closes.
+After the post-capture issue update above (and after FN has created/merged the PR so the closing refs are real — "when the PR closes"): post a short completion comment (PR link, summary of at most 300 characters, screenshots when captured) to every related issue the PR closes.
 
 ### Completion snippet
 
-Run § Post-capture publish snippet and § Post-capture fallback audit (helper_not_found) verbatim with three substitutions — `--post completion` instead of `--post issue`, `action:"completion_summary_commented"` instead of `action:"visual_evidence_issue_commented"`, and the dedupe-key suffix `completion:all` instead of `visual_evidence:issue`. Same non-blocking discipline (`; true`; the helper exits 0 on every operational outcome).
+Run § Post-capture publish snippet and § Post-capture fallback audit (helper_not_found) verbatim with three substitutions — `--post completion` instead of `--post issue`, `action:"completion_summary_commented"` instead of `action:"visual_evidence_issue_commented"`, and the dedupe-key suffix `completion:all` instead of `visual_evidence:issue`. Same non-blocking discipline (`; true`; the helper exits 0 on every operational outcome). Inside the publish snippet's `if [ -f "$HELPER" ]` block, pass the PR FN recorded on the ledger as `<pr-ref>`; an absent or empty value passes no argument, and the helper itself drops a value that is not a PR number or a github.com PR URL naming this repository:
 
-### Completion resolver & summary sourcing
+```bash
+  PR_REF=$(jq -r '.metadata.pr_url // empty' "${WORKSPACE_ROOT:-${CLAUDE_PROJECT_DIR:-.}}/.context/state.json" 2>/dev/null)
+  bash "$HELPER" --post completion ${PR_REF:+"$PR_REF"}; true
+```
 
-Related issues resolve from PR-body keywords (`Closes`/`Fixes`/`Resolves #N`, case-insensitive) unioned with `gh pr view --json closingIssuesReferences`, deduped to integers so no untrusted PR-body text reaches a `gh` argv. One comment per issue carries the work summary (`.context/complete-summary-<run_index>.md`, else `state.json facts.goal`, else PR title+body — sanitised) plus the visual-evidence block when `requires_screenshots == true` and captures exist (summary-only otherwise).
+### Completion PR-ref resolution
+
+The PR resolves in this order: the `<pr-ref>` argument, then the current branch's PR, then the ledger's `metadata.pr_url` (FN writes it after `gh pr create`; the checkout is off the PR head branch after a merge into a non-default base). A valid argument is final. With no valid argument, the current-branch PR wins if it yields at least one issue, else the ledger PR, so a branch PR that closes nothing falls through. The helper passes the argument or the ledger value to `gh` only when it is a PR number or a `https://github.com/<owner>/<repo>/pull/<n>` URL naming this repository. The summary fallback reads the same PR.
+
+### Completion issue resolution & summary sourcing
+
+Related issues resolve from PR-body keywords (`Closes`/`Fixes`/`Resolves #N`, case-insensitive) unioned with `gh pr view --json closingIssuesReferences`, deduped to integers so no untrusted PR-body text reaches a `gh` argv. One comment per issue carries a `PR: <url>` line (only when the effective PR resolves to a github.com PR URL naming this repository; a failed lookup drops the line), then a short summary of at most 300 characters: the first paragraph under `## summary` in `.context/complete-summary-<run_index>.md`, else `state.json facts.goal`, else the PR title only (never the PR body). Each source is sanitised before the cut; a longer text keeps the last whole word that fits in 300 characters and ends in `...`. The visual-evidence block follows when `requires_screenshots == true` and captures exist (summary-only otherwise).
 
 ### Completion dedup, audit rows & timing
 

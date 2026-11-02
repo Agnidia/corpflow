@@ -7,6 +7,11 @@
 # An existing but non-executable destination is overwritten, so it is first saved to
 # state-merge.sh.bak — a single slot rewritten on each overwrite, never accumulated.
 #
+# Every replace of an existing copy appends one `hook_refreshed` row to
+# .context/logs/audit.jsonl, with `previous` naming the recovery source (the .bak path, or
+# `git`). A fresh install, a no-op and --check write none, and a project without .context/
+# gets no row rather than a new directory.
+#
 # Usage:
 #   hook-install.sh                 # install hook
 #   hook-install.sh --self-test     # run self-test in a scratch dir
@@ -91,6 +96,21 @@ _tracked_and_clean() { # <path>
   return 0
 }
 
+# A silent replace leaves no trace of which hook code ran before, so a run that misbehaved
+# under the old copy cannot be tied to it afterwards. Evidence only: a missing lib or an
+# absent .context/ skips the row and never fails the install.
+_audit_refresh() { # <previous>
+  [[ -d .context ]] || return 0
+  local lib
+  lib="$(dirname "$0")/../../shared/lib/audit-lib.sh"
+  [[ -r "$lib" ]] || return 0
+  # shellcheck source=skills/shared/lib/audit-lib.sh disable=SC1091
+  . "$lib"
+  corpflow_audit_row --file .context/logs/audit.jsonl --actor hook-install \
+    --action hook_refreshed --result ok --subject state-merge.sh --task-id none \
+    --meta-kv "previous=$1"
+}
+
 # ---------- Install ----------
 install_hook() {
   local plugin_root
@@ -120,23 +140,28 @@ install_hook() {
       cp "$src" "$dst"
       chmod +x "$dst"
       echo "install: refreshed stale $dst (previous copy recoverable via git)"
+      _audit_refresh git
     else
       cp "$dst" "$dst.bak"
       cp "$src" "$dst"
       chmod +x "$dst"
       echo "install: refreshed stale $dst (previous copy → $dst.bak)"
+      _audit_refresh "$dst.bak"
     fi
   else
     mkdir -p .claude/hooks
     # A non-executable $dst is typically a hand-customized copy or a partial write; the
     # .bak (not .sh) suffix keeps the rescue out of the `.claude/hooks/*.sh` live-hook globs.
+    local replaced=0
     if [[ -e "$dst" ]]; then
       cp "$dst" "$dst.bak"
       echo "install: backed up existing $dst → $dst.bak"
+      replaced=1
     fi
     cp "$src" "$dst"
     chmod +x "$dst"
     echo "install: copied $src → $dst"
+    [[ "$replaced" -eq 0 ]] || _audit_refresh "$dst.bak"
   fi
 
   if grep -q 'state-merge\.sh' "$plugin_root/.claude-plugin/plugin.json" 2>/dev/null; then

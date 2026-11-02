@@ -2,6 +2,8 @@
 handoff:
   stage: QA
   verdict: no-go
+  blocking_defects:
+    - "UI-3 not delegated (plugin_unavailable); AC-3 unverified"
   summary: "3 bats cases pass; 2 native UI legs delegated with evidence, 1 not delegated"
   tests_executed: [{ runner: bats, count: 3, summary_line: "1..3" }]
   files_touched: []

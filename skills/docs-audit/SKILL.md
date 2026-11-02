@@ -2,6 +2,7 @@
 name: docs-audit
 description: Use when the user invokes $docs-audit or asks for the canonical Corpflow docs-audit workflow.
 argument-hint: "[--path <dir>] [--type code|readme|api|architecture] [--scope full|section] [--fix] [--report]"
+user-invocable: false
 ---
 
 # docs-audit (Codex adapter)

@@ -1946,6 +1946,60 @@ EOART
   fi
   rm -f .context/state.json.snapb
 
+  # ---- T-subject: a DV stream row repeating a DV subject (ledger or batch sibling) exits 2
+  # with state.json byte-identical; no stream, a distinct subject or an empty one is created ----
+  make_state
+  local tsub_err1 tsub_err2 tsub_rc1=0 tsub_rc2=0 tsub_rc3=0 tsub_rc4=0
+  bash "$SELF" --task-create DV0 --metadata "$(_r9_meta '{"stage":"DV","subject":"Fix X","stream":"core"}')" \
+    > /dev/null 2>&1
+  cp .context/state.json .context/state.json.snaps
+  # Stderr goes to files, not $(...): the inherited ERR trap would echo each expected exit 2.
+  bash "$SELF" --task-create DV1 --metadata "$(_r9_meta '{"stage":"DV","subject":"Fix X","stream":"web"}')" \
+    > /dev/null 2> .context/tsub1.err || tsub_rc1=$?
+  bash "$SELF" --task-create DV1 --metadata "$(_r9_meta '{"stage":"DV","subject":"Web","stream":"web"}')" \
+    --task-create DV2 --metadata "$(_r9_meta '{"stage":"DV","subject":"Web","stream":"cli"}')" \
+    > /dev/null 2> .context/tsub2.err || tsub_rc2=$?
+  tsub_err1=$(cat .context/tsub1.err)
+  tsub_err2=$(cat .context/tsub2.err)
+  diff -q .context/state.json .context/state.json.snaps > /dev/null || tsub_rc1=99
+  bash "$SELF" --task-create DV1 --metadata "$(_r9_meta '{"stage":"DV","subject":"Fix X"}')" \
+    > /dev/null 2>&1 || tsub_rc3=$?
+  bash "$SELF" --task-create DV2 --metadata "$(_r9_meta '{"stage":"DV","subject":"fix X","stream":"cli"}')" \
+    --task-create DV3 --metadata "$(_r9_meta '{"stage":"DV","subject":"","stream":"api"}')" \
+    > /dev/null 2>&1 || tsub_rc4=$?
+  if [[ "$tsub_rc1" -eq 2 && "$tsub_rc2" -eq 2 && "$tsub_rc3" -eq 0 && "$tsub_rc4" -eq 0 ]] \
+    && [[ "$tsub_err1" == *'invalid --task-create DV1: metadata.subject repeats tasks.DV0 (each DV stream needs its own subject); state.json unchanged'* ]] \
+    && [[ "$tsub_err2" == *'invalid --task-create DV2: metadata.subject repeats tasks.DV1 in this batch (each DV stream needs its own subject); batch refused, state.json unchanged'* ]] \
+    && [[ "$tsub_err1" != *'Fix X'* ]] \
+    && jq -e '.tasks | has("DV1") and has("DV2") and has("DV3")' .context/state.json > /dev/null; then
+    printf 'T-subject: cloned stream subject refused (ledger and batch), distinct or streamless rows land: ok\n'
+    _SELFTEST_PASSED=$((_SELFTEST_PASSED + 1))
+  else
+    printf 'T-subject: FAIL (rc=%s/%s/%s/%s)\n%s\n%s\n' "$tsub_rc1" "$tsub_rc2" "$tsub_rc3" "$tsub_rc4" \
+      "$tsub_err1" "$tsub_err2" >&2
+    exit 1
+  fi
+  rm -f .context/state.json.snaps .context/tsub1.err .context/tsub2.err
+
+  # ---- T-subject-shape: a DV row or metadata that is not an object does not make the gate
+  # fail open; the clone of a real subject is still refused ----
+  make_state
+  local tshape_rc=0
+  jq '.tasks.DV5 = {status: "pending", metadata: "not-an-object"} | .tasks.DV6 = "junk"
+      | .tasks.DV0 = {status: "pending", metadata: {stage: "DV", subject: "Fix X"}}' \
+    .context/state.json > .context/state.json.shape && mv .context/state.json.shape .context/state.json
+  cp .context/state.json .context/state.json.snapsh
+  bash "$SELF" --task-create DV1 --metadata "$(_r9_meta '{"stage":"DV","subject":"Fix X","stream":"web"}')" \
+    > /dev/null 2>&1 || tshape_rc=$?
+  if [[ "$tshape_rc" -eq 2 ]] && diff -q .context/state.json .context/state.json.snapsh > /dev/null; then
+    printf 'T-subject-shape: non-object DV rows are skipped, the clone is still refused: ok\n'
+    _SELFTEST_PASSED=$((_SELFTEST_PASSED + 1))
+  else
+    printf 'T-subject-shape: FAIL (rc=%s)\n' "$tshape_rc" >&2
+    exit 1
+  fi
+  rm -f .context/state.json.snapsh
+
   make_state
   local tprobe_out
   tprobe_out=$(trap - ERR; LOG_FILE=.context/logs/probe.log \

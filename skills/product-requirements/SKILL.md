@@ -2,6 +2,7 @@
 name: product-requirements
 description: Use when the user invokes $product-requirements or asks for the canonical Corpflow product-requirements workflow.
 argument-hint: "\"<feature or task description>\" | --from-user-story \"<story>\" [--template full|lite|api] [--include-metrics] [--technical]"
+user-invocable: false
 ---
 
 # product-requirements (Codex adapter)

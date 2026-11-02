@@ -302,7 +302,7 @@ the mailbox alone, and must not read an absent decision row as a decision never 
    `status` (e.g. `"busy"`) — no `id`, no `agent_id`, no `waitingFor`, no `parent_agent_id`. The
    background-row variant is unobserved, so `id` and `state` stay in the defensive reads. Read
    identity from `agent_id // id // sessionId` (where `id` appears it is a prefix of `sessionId`, so
-   match on prefix too) and liveness from `waitingFor` when present, else `state`/`status`. Probes:
+   match on prefix too), then from `name` only when one live row carries it and liveness from `waitingFor` when present, else `state`/`status`. Probes:
    `skills/agent-coordination/references/headless-dispatch.md § Schema Versioning Watch`. An
    unrecognised token is unknown, not absent — do not re-delegate off one.
    `skills/worktask/scripts/stale-check.sh` implements exactly this tolerance.
@@ -313,7 +313,7 @@ the mailbox alone, and must not read an absent decision row as a decision never 
 
 ### Step 0 notes — own-name & teammate visibility — name matching
 
-   The own name reuses the `name` key. Do not address your own name in a `peer_session` ask. Names are not unique — match on `sessionId`, never on `name`. A teammate row's `kind` is unconfirmed.
+   The own name reuses the `name` key. Do not address your own name in a `peer_session` ask. Names are not unique — match on `sessionId`. Use `name` only as the last fallback, and only when exactly one live row carries it; two or more rows are liveness-unknown, never absent. A teammate row's `kind` is unconfirmed.
 
 ### Step 0 notes — reattach vs re-dispatch — cost estimation
 
@@ -413,3 +413,13 @@ A waiting notice is not a completed stage. Duplicate result/message delivery is 
 continue to reconcile by task and agent ID before applying completion once.
 Stopping the agents service can stop live sessions after about one minute. Recheck discovery before redispatching.
 Resumed headless dispatches carry the same optional compaction and retry controls; do not substitute an in-process run.
+
+## Claude Code 2.1.304–2.1.316 resume compatibility
+
+A subagent messaged or resumed right after it finishes keeps its latest work (2.1.304). A prompt reattach is safe.
+A session renamed with `/rename` keeps that name for other sessions after a reload or a non-interactive `--resume` (2.1.309).
+This makes the unique-name fallback above dependable.
+A session no longer shows as waiting on you because its last message mentioned waiting items (2.1.312). Trust a park signal.
+Workflow resume serves finished `pipeline()` and `parallel()` agents from the run's journal (2.1.305). Do not re-dispatch them.
+An agent-teams task list survives `--resume`, `--continue`, `/resume` and `--session-id` (2.1.311).
+A headless `startup_failed` result means the child never started. The side-effect snapshot is clean, so fallback is safe.

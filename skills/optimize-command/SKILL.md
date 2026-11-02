@@ -2,6 +2,7 @@
 name: optimize-command
 description: Use when the user invokes $optimize-command or asks for the canonical Corpflow optimize-command workflow.
 argument-hint: "<command-file> | --all [--focus <area>] [--dry-run] [--report]"
+user-invocable: false
 ---
 
 # optimize-command (Codex adapter)

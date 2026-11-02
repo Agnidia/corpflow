@@ -218,9 +218,10 @@ stop_payload() {  # stop_payload <agent_id> <cwd> [agent_transcript_path]
   printf '{"version":2,"run_index":0,"tasks":{"PL0":{"status":"in_progress","metadata":{}}}}\n' \
     > "$WT/.context/state.json"
   t41="$(transcript "$WT")"
-  hook state-merge.sh "$(stop_payload agt_41 "$ROOT" "$t41")"
-  run jq -r 'select(.action == "state_merge_noop") | .actor' "$WT/.context/logs/audit.jsonl"
-  assert_output "hook:state-merge"
+  CLAUDE_TASK_METADATA_STAGE=PL hook state-merge.sh "$(stop_payload agt_41 "$ROOT" "$t41")"
+  run grep -rl 'no artifact resolved (stage=PL' "$WT/.context/logs"
+  assert_success
+  [ ! -e "$ROOT/.context/logs/state-merge.log" ] || fail "the batch received the issue's state-merge log"
   # Unparseable issue ledger, valid batch ledger: only a gate reading the issue's blocks.
   printf '{not json' > "$WT/.context/state.json"
   run hook dv-screenshot-gate.sh "$(jq -cn --arg t "$t41" --arg c "$ROOT" \

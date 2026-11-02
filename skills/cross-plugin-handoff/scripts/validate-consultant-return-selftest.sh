@@ -64,6 +64,14 @@ run_self_test() {
 
   _st_passed=$((_st_passed + 1))
 
+  # info is the one optional count key; it must survive normalization in place after low.
+  local info_return='{"schema_version":"consultant-return.v1","verdict":"pass","severity_counts":{"critical":0,"high":0,"medium":0,"low":0,"info":1},"findings":[{"id":"F1","severity":"info","summary":"Verbose banner"}]}'
+  _st_run info_key "$info_return"
+  [ "$_st_rc" -eq 0 ] || _st_fail "info_key: expected exit 0, got $_st_rc ($_st_err)"
+  [ "$_st_out" = "$info_return" ] || _st_fail "info_key: normalized output differs: $_st_out"
+  [ -z "$_st_err" ] || _st_fail "info_key: unexpected stderr: $_st_err"
+  _st_passed=$((_st_passed + 1))
+
   _st_run version_v2 "{\"schema_version\":\"consultant-return.v2\",\"verdict\":\"pass\",$counts,$findings}"
   _st_expect_reject version_v2 version_mismatch
 

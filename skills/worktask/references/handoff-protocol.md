@@ -629,7 +629,7 @@ is never returned as `fail`, `no-go` or `reject`.
 
 Frontmatter is the canonical compression form: downstream stages read this block instead of the full upstream artifact whenever they only need the verdict, decisions, or refs. Over ≤200 tokens, every downstream stage pays.
 
-A valid `tests_executed` list is excluded from that count up to 96 proxy tokens (about four entries), so recording every runner never costs budget. A `tests_executed` block that fails validation is excluded at the same 96-token cap, and the budget failure line says `(tests_executed invalid: excluded at the 96-token cap)`: the fault is reported once, and the rest of the prose is still checked against 200.
+A valid `tests_executed` list is excluded from that count up to 24 proxy tokens per entry, for at most eight entries (192 tokens), so recording every runner never costs budget. A `tests_executed` block that fails validation is excluded at a flat 96-token cap, and the budget failure line says `(tests_executed invalid: excluded at the 96-token cap)`: the fault is reported once, and the rest of the prose is still checked against 200.
 
 ---
 
@@ -843,9 +843,19 @@ fails an undeclared one.
     "tests_failed": { "type": "integer", "minimum": 0 },
     "blocking_defects": { "type": "array", "items": { "type": "string" } },
     "open_questions": { "type": "array", "items": { "$ref": "#/$defs/SweepItem" } }
-  }
+  },
+  "allOf": [{ "if": { "properties": { "verdict": { "const": "no-go" } } },
+              "then": { "required": ["blocking_defects"],
+                        "properties": { "blocking_defects": { "minItems": 1,
+                          "items": { "type": "string", "minLength": 1 } } } } }]
 }
 ```
+
+#### QAHandoff — a no-go names its defects
+
+A `no-go` names each defect in `blocking_defects`, one string each; `handoff-harness.sh
+--validate-frontmatter` enforces it with or without `yq` (a whitespace-only entry counts as
+empty). The Step 7 loop-back copies the list into the DV row's `gate_blockers`.
 
 ### DCHandoff
 
@@ -1012,7 +1022,7 @@ its own artifact (§ DV fan-out — ledger tasks).
 | Schema field | state.json target | Artifact anchor |
 |--------------|-------------------|-----------------|
 | `FN.verdict` | `tasks.FN0.verdict` | complete-summary-N.md `## summary` |
-| `FN.pr_url` | `handoffs["RE→FN0"]`/`DC→FN0`/`QA→FN0` (ref pointer) | complete-summary-N.md `## artifacts` |
+| `FN.pr_url` | `handoffs["RE→FN0"]`/`DC→FN0`/`QA→FN0` (ref pointer); also `metadata.pr_url` (`--ledger-meta`) | complete-summary-N.md `## artifacts` |
 | `ST.verdict` | `tasks.ST0.verdict` + `facts.verdicts.ST0` + derived `facts.verdicts.ST` | retrospective-N.md `## decision` |
 | `IR.verdict` | `tasks.IR0.verdict` | incident-N.md `## root-cause` |
 | `IR.root_cause` | `facts.decisions[]` | incident-N.md `## root-cause` |
@@ -1776,7 +1786,7 @@ OPTIONAL (additive). Writer: the orchestrator loop only, through `state-patch.sh
 
 #### Field notes — capabilities
 
-OPTIONAL (additive). Probe cache for account-level hard-fails, so later stages do not re-hit the same error. Written by the orchestrator on first observed failure; model resolution consults it before any fable-tier dispatch. Example: `{ "fable_dispatch": "credit_blocked", "checked_at": "<ISO>" }` — Fable 5 is 1M-by-default but *dispatch* fails hard without 1M credits (model-selection.md).
+OPTIONAL (additive). Probe cache for account-level hard-fails, so later stages do not re-hit the same error. Written by the orchestrator on first observed failure; model resolution consults it before any fable-tier dispatch. Example: `{ "fable_dispatch": "credit_blocked", "checked_at": "<ISO>" }` — Fable 5 is 1M-by-default but *dispatch* fails hard without 1M credits (model-selection.md). `effort_cap` maps a model alias to the highest effort tier the account runs, e.g. `{ "effort_cap": { "opus": "high", "checked_at": "<ISO>" } }`. Written by Step 6.5b-cap when a stage's hook-reported effort comes in below the tier it requested (an admin cap Claude Code 2.1.314+ lowers silently). Read at every route call as `effort-route.sh --cap`, so later stages dispatch at the ceiling instead of retrying above it.
 
 ### Eviction order on overflow
 
@@ -2184,7 +2194,7 @@ Anthropic prompt cache matches by prefix equality, not full-block equality, so t
 <<<task-description>>>
 [5]  Task identifiers + ref: lines          ← dynamic per delegation
 <<<retry-hints>>>
-[6]  retry hints (if retry_count > 0)       ← dynamic per delegation
+[6]  retry hints (if retry_count > 0); REMEDIATION block written by brief-compose.sh ← dynamic per delegation
 <<<stage-banners>>>
 [7]  Stage-specific banners (DR Skill, FN Conductor, MCP fallback) ← suffix only
 ```
@@ -2248,6 +2258,7 @@ is identifier lines copied verbatim from the ledger (`task_id`, `stage`, `agent`
 - `artifact#anchor` — an artifact in the resolved `.context` directory with a `## <anchor>` heading;
 - a plain path to an existing file — from `metadata.context_refs` only.
 
+Each `ref:` value appears once; the first occurrence keeps its place.
 A ref that does not resolve fails the compose with exit 1 and an empty stdout.
 
 ### Forbidden tokens in sections [1], [2], [4], [4b]

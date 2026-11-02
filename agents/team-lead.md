@@ -81,12 +81,12 @@ TL is the sole owner of the intra-issue async decision: whether one DV0 splits i
 ##### Steps 3-4: Locate and Narrow DV0
 
 3. Read `tasks.DV0` and `tasks.DR0` from the ledger — the stage ids are the keys
-4. Narrow DV0's description to the primary stream's scope and stamp its slug and artifact. Slugs are
+4. Narrow DV0's description and subject to the primary stream's scope and stamp its slug and artifact. Slugs are
    kebab, unique within the run, assigned here, and never changed once stamped
    (`handoff-protocol.md § Artifact naming (S1)`):
    ```bash
    bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --task-meta DV0 --set '{"description":"{primary stream scope}",
-     "stream":"{primary-slug}","artifact":".context/development-{N}-{primary-slug}.md"}'
+     "subject":"{primary stream subject}","stream":"{primary-slug}","artifact":".context/development-{N}-{primary-slug}.md"}'
    ```
 
 ##### Step 5: Create Stream Tasks
@@ -96,15 +96,15 @@ TL is the sole owner of the intra-issue async decision: whether one DV0 splits i
    ```bash
    DV0_META=$(jq -c '.tasks.DV0.metadata' .context/state.json)
    bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --task-create "DV${N}" --metadata "$(jq -n \
-     --argjson m "$DV0_META" --arg slug "$STREAM_SLUG" --arg desc "$STREAM_SCOPE" \
-     '($m | del(.produces, .consumes)) + {description:$desc, stream:$slug,
+     --argjson m "$DV0_META" --arg slug "$STREAM_SLUG" --arg desc "$STREAM_SCOPE" --arg subj "$STREAM_SUBJECT" \
+     '($m | del(.produces, .consumes)) + {description:$desc, subject:$subj, stream:$slug,
             artifact:".context/development-\($m.run_index)-\($slug).md"}')"
    ```
 ##### Step 5 field notes
 
 The clone is what keeps the row valid: `--task-create` refuses a row missing `effort`, `isolation`, `base_ref`, `requires_screenshots` or `workspace_path`, and it carries forward the agent PL0 already resolved rather than re-routing the stream through a dispatcher agent.
 
-`$STREAM_SCOPE` is that stream's scope, file ownership, interface contracts and acceptance criteria. Leave `workspace_path` as DV0's cloned path; TL never creates a worktree. The orchestrator re-pins a parallel stream to its own worktree at dispatch, so whether a stream gets its own tree follows from the `blocked_by` edges you wire in Steps 6-8 (rule: `skills/worktask/references/handoff-protocol.md § Pinning a row's tree`).
+`$STREAM_SCOPE` is that stream's scope, file ownership, interface contracts and acceptance criteria. `$STREAM_SUBJECT` is that stream's one-line title, distinct from every DV row's, and `--task-create` refuses a repeat with exit 2. Leave `workspace_path` as DV0's cloned path; TL never creates a worktree. The orchestrator re-pins a parallel stream to its own worktree at dispatch, so whether a stream gets its own tree follows from the `blocked_by` edges you wire in Steps 6-8 (rule: `skills/worktask/references/handoff-protocol.md § Pinning a row's tree`).
 
 ##### Step 5 declarations
 

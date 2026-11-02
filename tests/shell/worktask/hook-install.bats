@@ -125,3 +125,86 @@ setup() {
   assert_output --partial "idempotent"
   [ ! -e .claude/hooks/state-merge.sh.bak ]
 }
+
+# --- #523: each replace of an existing copy leaves one hook_refreshed audit row ---
+
+_rows() { # action count in the project audit log (0 when the log is absent)
+  [ -f .context/logs/audit.jsonl ] || { echo 0; return; }
+  grep -c '"action":"hook_refreshed"' .context/logs/audit.jsonl || true
+}
+
+_stale_exec() {
+  mkdir -p .claude/hooks
+  printf '#!/usr/bin/env bash\necho STALE\n' > .claude/hooks/state-merge.sh
+  chmod +x .claude/hooks/state-merge.sh
+}
+
+@test "audit: an untracked stale copy is refreshed with one row naming the .bak" {
+  cd "$PROJ"
+  mkdir -p .context
+  _stale_exec
+  run env CLAUDE_PLUGIN_ROOT="$PLUG" bash "$PLUGIN_ROOT/$SCRIPT"
+  assert_success
+  cmp -s "$PLUG/hooks/state-merge.sh" .claude/hooks/state-merge.sh
+  grep -q STALE .claude/hooks/state-merge.sh.bak
+  [ "$(_rows)" = 1 ]
+  run jq -r 'select(.action=="hook_refreshed") | [.actor,.result,.subject,.task_id,.metadata.previous] | join(" ")' .context/logs/audit.jsonl
+  assert_output "hook-install ok state-merge.sh none .claude/hooks/state-merge.sh.bak"
+}
+
+@test "audit: a git-tracked clean stale copy writes no .bak and one row with previous=git" {
+  cd "$PROJ"
+  git init -q . && git config user.email t@t && git config user.name t
+  mkdir -p .context
+  _stale_exec
+  git add -f .claude/hooks/state-merge.sh && git commit -qm seed
+  run env CLAUDE_PLUGIN_ROOT="$PLUG" bash "$PLUGIN_ROOT/$SCRIPT"
+  assert_success
+  [ ! -e .claude/hooks/state-merge.sh.bak ]
+  [ "$(_rows)" = 1 ]
+  run jq -r 'select(.action=="hook_refreshed") | .metadata.previous' .context/logs/audit.jsonl
+  assert_output "git"
+}
+
+@test "audit: a non-executable copy is replaced, keeps its .bak and writes one row" {
+  cd "$PROJ"
+  mkdir -p .context .claude/hooks
+  printf 'CUSTOMIZED\n' > .claude/hooks/state-merge.sh
+  chmod -x .claude/hooks/state-merge.sh
+  run env CLAUDE_PLUGIN_ROOT="$PLUG" bash "$PLUGIN_ROOT/$SCRIPT"
+  assert_success
+  [ "$(cat .claude/hooks/state-merge.sh.bak)" = "CUSTOMIZED" ]
+  [ "$(_rows)" = 1 ]
+}
+
+@test "audit: a fresh install and an idempotent re-run write no row" {
+  cd "$PROJ"
+  mkdir -p .context
+  run env CLAUDE_PLUGIN_ROOT="$PLUG" bash "$PLUGIN_ROOT/$SCRIPT"
+  assert_success
+  run env CLAUDE_PLUGIN_ROOT="$PLUG" bash "$PLUGIN_ROOT/$SCRIPT"
+  assert_success
+  assert_output --partial "idempotent"
+  [ "$(_rows)" = 0 ]
+}
+
+@test "audit: without .context/ a stale copy is refreshed and no .context/ is created" {
+  cd "$PROJ"
+  _stale_exec
+  run env CLAUDE_PLUGIN_ROOT="$PLUG" bash "$PLUGIN_ROOT/$SCRIPT"
+  assert_success
+  cmp -s "$PLUG/hooks/state-merge.sh" .claude/hooks/state-merge.sh
+  [ ! -e .context ]
+}
+
+@test "audit: --check on a stale copy exits 1, changes nothing and writes no row" {
+  cd "$PROJ"
+  mkdir -p .context
+  _stale_exec
+  run env CLAUDE_PLUGIN_ROOT="$PLUG" bash "$PLUGIN_ROOT/$SCRIPT" --check
+  assert_failure 1
+  assert_output --partial "DIFFERS"
+  grep -q STALE .claude/hooks/state-merge.sh
+  [ ! -e .claude/hooks/state-merge.sh.bak ]
+  [ "$(_rows)" = 0 ]
+}

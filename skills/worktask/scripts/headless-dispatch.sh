@@ -29,7 +29,7 @@
 #   apply their own `manual`-or-narrower ceiling on top.
 #
 #   Fallback: a `claude` binary missing/below floor, an auth failure, an unresolved `--agent`,
-#   or a pre-artifact exit degrade to an in-process run that carries the same tier on the
+#   a startup failure (no stream-json `init` event), or a pre-artifact exit degrade to an in-process run that carries the same tier on the
 #   Agent tool's `effort` — but ONLY when the pre/post side-effect snapshots match. A side effect
 #   already landed means the run goes to the error chain instead (`side_effects_present`);
 #   silently retrying in-process over real work would double it.
@@ -48,7 +48,9 @@ _HD_PLUGIN_ROOT="$(cd "${_HD_DIR}/../../.." && pwd)"
 # shellcheck source=effort-ladder.sh
 . "${_HD_DIR}/effort-ladder.sh"
 
-MIN_CC_VERSION="2.1.303"
+# 2.1.314 is the first CLI whose startup failure exits 1 with the error printed; below it a
+# failed start exited 0 with no output and read as a successful run.
+MIN_CC_VERSION="2.1.316"
 . "${_HD_DIR}/dispatch-controls.sh"
 
 usage() {
@@ -529,8 +531,9 @@ SNAPSHOT_AFTER="$(_hd_snapshot)"
 SIDE_EFFECTS=0
 [ "$SNAPSHOT_BEFORE" = "$SNAPSHOT_AFTER" ] || SIDE_EFFECTS=1
 
-# A non-zero exit with no auth-failure or agent-unresolved marker in the transcript reads as
-# the plain "the child died before it did anything" case (exit_before_artifact).
+# A non-zero exit with no auth-failure or agent-unresolved marker reads as startup_failed when
+# the log holds no stream-json `init` event (the CLI refused its own flags, settings or MCP
+# config before a session existed, so no tool could have run), else as exit_before_artifact.
 if [ "$EXIT_CODE" -ne 0 ]; then
   if [ "$SIDE_EFFECTS" -eq 1 ]; then
     printf >&2 'headless-dispatch.sh: side effects present after a failed child; no fallback\n'
@@ -544,8 +547,11 @@ if [ "$EXIT_CODE" -ne 0 ]; then
   REASON="exit_before_artifact"
   if grep -qiE 'auth(entication)? (failed|error)|not logged in' "$LOG_FILE" 2> /dev/null; then
     REASON="auth_failed"
-  elif grep -qiE 'unknown agent|agent not found|no such agent' "$LOG_FILE" 2> /dev/null; then
+  elif grep -qiE "unknown agent|agent not found|no such agent|--agent '[^']*' not found" \
+    "$LOG_FILE" 2> /dev/null; then
     REASON="agent_unresolved"
+  elif ! grep -q '"subtype":"init"' "$LOG_FILE" 2> /dev/null; then
+    REASON="startup_failed"
   fi
   [ "$HAS_CONTROLS" -eq 0 ] || refuse "dispatch controls prevent in-process fallback: $REASON"
   emit_result "warn" "agent-param" "null" "$REASON" null null null "inproc_fallback"

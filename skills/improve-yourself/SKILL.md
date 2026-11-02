@@ -2,6 +2,7 @@
 name: improve-yourself
 description: Use when the user invokes $improve-yourself or asks for the canonical Corpflow improve-yourself workflow.
 argument-hint: "[--since <ref>] [--target agents|skills|commands|all] [--dry-run] [--no-scope-filter] [--apply]"
+user-invocable: false
 ---
 
 # improve-yourself (Codex adapter)

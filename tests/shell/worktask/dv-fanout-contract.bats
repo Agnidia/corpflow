@@ -162,6 +162,106 @@ write_dr() {
   [ -f "$PLUGIN_ROOT/$DV_FIX/development-0.md" ] || fail "single-DV fixture artifact missing"
 }
 
+# team-lead.md Steps 4-5, verbatim. The pin test fails when the prose drops the subject
+# override, and the fan-out tests replay STEP5_OVERRIDE, so the recipe and the replay agree.
+STEP4_SET='"subject":"{primary stream subject}","stream":"{primary-slug}",'
+STEP5_ARGS='--arg desc "$STREAM_SCOPE" --arg subj "$STREAM_SUBJECT" \'
+STEP5_OVERRIDE='($m | del(.produces, .consumes)) + {description:$desc, subject:$subj, stream:$slug,
+       artifact:".context/development-\($m.run_index)-\($slug).md"}'
+
+# seed_pl0_ledger — DV0 as PL0 seeds it (a subject, plan and AR context_refs, the dispatch
+# keys) and a completed AR0 whose decisions are on disk, so every brief ref resolves.
+seed_pl0_ledger() {
+  printf '## requirements\n\nR.\n\n## acceptance-criteria\n\nA.\n' > "$WD/.context/planning-0.md"
+  printf '## decisions\n\nD.\n' > "$WD/.context/architecture-0.md"
+  jq -n --arg wd "$WD" '{version: 2, worktask_id: "subject-fixture", plan_file: ".context/planning-0.md",
+    run_index: 0, facts: {}, handoffs: {},
+    tasks: {
+      PL0: {status: "completed", metadata: {stage: "PL"}},
+      AR0: {status: "completed", metadata: {stage: "AR", run_index: 0}},
+      DV0: {status: "pending", blocked_by: ["AR0"], metadata: {stage: "DV", agent: "corpflow:developer",
+        model: "opus", effort: "high", isolation: "worktree", base_ref: "develop",
+        requires_screenshots: false, workspace_path: $wd, run_index: 0,
+        artifact: ".context/development-0.md", subject: "Fix the whole issue",
+        context_refs: ["planning-0.md#requirements", "planning-0.md#acceptance-criteria",
+          "architecture-0.md#decisions"]}}}}' > "$WD/.context/state.json"
+}
+
+# step4_narrow — Step 4's --task-meta call with the primary stream filled in.
+step4_narrow() {
+  bash "$PLUGIN_ROOT/$STATE_PATCH" --task-meta DV0 --set '{"description":"Own the core stream",
+    "subject":"Build the core stream","stream":"core","artifact":".context/development-0-core.md"}'
+}
+
+# step5_meta <slug> <subject> — Step 5's --metadata value for one stream, via STEP5_OVERRIDE.
+step5_meta() {
+  jq -n --argjson m "$(jq -c '.tasks.DV0.metadata' "$WD/.context/state.json")" \
+    --arg slug "$1" --arg desc "Own the $1 stream" --arg subj "$2" "$STEP5_OVERRIDE"
+}
+
+@test "subject: team-lead.md Steps 4-5 spell the per-stream subject override" {
+  local slice line
+  slice=$(awk '/^4\. Narrow DV0/ { f = 1 } /^##### Step 5 field notes/ { f = 0 } f' "$PLUGIN_ROOT/agents/team-lead.md")
+  [ -n "$slice" ] || fail "Steps 4-5 slice is empty; the Step 4 or field-notes heading moved"
+  while IFS= read -r line; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    grep -qF -- "$line" <<< "$slice" || fail "Steps 4-5 drifted: team-lead.md no longer carries: $line"
+  done <<< "$STEP4_SET"$'\n'"$STEP5_ARGS"$'\n'"$STEP5_OVERRIDE"
+}
+
+@test "subject: a 4-stream fan-out yields four distinct subjects and no duplicate refs" {
+  seed_pl0_ledger
+  cd "$WD"
+  run step4_narrow
+  assert_success
+  local s k subjects="" brief
+  for s in "1 api" "2 web" "3 cli"; do
+    run bash "$PLUGIN_ROOT/$STATE_PATCH" --task-create "DV${s%% *}" \
+      --metadata "$(step5_meta "${s#* }" "Build the ${s#* } stream")"
+    assert_success
+  done
+  for k in 0 1 2 3; do
+    brief=$(bash "$PLUGIN_ROOT/skills/worktask/scripts/brief-compose.sh" "DV$k" \
+      --state .context/state.json --orch-root "$WD") || fail "DV$k brief did not compose"
+    [ -z "$(grep '^ref: ' <<< "$brief" | sort | uniq -d)" ] || fail "DV$k brief repeats a ref: line"
+    grep -q '^ref: architecture-0.md#decisions$' <<< "$brief" || fail "DV$k brief lost the AR ref"
+    subjects+="$(grep '^subject: ' <<< "$brief")"$'\n'
+  done
+  [ "$(printf '%s' "$subjects" | sort -u | grep -c '^subject: ')" -eq 4 ] \
+    || fail "subjects are not four distinct lines: $subjects"
+}
+
+@test "subject: a stream clone keeping DV0's subject exits 2, ledger byte-identical" {
+  seed_pl0_ledger
+  cd "$WD"
+  run step4_narrow
+  assert_success
+  cp .context/state.json .context/state.json.before
+  # A clone with no subject override inherits DV0's subject.
+  run --separate-stderr bash "$PLUGIN_ROOT/$STATE_PATCH" --task-create DV1 --metadata "$(jq -n \
+    --argjson m "$(jq -c '.tasks.DV0.metadata' .context/state.json)" \
+    '$m + {description:"Own the api stream", stream:"api", artifact:".context/development-0-api.md"}')"
+  assert_failure 2
+  [[ "$stderr" == *"invalid --task-create DV1: metadata.subject repeats tasks.DV0 (each DV stream needs its own subject); state.json unchanged"* ]] \
+    || fail "unexpected stderr: $stderr"
+  cmp .context/state.json .context/state.json.before
+}
+
+@test "subject: batched siblings sharing a subject refuse the whole batch" {
+  seed_pl0_ledger
+  cd "$WD"
+  run step4_narrow
+  assert_success
+  cp .context/state.json .context/state.json.before
+  run --separate-stderr bash "$PLUGIN_ROOT/$STATE_PATCH" \
+    --task-create DV1 --metadata "$(step5_meta api "Build the client")" \
+    --task-create DV2 --metadata "$(step5_meta web "Build the client")"
+  assert_failure 2
+  [[ "$stderr" == *"invalid --task-create DV2: metadata.subject repeats tasks.DV1 in this batch (each DV stream needs its own subject); batch refused, state.json unchanged"* ]] \
+    || fail "unexpected stderr: $stderr"
+  cmp .context/state.json .context/state.json.before
+}
+
 # bare_dev_literals <file>... — every bare development-N.md literal as <file>:<line text>.
 # Line numbers are dropped so the allow-list matches content, not positions that drift.
 bare_dev_literals() {

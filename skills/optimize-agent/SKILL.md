@@ -2,6 +2,7 @@
 name: optimize-agent
 description: Use when the user invokes $optimize-agent or asks for the canonical Corpflow optimize-agent workflow.
 argument-hint: "<agent-file> | --all [--focus <area>] [--dry-run] [--report]"
+user-invocable: false
 ---
 
 # optimize-agent (Codex adapter)

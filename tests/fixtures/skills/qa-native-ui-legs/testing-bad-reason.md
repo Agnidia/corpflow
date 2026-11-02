@@ -2,6 +2,8 @@
 handoff:
   stage: QA
   verdict: no-go
+  blocking_defects:
+    - "UI-3 not delegated with an empty reason"
   summary: "Negative fixture: a not_delegated native UI leg with no reason"
   tests_executed: [{ runner: bats, count: 3, summary_line: "1..3" }]
   files_touched: []

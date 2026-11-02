@@ -2,6 +2,7 @@
 name: arch-review
 description: Use when the user invokes $arch-review or asks for the canonical Corpflow arch-review workflow.
 argument-hint: "[--pr <number> | --path <dir>] [--scope full|focused] [--checklist]"
+user-invocable: false
 ---
 
 # arch-review (Codex adapter)

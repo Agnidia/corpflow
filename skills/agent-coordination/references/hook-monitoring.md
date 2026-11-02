@@ -116,7 +116,7 @@ Every worktask gate — hook-enforced or orchestrator-mediated — returns struc
 | Surface | Mechanism | Reference user |
 |---------|-----------|----------------|
 | Hook gate | `hookSpecificOutput.additionalContext` alongside `decision:block` | `hooks/dv-screenshot-gate.sh` (block path) |
-| Orchestrator gate | inject `blockers[]` / `blocking_defects[]` verbatim into the re-dispatched stage prompt | `skills/worktask/SKILL.md` DR→DV / QA→DV loop-back (`gate_remediation_injected` audit row) |
+| Orchestrator gate | `blockers[]` / `blocking_defects[]` into the re-dispatched prompt's [6], one flattened line each | `brief-compose.sh`, fed by the `SKILL.md` DR→DV / QA→DV loop-back (`gate_remediation_injected` row) |
 
 The surfaces are symmetric — the hook embeds remediation in the block JSON, the orchestrator embeds the upstream blocker list in the retry prompt — so change them together. The `decision:block` verb, the exit-0 discipline and the `screenshot_gate_block` audit-row schema are unchanged by it; `hookSpecificOutput` is an additive stdout field.
 
@@ -351,3 +351,14 @@ background commands run and plugin worktree hooks under `--worktree` are fixed i
 Hook `updatedInput` is validated as tool input from 2.1.300; unknown keys are dropped and invalid input denies the call.
 Prompt and agent hooks run at most twelve instances per event concurrently from 2.1.302. Command hooks are unaffected.
 These releases do not confirm background notification ID keys, maxTurns partial keys, or model-switch/resume payload field names.
+
+## Claude Code 2.1.304–2.1.316 hook behavior
+
+`SubagentStop` fires once, when a subagent finishes (2.1.311). Before, it fired about twice a minute per running subagent.
+`audit-subagent.sh` keeps its phantom-row suppression as a defense.
+Hooks that match `Bash` also run on the shell commands the `Monitor` tool starts (2.1.314). They can block or ask, not approve or rewrite.
+Probed at 2.1.316, the payload is `tool_name: "Bash"` with `tool_input.command`, so `test-execution-gate.sh` gates Monitor test runs unchanged.
+A hook `if` condition such as `Monitor(tail *)` matches Monitor commands as `Bash(tail *)` matches Bash (2.1.314).
+Each PreCompact hook's output is cut at 10,000 characters (2.1.314). `precompact-checkpoint.sh` prints nothing to the model.
+Prompt and agent hooks run at most 24 at a time per session (2.1.312). corpflow registers command hooks only.
+A skill source registers at most 1,024 hooks and 16,384 matcher characters per session (2.1.304).
