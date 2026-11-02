@@ -509,6 +509,10 @@ function markDispatchStatus(state, taskId, status, modelResolved) {
 // (agent-coordination § Retry / Escalate Matrix); no new vocabulary. Rate-limit / API
 // cut-off = `transient`; other classes come from the artifact or return text.
 // errorBasename — last ":"-segment of subagent_type (corpflow:developer → developer).
+// effortRank — the tier's index on effort-ladder.sh's ladder (effort_rank; ascending).
+// effortResolvedFromHookRows — the stage's last `hook:audit-tooluse` row's metadata.effort
+// in .context/logs/audit.jsonl (the route row's effort_resolved source); null when no row
+// carries a real tier ("unknown" counts as none).
 
 ```
 
@@ -1320,6 +1324,9 @@ Controlled rows without stamped effort must also reach the router and escalate i
       .some(key => Object.prototype.hasOwnProperty.call(full.metadata, key));
     const routed = (full.metadata.effort || hasDispatchControls) && spawnSync("bash", ["skills/worktask/scripts/effort-route.sh",
       "--agent", subagentType, "--model", effectiveModel, "--requested", full.metadata.effort ?? "",
+      // The cached account ceiling (Step 6.5b-cap) lowers the tier before either transport.
+      ...(state.facts?.capabilities?.effort_cap?.[effectiveModel]
+        ? ["--cap", state.facts.capabilities.effort_cap[effectiveModel]] : []),
       "--dispatch-controls", JSON.stringify(full.metadata)],
       { encoding: "utf8" });
     // A refused route (exit 2, no line) must not fall through to a dispatch without the tier.
@@ -1650,6 +1657,21 @@ const rowMatchesHandoff = (row, h) =>
           dispatched_agents: markDispatchStatus(stateForDispatch, task.id, "completed", launchAck?.model_resolved),
         },
       });
+      // 6.5b-cap. Cache an account effort ceiling. Claude Code 2.1.314+ lowers a tier an admin
+      //       capped and runs the turn at the lower one, so the stage's hook-reported effort.level
+      //       (the route row's effort_resolved source) comes in below route.requested. Cache it per
+      //       model so later stages route at the ceiling (effort-route.sh --cap) instead of paying
+      //       for the refused request each time. Only a LOWER observed tier is cached; "unknown"
+      //       or a missing hook row never is. An operator CLAUDE_CODE_EFFORT_LEVEL pin reads the
+      //       same way and lasts the whole session too, so caching it is equally correct.
+      const observedEffort = effortResolvedFromHookRows(task.id);  // null when no hook row
+      if (observedEffort && route.effort_transport !== "none"
+          && effortRank(observedEffort) < effortRank(route.requested)) {
+        atomicMergeStateJson({ facts: { capabilities: { effort_cap: {
+          [effectiveModel]: observedEffort, checked_at: new Date().toISOString() } } } });
+        appendAudit({ actor: "orchestrator", action: "effort_cap_cached", subject: task.id,
+          result: "ok", metadata: { model: effectiveModel, requested: route.requested, observed: observedEffort } });
+      }
     }
 ```
 

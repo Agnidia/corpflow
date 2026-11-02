@@ -135,3 +135,6 @@ The category requires `OTEL_LOG_TOOL_DETAILS=1`; 2.1.302 fixes missing category 
 Idle compaction can compact conversations above 200K tokens after about 54 minutes (2.1.299).
 `idleCompaction: false` disables it; `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` changes the threshold.
 The 2.1.302 config UI exposes the toggle. These operator controls do not change stage token budgets.
+
+Subagent transcripts recorded placeholder token usage and an empty stop reason for streamed responses before 2.1.307.
+Do not use per-subagent transcript usage from earlier builds as a baseline.

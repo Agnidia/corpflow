@@ -206,7 +206,7 @@ argv_has() { grep -qxF -- "$1" "$PA_OUT_FILE"; } # <exact-token>
 }
 
 @test "cli_below_floor: the release just below the floor degrades too" {
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.302"; exit 0; fi; exit 0'
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.315"; exit 0; fi; exit 0'
   echo hi > "$WS/prompt.txt"
   run_script_env --stub-path "$SCRIPT" --task DV0 --agent corpflow:developer --model opus \
     --effort xhigh --permission-mode manual --workspace "$WS" --ledger-root "$LR" --out "$LR/.context/logs/run.jsonl" \
@@ -216,7 +216,7 @@ argv_has() { grep -qxF -- "$1" "$PA_OUT_FILE"; } # <exact-token>
 }
 
 @test "CORPFLOW_HEADLESS_ROUTE=off is not a fallback reason: the spawn still runs" {
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":1,\"usage\":null,\"total_cost_usd\":null}"
 exit 0'
@@ -244,7 +244,7 @@ exit 0'
 }
 
 @test "the child's cwd is the worktree and WORKSPACE_ROOT is the ledger root, not the worktree" {
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 pwd > "$STUB_CWD_FILE"
 printf "%s" "$WORKSPACE_ROOT" > "$STUB_ROOT_FILE"
@@ -265,7 +265,7 @@ exit 0'
 @test "the tier reaches the child as --effort only, never through an effort env var" {
   # An ambient operator value would leak through to the stub and mask the script's own env.
   unset CLAUDE_CODE_EFFORT_LEVEL
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 printf "%s\n" "$@" > "$STUB_ARGS_FILE"
 printf "%s" "${CLAUDE_CODE_EFFORT_LEVEL-unset}" > "$STUB_ENV_FILE"
@@ -284,7 +284,7 @@ exit 0'
 }
 
 @test "a successful child reports ok/dispatch-flag with duration/usage but no effort_resolved (no hook rows yet)" {
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":4200,\"usage\":{\"input_tokens\":10},\"total_cost_usd\":0.02,\"effort\":{\"level\":\"xhigh\"}}"
 exit 0'
@@ -301,8 +301,9 @@ exit 0'
 }
 
 @test "exit_before_artifact: a plain non-zero exit with no side effects degrades to warn" {
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
+echo '"'"'{"type":"system","subtype":"init"}'"'"'
 exit 1'
   echo hi > "$WS/prompt.txt"
   run_script_env --stub-path "$SCRIPT" --task DV0 --agent corpflow:developer --model opus \
@@ -314,8 +315,35 @@ exit 1'
   assert_output --partial '"effort_resolved_reason":"inproc_fallback"'
 }
 
+@test "startup_failed: a non-zero exit before any stream-json init event" {
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
+cat > /dev/null
+echo "Error: Settings file not found: /nonexistent/x.json"
+exit 1'
+  echo hi > "$WS/prompt.txt"
+  run_script_env --stub-path "$SCRIPT" --task DV0 --agent corpflow:developer --model opus \
+    --effort xhigh --permission-mode manual --workspace "$WS" --ledger-root "$LR" --out "$LR/.context/logs/run.jsonl" \
+    --prompt "$WS/prompt.txt"
+  assert_success
+  assert_output --partial '"fallback_reason":"startup_failed"'
+  assert_output --partial '"effort_resolved_reason":"inproc_fallback"'
+}
+
+@test "agent_unresolved matches the CLI's own --agent '<id>' not found line" {
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
+cat > /dev/null
+echo "--agent '"'"'corpflow:developer'"'"' not found. Available agents: a:b"
+exit 1'
+  echo hi > "$WS/prompt.txt"
+  run_script_env --stub-path "$SCRIPT" --task DV0 --agent corpflow:developer --model opus \
+    --effort xhigh --permission-mode manual --workspace "$WS" --ledger-root "$LR" --out "$LR/.context/logs/run.jsonl" \
+    --prompt "$WS/prompt.txt"
+  assert_success
+  assert_output --partial '"fallback_reason":"agent_unresolved"'
+}
+
 @test "auth_failed is detected from the transcript and reported as the fallback reason" {
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "Authentication failed: please run claude login"
 exit 1'
@@ -328,7 +356,7 @@ exit 1'
 }
 
 @test "agent_unresolved is detected from the transcript" {
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "Unknown agent: corpflow:developer"
 exit 1'
@@ -341,7 +369,7 @@ exit 1'
 }
 
 @test "a side effect after a failed child refuses to fall back and errors instead" {
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "dirty" >> dirty.txt
 exit 1'
@@ -370,7 +398,7 @@ exit 1'
   cat > "$LR/.context/state.json" << EOF3
 {"tasks":{"DV0":{"status":"in_progress","metadata":{"artifact":"$ARTIFACT_REL"}}}}
 EOF3
-  stub_cmd claude --body "if [ \"\$1\" = \"--version\" ]; then echo \"2.1.303\"; exit 0; fi
+  stub_cmd claude --body "if [ \"\$1\" = \"--version\" ]; then echo \"2.1.316\"; exit 0; fi
 cat > /dev/null
 echo after >> $ARTIFACT_ABS
 exit 1"
@@ -385,7 +413,7 @@ exit 1"
 
 @test "a missing shasum fails closed on the side-effect snapshot, never a silent pass" {
   echo hi > "$WS/prompt.txt"
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":1,\"usage\":null,\"total_cost_usd\":null}"
 exit 0'
@@ -400,7 +428,7 @@ exit 0'
 }
 
 @test "effort_resolved is filled from the child's own audit-tooluse row after it exits" {
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":1,\"usage\":null,\"total_cost_usd\":null}"
 exit 0'
@@ -424,7 +452,7 @@ EOF3
   # script's OWN internal SESSION_ID still has to come from somewhere, since it is what
   # emit_result reports and what the post-exit audit-log lookup keys on. Passing --session-id
   # alongside --resume is how the caller supplies that value on a resume round-trip.
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":1,\"usage\":null,\"total_cost_usd\":null}"
 exit 0'
@@ -444,7 +472,7 @@ EOF3
 }
 
 @test "effort_resolved stays null/no_hook_rows when no audit row matches the session" {
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":1,\"usage\":null,\"total_cost_usd\":null}"
 exit 0'
@@ -463,7 +491,7 @@ EOF3
 
 @test "a platform-plugin agent (non-corpflow prefix) registered in routing-matrix.md is accepted without a local agents/ file" {
   echo hi > "$WS/prompt.txt"
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":1,\"usage\":null,\"total_cost_usd\":null}"
 exit 0'
@@ -564,7 +592,7 @@ exit 0'
   cat > "$LR/.context/state.json" << EOF3
 {"tasks":{"DV0":{"status":"in_progress","metadata":{"effort":"xhigh","permission_mode":"manual","workspace_path":"$WS","artifact":".context/development-0.md"}}}}
 EOF3
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":1,\"usage\":null,\"total_cost_usd\":null}"
 exit 0'
@@ -583,7 +611,7 @@ exit 0'
   cat > "$LR/.context/state.json" << EOF3
 {"tasks":{"DV0":{"status":"in_progress","metadata":{"effort":"xhigh","permission_mode":null,"workspace_path":"$WS","artifact":".context/development-0.md"}}}}
 EOF3
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":1,\"usage\":null,\"total_cost_usd\":null}"
 exit 0'
@@ -623,7 +651,7 @@ EOF3
 
 @test "the ledger root itself is an accepted workspace (single-worktree case)" {
   echo hi > "$LR/prompt.txt"
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":1,\"usage\":null,\"total_cost_usd\":null}"
 exit 0'
@@ -667,7 +695,7 @@ EOF3
 {"tasks":{"DV0":{"status":"in_progress","metadata":{"workspace_path":"$PINNED"}}}}
 EOF3
   echo hi > "$PINNED/prompt.txt"
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":1,\"usage\":null,\"total_cost_usd\":null}"
 exit 0'
@@ -750,7 +778,7 @@ EOF3
 # --- P3 CWE-345: an observed effort off the tier ladder is never trusted ----------------------
 
 @test "an observed effort not on the enum is ignored, not passed downstream" {
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat > /dev/null
 echo "{\"type\":\"result\",\"duration_ms\":1,\"usage\":null,\"total_cost_usd\":null}"
 exit 0'
@@ -797,7 +825,7 @@ EOF3
 @test "ledger controls survive resume, explicit overrides and child environment isolation" {
   printf '%s' '{"tasks":{"DV0":{"metadata":{"effort":"high","retry_watchdog":true,"retry_watchdog_max_wait_ms":100,"retry_watchdog_max_usage_limit_wait_ms":200,"overloaded_retry_max_delay_ms":300,"auto_compact_window":100000}}}}' > "$LR/.context/state.json"
   CAPTURE="$(mk_tmpworkdir)/capture"
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat >/dev/null
 printf "%s\n" "$CLAUDE_CODE_RETRY_WATCHDOG" "$CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS" "$CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS" "$CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS" "$CLAUDE_CODE_AUTO_COMPACT_WINDOW" "$@" > "$CAPTURE"
 echo "{\"type\":\"result\",\"duration_ms\":1}"'
@@ -822,7 +850,7 @@ echo "{\"type\":\"result\",\"duration_ms\":1}"'
     --out "$LR/.context/logs/run.jsonl" --prompt "$WS/prompt.txt" --retry-watchdog false
   assert_failure 2
   assert_output --partial 'require headless execution'
-  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.303"; exit 0; fi
+  stub_cmd claude --body 'if [ "$1" = "--version" ]; then echo "2.1.316"; exit 0; fi
 cat >/dev/null
 exit 1'
   run_script_env --stub-path "$SCRIPT" --task DV0 --agent corpflow:developer --model opus \

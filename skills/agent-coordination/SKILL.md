@@ -666,3 +666,13 @@ The first in-process teammate SendMessage call no longer requires prior tool-sea
 Subagents preload at most 32 distinct skills; use the Skill tool for additional skills.
 MCP descriptions loaded through tool search allow 16384 characters. Agent tool lists match only the named MCP server;
 use `mcp__<whole name>__*` when its name contains `__` (2.1.299).
+
+## Claude Code 2.1.316 coordination compatibility
+
+Forks launched together are each told which launch is their own (2.1.307). A fork no longer starts a sibling's work.
+A subagent's isolated worktree stays while a background subagent it started still works in it (2.1.311).
+Unchanged subagent worktrees are cleaned up; in a bare repository a new worktree starts from the default branch (2.1.305).
+A subagent can use MCP tools from servers that finish connecting after it starts (2.1.311).
+Cloud sessions and teammates are told when compaction left the oldest messages out of the summary (2.1.305).
+Split-pane teammates inherit the leader's tool deny rules and `--tools` (2.1.309).
+Parent sessions no longer keep each subagent's tool results until the turn ends (2.1.314).

@@ -2,14 +2,19 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [4.1.4] — 2026-11-02
 
 ### Changed
 
+- Require Claude Code 2.1.316+ (was 2.1.303+), and raise the `headless-dispatch.sh` floor to match: below 2.1.314 a `claude -p` that failed at startup exited 0 with no output and read as a successful run.
+- Integrate Claude Code 2.1.304→2.1.316: document `CLAUDE_CODE_SUBAGENT_EFFORT`, the lower-only subagent `autoCompactWindow`, the single `SubagentStop`, Bash hooks on `Monitor` commands (the test gate covers them unchanged), the reattach and `/rename` fixes, and `ultrathink` = `xhigh`.
+- Cache an admin effort cap: Step 6.5b-cap writes `facts.capabilities.effort_cap.<model>` when a stage ran below its requested tier, and `effort-route.sh --cap` lowers later requests to it (`capped_from` records the original).
 - Shorten the worktask completion comment: `attach-visual-evidence.sh --post completion` adds a `PR: <url>` line (only a github.com PR URL naming this repository) and posts the first `## summary` paragraph, else `facts.goal`, else the PR title, capped at 300 characters (keeping the last whole word that fits) instead of the whole FN summary file.
 
 ### Fixed
 
+- Report a headless child that failed before its stream-json `init` event as `startup_failed` instead of `exit_before_artifact`, and match the CLI's own `--agent '<id>' not found` line as `agent_unresolved`.
+- Match a resume row by `name` only when exactly one live row carries it: `stale-check.sh` reads a name two rows share as `liveness-unknown`, never as a first-match hit.
 - Hide the 28 Codex adapter skills from the Claude Code `/` menu: each `skills/<name>/SKILL.md` that shadows a `commands/<name>.md` sets `user-invocable: false`, stays model-invocable, and `codex-compat.bats` fails an adapter without it. Plugin version 4.1.4.
 - Silence stage-less SubagentStops in `state-merge.sh`: with neither stage nor artifact the hook exits 0 before delegating, so no WARN line, audit row or sentinel is written (#522).
 - Post the completion comment when the checkout is off the PR head branch: FN records `metadata.pr_url` on the ledger and `attach-visual-evidence.sh --post completion` falls back to it (#519).

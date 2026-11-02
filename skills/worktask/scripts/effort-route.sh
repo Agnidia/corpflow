@@ -10,6 +10,11 @@
 #   The agent's own `effort:` frontmatter plays no part: the Agent call's `effort` outranks it,
 #   so there is no baseline to compare against.
 #
+#   `--cap <tier>` is the account ceiling cached in `facts.capabilities.effort_cap.<model>`. A
+#   request above it is lowered to it before either transport sees it (`requested` carries the
+#   lowered tier, `capped_from` the original), because Claude Code 2.1.314+ would lower it
+#   anyway, and only after a refused request.
+#
 #   Symbols: none exported — this file is a CLI, never sourced (unlike effort-ladder.sh).
 #
 # @exitcode 2 usage error or invalid enum value
@@ -32,7 +37,7 @@ _ER_AGENT_ID_RE='^[a-z0-9-]+:[a-z0-9-]+$'
 usage() {
   cat >&2 << 'EOF2'
 usage:
-  effort-route.sh --agent <plugin:agent> --model <alias> --requested <tier> [--dispatch-controls <metadata-json>]
+  effort-route.sh --agent <plugin:agent> --model <alias> --requested <tier> [--cap <tier>] [--dispatch-controls <metadata-json>]
 
 Prints one JSON route-decision line and exits 0, or exits 2 with an
 error on stderr before printing anything. CORPFLOW_HEADLESS_ROUTE=on
@@ -45,6 +50,8 @@ EOF2
 AGENT=""
 MODEL=""
 REQUESTED=""
+CAP=""
+CAPPED_FROM=""
 CONTROLS='{}'
 . "${_ER_DIR}/dispatch-controls.sh"
 
@@ -54,6 +61,7 @@ while [ "$#" -gt 0 ]; do
     --model) MODEL="${2:-}"; shift 2 ;;
     --dispatch-controls) CONTROLS="${2:-}"; shift 2 ;;
     --requested) REQUESTED="${2:-}"; shift 2 ;;
+    --cap) CAP="${2:-}"; shift 2 ;;
     -h | --help) usage ;;
     *)
       printf >&2 'effort-route.sh: unknown argument: %s\n' "$1"
@@ -76,6 +84,15 @@ fi
 if ! effort_rank "$REQUESTED" > /dev/null 2>&1; then
   printf >&2 'effort-route.sh: invalid requested effort: %s\n' "$REQUESTED"
   exit 2
+fi
+
+if [ -n "$CAP" ] && ! effort_rank "$CAP" > /dev/null 2>&1; then
+  printf >&2 'effort-route.sh: invalid effort cap: %s\n' "$CAP"
+  exit 2
+fi
+if [ -n "$CAP" ] && [ "$(effort_rank "$REQUESTED")" -gt "$(effort_rank "$CAP")" ]; then
+  CAPPED_FROM="$REQUESTED"
+  REQUESTED="$CAP"
 fi
 
 dispatch_controls_validate "$CONTROLS" || { printf >&2 'invalid dispatch controls\n'; exit 2; }
@@ -102,11 +119,15 @@ if command -v jq > /dev/null 2>&1; then
   jq -cn \
     --arg agent "$AGENT" --arg model "$MODEL" --arg requested "$REQUESTED" \
     --arg route "$ROUTE" --arg transport "$TRANSPORT" --arg reason "$REASON" \
+    --arg capped "$CAPPED_FROM" \
     '{agent:$agent, model:$model, requested:$requested, route:$route,
-      effort_transport:$transport, reason:$reason}'
+      effort_transport:$transport, reason:$reason}
+      + (if $capped == "" then {} else {capped_from:$capped} end)'
 else
   # jq-less degraded form: every value here already passed an enum/regex gate above, so a
   # bare printf cannot break the literal the way an unvalidated string would.
-  printf '{"agent":"%s","model":"%s","requested":"%s","route":"%s","effort_transport":"%s","reason":"%s"}\n' \
-    "$AGENT" "$MODEL" "$REQUESTED" "$ROUTE" "$TRANSPORT" "$REASON"
+  _er_capped=""
+  [ -z "$CAPPED_FROM" ] || _er_capped=",\"capped_from\":\"$CAPPED_FROM\""
+  printf '{"agent":"%s","model":"%s","requested":"%s","route":"%s","effort_transport":"%s","reason":"%s"%s}\n' \
+    "$AGENT" "$MODEL" "$REQUESTED" "$ROUTE" "$TRANSPORT" "$REASON" "$_er_capped"
 fi

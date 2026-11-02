@@ -224,7 +224,7 @@ The five optional fields below require the headless route. They remain unset by 
 
 | Field | Type | Child transport |
 |---|---|---|
-| `auto_compact_window` | Integer, 100000–1000000 tokens | `--autocompact` and `CLAUDE_CODE_AUTO_COMPACT_WINDOW` |
+| `auto_compact_window` | Integer, 100000–1000000 tokens | `--autocompact` and `CLAUDE_CODE_AUTO_COMPACT_WINDOW`; a subagent's `autoCompactWindow` can lower it, never raise it (2.1.312) |
 | `retry_watchdog` | Boolean | `CLAUDE_CODE_RETRY_WATCHDOG` (`1` or `0`) |
 | `retry_watchdog_max_wait_ms` | Positive integer milliseconds | `CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS` |
 | `retry_watchdog_max_usage_limit_wait_ms` | Positive integer milliseconds | `CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS` |
@@ -254,6 +254,8 @@ value as `effort` (`effort_transport: "agent-param"`), which outranks the key, s
 resolver bump or a `CORPFLOW.md § Models` override applies in-process. Only
 `CORPFLOW_HEADLESS_ROUTE=on` sends it headless instead. `state-patch.sh` validates
 `effort` against `EFFORT_ENUM` on `--task-create` and `--task-meta` either way.
+`CLAUDE_CODE_SUBAGENT_EFFORT` (2.1.316) is a default, not an override. It never reaches a call that
+passes `effort`, so it needs no field. An admin cap is cached in `facts.capabilities.effort_cap`, not here.
 
 ### JSON Schema
 
