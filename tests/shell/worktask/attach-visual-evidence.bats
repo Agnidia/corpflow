@@ -613,3 +613,71 @@ _union_tree() {
   assert_success
   assert_output --partial "f20-completion-ledger-ref-validated PASS"
 }
+
+@test "completion: pr-line posts PR: <url> between the heading and the summary" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f30-completion-pr-line PASS"
+}
+
+@test "completion: no-pr-line keeps the old layout when the URL lookup fails or is foreign" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f31-completion-no-pr-line PASS"
+}
+
+@test "completion: paragraph takes only the first ## summary paragraph" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f32-completion-paragraph PASS"
+}
+
+@test "completion: truncat cuts at a word boundary and never splits a multibyte character" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f33-completion-truncate PASS"
+  assert_output --partial "f33c-completion-hardcut-multibyte PASS"
+}
+
+@test "completion: fallback goes summary paragraph, facts.goal, PR title only" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f34-completion-fallback PASS"
+}
+
+@test "completion: scrub removes local paths and agent tokens from every summary source" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f35-completion-scrub PASS"
+}
+
+@test "completion: url-lookup-fails still posts without the PR line and exits 0" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f36-completion-url-lookup-fails PASS"
+  assert_output --partial "f12-completion-gh-failure-continues PASS"
+}
+
+@test "completion: paragraph stops only at a real heading and accepts CRLF" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f37-completion-hash-line-and-crlf PASS"
+}
+
+@test "completion: truncat keeps the last word when character 301 is whitespace" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f38-completion-boundary-keeps-last-word PASS"
+}
+
+@test "completion: cr in the goal and title fallbacks never reaches the body" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f39-completion-cr-in-goal-and-title PASS"
+}
+
+@test "completion: cached body on the second issue is byte-exact, also after an already published first" {
+  run bash "$PLUGIN_ROOT/$SCRIPT" --self-test
+  assert_success
+  assert_output --partial "f40-completion-cached-body-second-issue PASS"
+}

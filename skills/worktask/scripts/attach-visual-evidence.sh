@@ -24,9 +24,13 @@
 #                 via PR-body keywords (Closes|Fixes|Resolves #N, case-insensitive)
 #                 ∪ gh closingIssuesReferences, deduped to integers (no untrusted
 #                 text in argv). Post ONE completion comment per issue carrying:
-#                 1. Work-summary: sourced from .context/complete-summary-<run_index>.md
-#                    → state.json facts.goal → PR title+body (sanitised via
-#                    sanitise_body; never local paths). 2. Visual-evidence block
+#                 1. A `PR: <url>` line when the effective PR resolves to a
+#                    github.com PR URL naming this repository (else no line).
+#                 2. Short summary, at most 300 characters (cut at the last whole word that
+#                    fits, "..." appended): the first paragraph under `## summary` in
+#                    .context/complete-summary-<run_index>.md → state.json
+#                    facts.goal → PR title only (sanitised via sanitise_body
+#                    before the cut; never local paths). 3. Visual-evidence block
 #                    (when requires_screenshots=true and captures exist; summary-only
 #                    otherwise). Per-issue HTML-marker idempotency
 #                    (<!-- completion-summary:<worktask_id>:<run_index>:<issue_n> -->):
@@ -784,48 +788,116 @@ resolve_related_issues() {
   return 0
 }
 
-# Source the work-summary text for the completion comment (sanitised). First
-# available wins: complete-summary-<run_index>.md → state.json facts/goal → PR
-# title+body. Reads nothing from untrusted argv; output is sanitised via the
-# library sanitise_body so leaked local paths never reach the comment.
+# First paragraph under the `## summary` heading of a (already sanitised) summary
+# file on stdin: the non-blank lines up to the first blank line or next heading,
+# joined with single spaces. Empty output when the heading is absent.
+_first_summary_paragraph() {
+  LC_ALL=C awk '
+    { gsub(/\r/, "") }
+    !found { l = tolower($0); if (l ~ /^##[ \t]+summary[ \t]*$/) found = 1; next }
+    /^[ \t]*$/ { if (n) exit; next }
+    # Only a real ATX heading (1-6 "#" then a space) ends the paragraph; "#123 fixed" is prose.
+    match($0, /^#+/) && RLENGTH <= 6 && substr($0, RLENGTH + 1, 1) ~ /[ \t]/ { exit }
+    { gsub(/^[ \t]+|[ \t]+$/, ""); out = n ? out " " $0 : $0; n++ }
+    END { if (n) print out }'
+}
+
+# Cap one line at 300 characters and append "...". Cut at the last whitespace inside
+# the first 300 characters, unless character 301 is whitespace (the 300 are then
+# whole words and all stay). No whitespace at all → hard cut at 300. awk runs in the
+# C locale so it sees bytes; it counts a character per non-continuation UTF-8 byte,
+# so a cut never lands inside a multibyte character.
+_cap_summary() {
+  LC_ALL=C awk -v max=300 '
+    BEGIN { for (i = 0; i < 256; i++) ord[sprintf("%c", i)] = i }
+    { s = $0 }
+    END {
+      len = length(s); chars = 0; lim = len + 1
+      for (i = 1; i <= len; i++) {
+        b = ord[substr(s, i, 1)]
+        if (b < 128 || b >= 192) { chars++; if (chars > max) { lim = i; break } }
+      }
+      if (lim > len) { print s; exit }
+      head = substr(s, 1, lim - 1); cut = 0
+      nxt = substr(s, lim, 1)
+      if (nxt != " " && nxt != "\t") {
+        for (i = length(head); i >= 1; i--) {
+          c = substr(head, i, 1)
+          if (c == " " || c == "\t") { cut = i; break }
+        }
+      }
+      if (cut > 1) head = substr(head, 1, cut - 1)
+      sub(/[ \t]+$/, "", head)
+      print head "..."
+    }'
+}
+
+# Source the short work-summary line for the completion comment. First non-empty
+# source wins: the first `## summary` paragraph of complete-summary-<run_index>.md
+# → state.json facts.goal → the PR title (never the PR body). Every source goes
+# through the library sanitise_body BEFORE extraction and the cut, so leaked local
+# paths never reach a possibly public issue. Reads nothing from untrusted argv.
 _completion_summary_text() {
-  local ref="${1:-}"
-  local summ_file="$WORKSPACE_ROOT/.context/complete-summary-$RUN_INDEX.md"
+  local ref="${1:-}" summ_file txt goal
+  summ_file="$WORKSPACE_ROOT/.context/complete-summary-$RUN_INDEX.md"
+  txt=""
   if [ -f "$summ_file" ]; then
-    sanitise_body < "$summ_file"
-    return 0
+    txt=$(sanitise_body < "$summ_file" 2>/dev/null | _first_summary_paragraph || true)
   fi
-  # Fallback 1: state.json facts.goal (+ facts summary if present).
-  local goal
-  goal=$(jq -r '.facts.goal // empty' "$STATE_FILE" 2>/dev/null || true)
-  if [ -n "$goal" ]; then
-    printf '%s' "$goal" | sanitise_body
-    return 0
+  if [ -z "$txt" ]; then
+    goal=$(jq -r '.facts.goal // empty' "$STATE_FILE" 2>/dev/null || true)
+    [ -n "$goal" ] && txt=$(printf '%s\n' "$goal" | sanitise_body 2>/dev/null \
+      | tr '\n\t\r' '   ' | sed 's/  */ /g; s/^ //; s/ $//' || true)
   fi
-  # Fallback 2: PR title + body.
-  local pr_txt
-  if [ -n "$ref" ]; then
-    pr_txt=$("$GH_BIN" pr view "$ref" --json title,body \
-      --jq '"\(.title)\n\n\(.body)"' 2>/dev/null || true)
-  else
-    pr_txt=$("$GH_BIN" pr view --json title,body \
-      --jq '"\(.title)\n\n\(.body)"' 2>/dev/null || true)
+  if [ -z "$txt" ]; then
+    if [ -n "$ref" ]; then
+      txt=$("$GH_BIN" pr view "$ref" --json title --jq '.title' 2>/dev/null || true)
+    else
+      txt=$("$GH_BIN" pr view --json title --jq '.title' 2>/dev/null || true)
+    fi
+    txt=$(printf '%s\n' "$txt" | sanitise_body 2>/dev/null \
+      | tr '\n\t\r' '   ' | sed 's/  */ /g; s/^ //; s/ $//' || true)
   fi
-  printf '%s' "$pr_txt" | sanitise_body
+  [ -n "$txt" ] && printf '%s\n' "$txt" | _cap_summary
+  return 0
+}
+
+# The PR URL for the `PR:` line, or nothing. A github.com URL ref is its own answer;
+# otherwise ask gh. gh output is untrusted, so the value must pass the same URL-form
+# and same-repo gates as any ref. A failed lookup only drops the line (non-blocking).
+_completion_pr_url() {
+  local ref="${1:-}" url
+  case "$ref" in
+    https://*) url="$ref" ;;
+    "") url=$("$GH_BIN" pr view --json url --jq '.url' 2>/dev/null || true) ;;
+    *)  url=$("$GH_BIN" pr view "$ref" --json url --jq '.url' 2>/dev/null || true) ;;
+  esac
+  case "$url" in https://*) ;; *) return 0 ;; esac
+  if _valid_pr_ref "$url" && _pr_ref_is_local "$url"; then
+    printf '%s' "$url"
+  fi
   return 0
 }
 
 # Build the completion comment body for one issue. $1=issue_n, $2=optional pr-ref.
-# Layout: marker + heading + work-summary [+ visual-evidence block]. The block is
+# Layout: marker + heading + [PR: <url>] + short summary [+ visual-evidence block]. The block is
 # appended only when requires_screenshots==true AND captures exist (build_block
 # returns 0). Summary-only otherwise — NO broken refs, NO note spam. stdout only.
 build_completion_body() {
   local issue_n="$1" ref="${2:-}"
-  local marker summary req
+  local marker summary req pr_url
   marker=$(_completion_marker "$issue_n")
-  summary=$(_completion_summary_text "$ref")
+  # post_completion resolves summary and URL once per PR (this runs in a subshell, so
+  # it cannot cache); a standalone caller falls back to resolving here.
+  if [ "${COMPLETION_PRIMED:-0}" = "1" ]; then
+    summary="$COMPLETION_SUMMARY"; pr_url="$COMPLETION_PR_URL"
+  else
+    summary=$(_completion_summary_text "$ref")
+    pr_url=$(_completion_pr_url "$ref")
+  fi
   printf '%s\n' "$marker"
   printf '## Worktask completed\n\n'
+  [ -n "$pr_url" ] && printf 'PR: %s\n\n' "$pr_url"
   [ -n "$summary" ] && printf '%s\n' "$summary"
   # Append the visual-evidence block only when screenshots are on AND captures
   # exist. build_block returns non-zero (no output) when there are no captures.
@@ -925,6 +997,7 @@ post_completion() {
 
   # One comment per issue. Integers only (resolver-validated). Non-blocking.
   local n marker dk body
+  COMPLETION_PRIMED=0
   while IFS= read -r n; do
     [ -z "$n" ] && continue
     dk="$WORKTASK_ID:$RUN_INDEX:completion:$n"
@@ -933,6 +1006,12 @@ post_completion() {
     if pl_issue_has_marker "$n" "$marker"; then
       audit_av "$action" "skipped" "$(_completion_meta "$n" already_published "$dk")"
       continue
+    fi
+    if [ "$COMPLETION_PRIMED" = "0" ]; then
+      # The PR is the same for every issue: look the URL, repo and title up once.
+      COMPLETION_SUMMARY=$(_completion_summary_text "$ref")
+      COMPLETION_PR_URL=$(_completion_pr_url "$ref")
+      COMPLETION_PRIMED=1
     fi
     body=$(build_completion_body "$n" "$ref")
     # Gate 3: post via stdin (--body-file -); never interpolate body into argv.

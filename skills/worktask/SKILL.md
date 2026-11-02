@@ -2169,7 +2169,7 @@ The helper self-gates: skips silently when `metadata.requires_screenshots == fal
 
 ## Post-merge completion comment
 
-After the post-capture issue update above (and after FN has created/merged the PR so the closing refs are real — "when the PR closes"): post a work-summary + screenshot completion comment to every related issue the PR closes.
+After the post-capture issue update above (and after FN has created/merged the PR so the closing refs are real — "when the PR closes"): post a short completion comment (PR link, summary of at most 300 characters, screenshots when captured) to every related issue the PR closes.
 
 ### Completion snippet
 
@@ -2186,7 +2186,7 @@ The PR resolves in this order: the `<pr-ref>` argument, then the current branch'
 
 ### Completion issue resolution & summary sourcing
 
-Related issues resolve from PR-body keywords (`Closes`/`Fixes`/`Resolves #N`, case-insensitive) unioned with `gh pr view --json closingIssuesReferences`, deduped to integers so no untrusted PR-body text reaches a `gh` argv. One comment per issue carries the work summary (`.context/complete-summary-<run_index>.md`, else `state.json facts.goal`, else PR title+body — sanitised) plus the visual-evidence block when `requires_screenshots == true` and captures exist (summary-only otherwise).
+Related issues resolve from PR-body keywords (`Closes`/`Fixes`/`Resolves #N`, case-insensitive) unioned with `gh pr view --json closingIssuesReferences`, deduped to integers so no untrusted PR-body text reaches a `gh` argv. One comment per issue carries a `PR: <url>` line (only when the effective PR resolves to a github.com PR URL naming this repository; a failed lookup drops the line), then a short summary of at most 300 characters: the first paragraph under `## summary` in `.context/complete-summary-<run_index>.md`, else `state.json facts.goal`, else the PR title only (never the PR body). Each source is sanitised before the cut; a longer text keeps the last whole word that fits in 300 characters and ends in `...`. The visual-evidence block follows when `requires_screenshots == true` and captures exist (summary-only otherwise).
 
 ### Completion dedup, audit rows & timing
 

@@ -412,7 +412,7 @@ The orchestrator — not FN — writes to the GitHub issue.
 |----------|-------|--------|
 | **FN** | FN | `--emit pr` → insert block between `## Test plan` and `## Merge danger`. A re-run replays the first emission's hosted URLs from `.context/logs/visual-evidence-pr-<worktask_id>-<run_index>.md` instead of uploading a second asset set (which orphans the first); `--force` re-hosts |
 | **Orchestrator** | Post-loop exit | `--post issue` → marker-deduped `gh issue comment` on the PL-published issue (visual-evidence block only) |
-| **Orchestrator** | Post-merge (PR closes) | `--post completion` → one marker-deduped comment per issue the PR closes: work-summary plus the visual-evidence block when captures exist, summary-only otherwise |
+| **Orchestrator** | Post-merge (PR closes) | `--post completion` → one marker-deduped comment per issue the PR closes: a `PR: <url>` line, a summary of at most 300 characters, plus the visual-evidence block when captures exist, summary-only otherwise |
 
 ## Size budget
 
