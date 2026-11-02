@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Changed
+
+- Shorten the worktask completion comment: `attach-visual-evidence.sh --post completion` adds a `PR: <url>` line (only a github.com PR URL naming this repository) and posts the first `## summary` paragraph, else `facts.goal`, else the PR title, capped at 300 characters (keeping the last whole word that fits) instead of the whole FN summary file.
+
 ### Fixed
 
 - Hide the 28 Codex adapter skills from the Claude Code `/` menu: each `skills/<name>/SKILL.md` that shadows a `commands/<name>.md` sets `user-invocable: false`, stays model-invocable, and `codex-compat.bats` fails an adapter without it. Plugin version 4.1.4.
