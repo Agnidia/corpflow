@@ -1786,7 +1786,7 @@ OPTIONAL (additive). Writer: the orchestrator loop only, through `state-patch.sh
 
 #### Field notes — capabilities
 
-OPTIONAL (additive). Probe cache for account-level hard-fails, so later stages do not re-hit the same error. Written by the orchestrator on first observed failure; model resolution consults it before any fable-tier dispatch. Example: `{ "fable_dispatch": "credit_blocked", "checked_at": "<ISO>" }` — Fable 5 is 1M-by-default but *dispatch* fails hard without 1M credits (model-selection.md).
+OPTIONAL (additive). Probe cache for account-level hard-fails, so later stages do not re-hit the same error. Written by the orchestrator on first observed failure; model resolution consults it before any fable-tier dispatch. Example: `{ "fable_dispatch": "credit_blocked", "checked_at": "<ISO>" }` — Fable 5 is 1M-by-default but *dispatch* fails hard without 1M credits (model-selection.md). `effort_cap` maps a model alias to the highest effort tier the account runs, e.g. `{ "effort_cap": { "opus": "high", "checked_at": "<ISO>" } }`. Written by Step 6.5b-cap when a stage's hook-reported effort comes in below the tier it requested (an admin cap Claude Code 2.1.314+ lowers silently). Read at every route call as `effort-route.sh --cap`, so later stages dispatch at the ceiling instead of retrying above it.
 
 ### Eviction order on overflow
 

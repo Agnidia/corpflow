@@ -78,8 +78,8 @@ Degrade via a session `fallbackModel` (`--fallback-model`) or an `Agent({ model 
 ## Effort Levels
 
 `low` ○, `medium` ◐, `high` ●, `xhigh` ⬣, `max` ⬛. Default effort is `high` on API-key, Bedrock,
-Vertex, Foundry, Team and Enterprise plans; Pro keeps `medium` on older models. "ultrathink" still
-triggers high effort, and `/effort auto` resets. `/effort` stores its default per model, a saved
+Vertex, Foundry, Team and Enterprise plans; Pro keeps `medium` on older models. "ultrathink" runs
+its turn at `xhigh` on the 5.x models (2.1.311; `CLAUDE_CODE_DISABLE_ULTRATHINK` turns it off), and `/effort auto` resets. `/effort` stores its default per model, a saved
 level never carries onto a newly released model, and an explicit level set anywhere (`-p`, Agent
 SDK, `effortLevel` in project/managed/`--settings`) beats a model's launch default. None of that
 is under the pipeline's control, so every stage passes `effort` explicitly.
@@ -279,3 +279,15 @@ Two controls cover it. PL0 reads the variable before any spend and raises a plan
 Step 6.5b backfills `dispatched_agents[].model_resolved` when the runtime surfaces the model that
 ran, so cost follows the forced tier rather than the pin. The force applies at spawn, so there is
 no mid-stage switch for `hooks/model-switch-gate.sh` to refuse.
+
+## Claude Code 2.1.304–2.1.316 model and effort
+
+`CLAUDE_CODE_SUBAGENT_EFFORT` (2.1.316) sets the effort of a subagent that no call, frontmatter or session names one for.
+Every ledger dispatch passes `effort`, so the variable reaches only an ad-hoc nested spawn that leaves it out.
+This is the same exposure as `CLAUDE_CODE_SUBAGENT_MODEL`. Read the hook-reported `effort.level`, not the request.
+An admin effort cap makes Claude Code lower the tier and retry (2.1.314). Step 6.5b-cap caches the lower tier in
+`facts.capabilities.effort_cap`, and later routes pass it as `effort-route.sh --cap`.
+Hook and OpenTelemetry `effort` values show the level in force, not a level picked mid-task (2.1.312).
+A subagent that inherited a parent subagent's model keeps it when a background job or message wakes it (2.1.316).
+After a fallback, Claude names the model that ran (2.1.305). `model_resolved` stays accurate across wakes.
+Fast mode on Opus 4.8 is deprecated and goes away on 2026-11-30. corpflow pins no Opus 4.8 id.

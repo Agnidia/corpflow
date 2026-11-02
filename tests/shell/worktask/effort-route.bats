@@ -144,7 +144,7 @@ recipe = source.split("```typescript\n", 1)[1].split("```", 1)[0]
 Path(sys.argv[2]).write_text('''const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
 process.chdir(process.argv[2]);
-function dispatch(metadata, optIn) {
+function dispatch(metadata, optIn, state = {facts: {}}) {
   process.env.CORPFLOW_HEADLESS_ROUTE = optIn;
   const launched = [], refused = [];
   const escalate = (id, reason) => refused.push(reason);
@@ -177,10 +177,46 @@ for (const optIn of ["off", "on"]) {
 const stamped = {effort: "high", auto_compact_window: 200000};
 assert.deepEqual(dispatch(stamped, "off"), {launched: [], refused: ["effort_route_refused"]});
 assert.equal(dispatch(stamped, "on").launched[0].route, "headless");
-console.log("16 dispatch scenarios passed");
+const capped = dispatch({effort: "xhigh"}, "off", {facts: {capabilities: {effort_cap: {opus: "high"}}}});
+assert.equal(capped.launched[0].requested, "high");
+assert.equal(capped.launched[0].capped_from, "xhigh");
+console.log("17 dispatch scenarios passed");
 ''')
 PY
   run node "$recipe_file" "$PLUGIN_ROOT"
   assert_success
-  assert_output "16 dispatch scenarios passed"
+  assert_output "17 dispatch scenarios passed"
+}
+
+# --- --cap: the cached account ceiling (facts.capabilities.effort_cap) ---------
+
+@test "--cap lowers a request above the ceiling and records the original" {
+  route developer opus max --cap high
+  assert_success
+  [ "$(field requested)" = "high" ]
+  [ "$(field capped_from)" = "max" ]
+  [ "$(field effort_transport)" = "agent-param" ]
+}
+
+@test "--cap leaves a request at or below the ceiling untouched" {
+  local t
+  for t in low high; do
+    route developer opus "$t" --cap high
+    assert_success
+    [ "$(field requested)" = "$t" ]
+    [ "$(field capped_from)" = "null" ]
+  done
+}
+
+@test "--cap also lowers the tier a headless route carries" {
+  route_on developer sonnet xhigh --cap medium
+  assert_success
+  [ "$(field route)" = "headless" ]
+  [ "$(field requested)" = "medium" ]
+  [ "$(field capped_from)" = "xhigh" ]
+}
+
+@test "--cap refuses a tier outside the ladder" {
+  route developer opus high --cap ultra
+  assert_failure 2
 }

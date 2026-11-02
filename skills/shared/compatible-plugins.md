@@ -126,3 +126,10 @@ SessionStart output from late-loaded plugins no longer leaks across `/clear`, an
 A plugin name collision still needs operator remediation; do not treat missing hook output as successful sibling initialization.
 Plugin hooks under `--worktree` run from 2.1.300; this fix does not cover `--tmux`.
 The shared CORPFLOW.md template remains unchanged, so this integration requires no sibling template migration.
+
+## Claude Code 2.1.316 plugin compatibility
+
+A `--plugin-dir` folder of plugins with an empty top-level `.mcp.json` loads as separate plugins (2.1.311).
+Plugin MCP `headersHelper` scripts get an intact `CLAUDE_PLUGIN_ROOT` and server URL (2.1.316).
+A sibling plugin cannot keep a headless run going past `--max-turns` by spawning subagents (2.1.304).
+The shared CORPFLOW.md template is unchanged, so siblings need no migration.

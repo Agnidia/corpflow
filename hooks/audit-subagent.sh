@@ -9,8 +9,9 @@
 # leaves the row anonymous. Reader-keyed fields go through `first_nonempty`,
 # which rejects "" as well as null.
 #
-# Phantom rows: the runtime fires this event on a ~31s cadence for the whole life
-# of a dispatch, so one real agent produced 21 rows. Those are suppressed (see
+# Phantom rows: before Claude Code 2.1.311 the runtime fired this event on a ~31s
+# cadence for the whole life of a dispatch, so one real agent produced 21 rows. The
+# suppression stays as a defense against a regression. Those are suppressed (see
 # SUPPRESS below) and COUNTED, because a suppression that leaves no trace narrows
 # the audit trail invisibly, which is the failure class this hook exists to
 # record rather than create.

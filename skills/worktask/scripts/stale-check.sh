@@ -229,11 +229,17 @@ def match_row(entry, rows):
                 sid, rid = row.get("sessionId") or "", row.get("id") or ""
                 if sid.startswith(aid) or (len(rid) >= 6 and aid.startswith(rid)):
                     return row
+    # Names are not unique, so a name decides only when exactly one row carries it. Two or
+    # more are an ambiguous match: an empty row classifies as liveness-unknown, never as gone,
+    # because re-delegating beside a live twin doubles the stage's work. The name itself is
+    # stable for peers across a reload or --resume since Claude Code 2.1.309.
     name = entry.get("name")
     if name:
-        for row in rows:
-            if row.get("name") == name:
-                return row
+        named = [row for row in rows if row.get("name") == name]
+        if len(named) == 1:
+            return named[0]
+        if named:
+            return {}
     return None
 
 

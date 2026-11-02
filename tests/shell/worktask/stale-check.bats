@@ -263,6 +263,17 @@ agents_file() {
   assert_output --partial "[alive-busy]"
 }
 
+@test "matching: a name two live rows share is ambiguous, never absent" {
+  local w; w="$(mk_tmpworkdir)"
+  mk_ledger "$w" "$(in_progress DV0 DV)" \
+    '.facts.dispatched_agents += [{"stage":"DV","task_id":"DV0","subagent_type":"corpflow:developer","name":"lane-42","status":"launched"}]'
+  agents_file "$w/agents.json" '[{"id":"aaa","name":"lane-42","state":"active"},{"id":"bbb","name":"lane-42","state":"done"}]'
+
+  run_script_env --cwd "$w" "$SCRIPT" --agents-json "$w/agents.json"
+  assert_failure 3
+  assert_output --partial "[liveness-unknown]"
+}
+
 # --- ledger shapes -----------------------------------------------------------
 
 @test "no ledger at all exits 0 with a clear message, not an error" {

@@ -87,3 +87,13 @@ PreToolUse and PermissionRequest `updatedInput` undergo tool-schema validation f
 A hook that permits a write cannot override plan mode (fixed in 2.1.299).
 The Read tool refuses image sources above 128 MB and avoids reading image-named pipes/devices wholesale (2.1.302).
 Keep explicit permission ceilings; third-party print sessions can default to the CLI's default mode from 2.1.302.
+
+## Claude Code 2.1.304–2.1.316 hardening
+
+`permissions.blockWritesOutsideWorkingDirectories` (2.1.314) makes Write, Edit and NotebookEdit refuse paths outside the working directories in every mode.
+Worktree-isolated sessions refuse locale-prefixed and zsh arithmetic commands the guard missed, and ignore git replace refs (2.1.309).
+Sandboxed commands can no longer edit the `--mcp-config` file; shell startup files run inside the sandbox (2.1.309).
+Sandbox protections apply to a worktree entered by `claude -p --resume` or `--continue` (2.1.314).
+`--restricted` sessions no longer upload files outside the working directories through a Read allow rule (2.1.316).
+`rm -r` of a mount root such as `/Volumes` gets the safety prompt (2.1.304). `sed -i` gets the standard Bash prompt and is not undone by `/rewind` (2.1.309).
+Claude no longer writes role names or placeholders as GitHub @-mentions (2.1.309). The git-conventions rule stays.

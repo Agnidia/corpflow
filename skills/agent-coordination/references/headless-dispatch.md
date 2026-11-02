@@ -62,7 +62,7 @@ Pass the complete metadata object to `effort-route.sh --dispatch-controls`. Conf
 The headless dispatcher refuses an in-process fallback when any control is configured. Codex routes without an equivalent transport must refuse before spawning.
 
 `autoCompactWindow` in agent frontmatter or `--agents` definitions accepts integer token counts from 100000 to 1000000 (2.1.296).
-An inherited positive `CLAUDE_CODE_AUTO_COMPACT_WINDOW` overrides that frontmatter field. Fork agents ignore that field; do not substitute a fork for a configured stage.
+An inherited positive `CLAUDE_CODE_AUTO_COMPACT_WINDOW` caps that frontmatter field: from 2.1.312 a lower frontmatter value wins, and a higher one is ignored. Fork agents ignore that field; do not substitute a fork for a configured stage.
 
 ### Advisory vs audited legend
 
@@ -194,7 +194,7 @@ In any cc-update whose CC version delta touches the `claude agents` CLI surface,
 
 #### Observed drift — interactive rows
 
-Interactive rows diverge from the baseline (unannounced, first seen on CC 2.1.175). As last probed (CC 2.1.294, unchanged since 2.1.270) they carry exactly `{pid, cwd, kind: "interactive", startedAt, sessionId, name, status}`: camelCase `sessionId`, `startedAt` as an epoch-millis number, a `kind` discriminator, `name` (the readable session name — also the `SendMessage`/`/rename` address, and the key a session's own name reuses), `status` (e.g. `"busy"`), and no `agent_id`, `id`, `state` or `waitingFor`. The resume identity chain `agent_id // id // sessionId` tolerates the missing ids.
+Interactive rows diverge from the baseline (unannounced, first seen on CC 2.1.175). As last probed (CC 2.1.316, unchanged since 2.1.270) they carry exactly `{pid, cwd, kind: "interactive", startedAt, sessionId, name, status}`: camelCase `sessionId`, `startedAt` as an epoch-millis number, a `kind` discriminator, `name` (the readable session name — also the `SendMessage`/`/rename` address, and the key a session's own name reuses), `status` (e.g. `"busy"`), and no `agent_id`, `id`, `state` or `waitingFor`. The resume identity chain `agent_id // id // sessionId` tolerates the missing ids.
 
 #### Open: dispatched-agent and teammate rows
 
@@ -311,3 +311,13 @@ Two ways to spawn background shell work without occupying a foreground agent tur
 - New watchdog limits bound retry waits; overload backoff uses `CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS`. Do not increase pipeline retry counts implicitly.
 - `CLAUDE_CODE_AUTO_MODE_MODEL` selects the client-side classifier model only. It does not select the stage or server-side classifier model.
 - Advisor flags and plugin-eval tool restrictions remain operator-only controls; they introduce no task metadata.
+
+## Claude Code 2.1.304–2.1.316 observations
+
+- A `claude -p` that fails at startup exits 1 and prints the error (2.1.314). Before, it exited 0 with no output and read as a successful run. `headless-dispatch.sh` needs 2.1.316 as its floor.
+- A non-zero exit whose log has no stream-json `init` event is `startup_failed`: the CLI refused a flag, settings file or MCP config before a session existed, so no tool ran. A missing agent prints `--agent '<id>' not found` and stays `agent_unresolved`.
+- `--output-format json`/`stream-json` writes DEL, C1 and Unicode format characters as `\uXXXX` escapes (2.1.311). Parsed values do not change.
+- A plugin can no longer keep a headless run going past `--max-turns`, Stop or ended input by spawning subagents (2.1.304).
+- `claude respawn <id>` reports a missing session before it starts the service. The service error now suggests `claude daemon stop --any` (2.1.311).
+- A background session that crashes between turns restarts while it is attached, pinned, or has a scheduled task or wake-up (2.1.311). Exit messages say how to resume it.
+- `claude agents --json | jq 'first|keys'` at 2.1.316 is unchanged. `claude agents run` is still not a subcommand.
