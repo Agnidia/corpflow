@@ -28,7 +28,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHE_LINT="$SCRIPT_DIR/cache-lint.sh"
-PROTOCOL_REL="skills/worktask/references/handoff-protocol.md"
+PROTOCOL_REL="skills/worktask/references/contracts/artifact-anchors.md"
 PROTOCOL_KEYS="table=required-pl-dr table=required-sr-et table=optional"
 
 usage() {
@@ -48,7 +48,7 @@ load_allow_list() {
 
 # Shared by both renderers. DV is the one stage with a second on-disk name: each DV ledger task
 # writes development-<N>-<stream>.md, so naming only development-N.md would send a stream run's
-# reader to a file it never wrote (handoff-protocol.md § DV fan-out — ledger tasks).
+# reader to a file it never wrote (skills/worktask/references/contracts/artifact-map.md § DV fan-out — ledger tasks).
 # shellcheck disable=SC2016  # awk source, not a shell expansion
 AWK_ARTIFACT_NAME='function artifact_name(b) { return (b == "development") ? b "-<N>[-<stream>].md" : b "-N.md" }'
 

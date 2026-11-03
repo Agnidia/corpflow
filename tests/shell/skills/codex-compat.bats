@@ -44,10 +44,29 @@ CAPTURE="tests/fixtures/hooks/codex-capture.sh"
       abort("canonical command link missing: #{name}") unless File.read(skill).include?("commands/#{name}.md")
       abort("adapter listed in / menu (needs user-invocable: false): #{name}") unless s["user-invocable"] == false
     end
-    puts "28 command adapters OK"
+    puts "#{Dir["commands/*.md"].size} command adapters OK"
   '
   assert_success
-  assert_output "28 command adapters OK"
+  assert_output "27 command adapters OK"
+}
+
+@test "skills: worktask is a discoverable canonical entry with reachable procedures" {
+  run ruby -ryaml -e '
+    path = "skills/worktask/SKILL.md"
+    text = File.read(path)
+    meta = YAML.safe_load(text.split("---", 3)[1], permitted_classes: [], aliases: false)
+    abort("worktask hidden") if meta["user-invocable"] == false
+    abort("wrong name") unless meta["name"] == "worktask"
+    abort("duplicate command entry") if File.exist?("commands/worktask.md")
+    abort("entry too large") if text.lines.size > 150
+    %w[workflow orchestration].each do |name|
+      link = "references/#{name}.md"
+      abort("unreachable #{link}") unless text.include?("(#{link})") && File.file?("skills/worktask/#{link}")
+    end
+    abort("missing grants") unless meta["allowed-tools"].include?("Agent")
+    abort("circular invocation gate") if text.include?("restart through")
+  '
+  assert_success
 }
 
 @test "runtime: model aliases map to the selected Codex models" {
@@ -58,8 +77,8 @@ CAPTURE="tests/fixtures/hooks/codex-capture.sh"
     assert_output "$expected"
   done <<'EOF'
 haiku gpt-6-luna
-sonnet gpt-6-sol
-opus gpt-6-sol
+sonnet gpt-6.1-terra
+opus gpt-6.1-sol
 fable gpt-6-astra
 EOF
   run bash -c ". '$PLUGIN_ROOT/$RUNTIME'; corpflow_codex_model unknown"

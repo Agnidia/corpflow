@@ -10,6 +10,7 @@ byte-gated.
 from __future__ import annotations
 
 import html as _html
+import json
 import os
 from typing import Optional
 
@@ -207,6 +208,42 @@ def coverage_rows(rec: dict) -> list:
     return rows
 
 
+def utilization_html(rec: dict) -> str:
+    stages = list(rec.get("stages") or [])
+    for arm, accounting in ((rec.get("era") or {}).get("accounting") or {}).items():
+        for attempt in accounting.get("attempts", []):
+            if attempt.get("status") == "failed":
+                stages.append({**attempt, "stage": str(attempt.get("stage", "?"))
+                               + f" attempt {attempt.get('attempt', '?')} (failed)", "arm": arm})
+    if not stages:
+        return ""
+    columns = (("fresh_in", "fresh input"), ("cache_read", "cached input"),
+               ("cache_creation", "cache writes"),
+               ("out", "output tokens"), ("cost_usd", "cost USD"), ("duration_s", "duration s"))
+    diagnostics_columns = (("tool_output_characters", "captured tool characters"),
+                           ("environment_failure_repetitions", "environment failure repetitions"),
+                           ("truncation_count", "truncations"), ("artifact_characters", "artifact characters"),
+                           ("handoff_characters", "handoff characters"),
+                           ("instruction_fingerprint", "instruction fingerprint"))
+    def value(item):
+        return "unavailable" if item is None else _fmt(item)
+    body = []
+    for stage in stages:
+        diagnostics = stage.get("diagnostics") or {}
+        name = stage.get("stage", "?") + (f" ({stage['arm']})" if stage.get("arm") else "")
+        cells = [value(stage.get(key)) for key, _ in columns]
+        cells.extend(value(diagnostics.get(key)) for key, _ in diagnostics_columns)
+        body.append("<tr><td>" + _escape(name) + "</td>" + "".join("<td>" + cell + "</td>" for cell in cells) + "</tr>")
+    headings = "".join("<th>" + label + "</th>" for _, label in columns + diagnostics_columns)
+    return ("<details><summary>Stage utilization diagnostics</summary>"
+            "<p>Tool output and artifact lengths are Unicode characters, not token counts. "
+            "Provider output includes reasoning when reported; artifact length remains separate.</p>"
+            "<p>Costs follow each record's pricing basis; Codex costs are API-equivalent estimates. "
+            "Missing measurements are unavailable.</p>"
+            "<div class='utilization-scroll'><table><thead><tr><th>stage</th>" + headings
+            + "</tr></thead><tbody>" + "".join(body) + "</tbody></table></div></details>")
+
+
 def _generated_html(rec: dict, plugin_root: Optional[str]) -> str:
     """Per-arm Generated-project section (U2): Swift file tree, per-file LOC, total,
     arm path. Resolved from each arm's app_path under plugin_root; empty when absent."""
@@ -291,6 +328,19 @@ def _record_html(rec: dict, plugin_root: Optional[str] = None) -> str:
         badges += f"<span class='badge budget'>budget ${format_cost(budget, _HTML_NIL)}</span>"
     if partial:
         badges += "<span class='badge partial'>live_partial</span>"
+    era = rec.get("era") or {}
+    provider = era.get("provider")
+    provider_section = ""
+    if provider:
+        badges += f"<span class='badge'>{_escape(str(provider))}</span>"
+    if provider == "codex":
+        provider_section = (
+            "<p>Costs are API-equivalent estimates from ChatGPT-authenticated sessions. "
+            "The allowance controls stage admission; a running stage can overshoot.</p>"
+            "<p>The pass/fail metric grades the scripted CLI oracle. It does not validate "
+            "native UI, simulator execution, or worktask approval gates.</p>"
+            "<details><summary>Provider, pricing, and incomplete stages</summary><pre>"
+            + _escape(json.dumps(era, indent=2, sort_keys=True)) + "</pre></details>")
 
     with_app = _escape(_app_path(rec, "with"))
     without_app = _escape(_app_path(rec, "without"))
@@ -317,12 +367,14 @@ def _record_html(rec: dict, plugin_root: Optional[str] = None) -> str:
         '<section class="run">'
         f"<h3>{run_id} {badges}</h3>"
         f'<div class="meta">{ts} &middot; git {sha}</div>'
+        f"{provider_section}"
         "<table><thead><tr><th>metric</th><th>WITH plugin</th><th>WITHOUT plugin</th>"
         "<th>&Delta; (with&minus;without)</th></tr></thead>"
         f"<tbody>{rows}</tbody></table>"
         '<table class="analysis-table"><thead><tr><th>analysis (derived)</th>'
         f'<th colspan="3">value</th></tr></thead><tbody>{analysis}</tbody></table>'
         f"{coverage_section}"
+        f"{utilization_html(rec)}"
         f"{_generated_html(rec, plugin_root)}"
         '<div class="apps">'
         f'<div><span class="lbl">WITH app:</span> <code>{with_app}</code></div>'
@@ -337,6 +389,9 @@ _CSS = (
     "color:var(--fg);padding:24px;}"
     "table{width:100%;border-collapse:collapse;}"
     "td.delta{color:#86efac;} td.analysis{color:#fcd34d;}"
+    ".utilization-scroll{max-width:100%;overflow-x:auto;}"
+    ".utilization-scroll table{min-width:1000px;}"
+    ".utilization-scroll td:last-child{max-width:240px;overflow-wrap:anywhere;}"
 )
 
 

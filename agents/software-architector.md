@@ -23,7 +23,7 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 - Every entry in `## decisions` names its rationale, the rejected alternative, and whether it can be reversed.
 - DO NOT build, type-check, run or test anything, in the project or in a scratch file or
   package: a design needs no compiled proof, and DV's first build answers the same question.
-  Authority is canonical in `skills/shared/testing-strategy.md § Test-Execution Authority`; AR
+  Authority is canonical in `skills/worktask/references/testing-strategy.md § Test-Execution Authority`; AR
   leaves its build-only allowance unspent. Need runtime evidence → record
   `requests_test_evidence: <what and why>` in this stage's artifact.
 - When a decision automates an outcome for users or removes a human check, record where a human can override it and flag it for ethics-reviewer in `open_questions[]`.
@@ -166,7 +166,7 @@ Before completing AR stage:
 
 ## Worktask Integration
 
-**Stage**: AR (Architecture, 2/11) — see `skills/shared/worktask-stage-context.md` for pipeline context. The software-architector handles:
+**Stage**: AR (Architecture, 2/11) — see `skills/worktask/references/worktask-stage-context.md` for pipeline context. The software-architector handles:
 
 ### AR Stage (Architecture)
 - **AR0**: Read `state.json` facts first, then anchor-read `planning-N.md#requirements` + `#acceptance-criteria` for requirements and test strategy (N = `task.metadata.run_index`; plan path `.context/${task.metadata.plan_file}`, fallback newest `.context/planning-*.md`). Full-read the plan only if an anchor is absent or `retry_count > 0`.
@@ -174,11 +174,11 @@ Before completing AR stage:
 - **AR2**: Handle design conflicts (iterate or escalate)
 - **AR3**: Complete architecture-N.md with the architecture decisions and test architecture
 
-**State ledger**: Stage AR, Owner: software-architector. See `skills/shared/state-ledger.md`.
+**State ledger**: Stage AR, Owner: software-architector. See `skills/worktask/references/state-ledger.md`.
 
 ### Dynamic Worktask Sizing (AR Stage)
 
-Re-score with the complexity table in `skills/worktask/SKILL.md § Dynamic Worktask Sizing`: AR
+Re-score with the complexity table in `skills/worktask/references/lifecycle.md § Dynamic Worktask Sizing`: AR
 validates PL's score with deeper technical insight, adjusts it when warranted, then checks PL0
 created the stages the validated score calls for. Missing stages → create them
 (`bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --task-create <ID> --metadata '{"agent":…}'`). Scores differing by >10 points →
@@ -186,7 +186,7 @@ create the missing stages and record the divergence in `open_questions[]`.
 
 #### Model Selection (AR)
 
-A row you create carries the fields PL0 stamps (`skills/worktask/references/pl0-procedure.md §
+A row you create carries the fields PL0 stamps (`skills/worktask/references/planning-sizing.md §
 Downstream propagation`), `metadata.model` and `metadata.effort` included; `--task-create` refuses
 a row without `effort`. Resolve the pair as PL0 does, never from memory:
 `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/model-matrix.sh --resolve <agent>` prints model,
@@ -255,11 +255,14 @@ Before marking AR stage complete, verify:
 
 ## Handoff Protocol
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read stage-contracts.md in the steady path. Per-stage frontmatter template (paste verbatim at artifact top): `stage-contracts.md#tpl-ar`. Prev→this label: `PL→AR`.
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-ar.md` before writing the artifact.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+Frontmatter template: `skills/worktask/assets/templates/template-ar.md#tpl-ar`. Prev→this label: `PL→AR`.
+
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 **Skip-exploration short-circuit**: `task.metadata.skip_exploration === true` makes `metadata.exploration_anchors` (`<file>#<anchor>` refs) the authoritative pre-explored set — don't re-Glob/Grep the source tree for files it covers; start from their facts (`skills/agent-coordination/SKILL.md § Orchestrator → PL0 Handoff`).
 
@@ -279,7 +282,7 @@ dispatches, and what DR spot-checks the diff against — so each summary stands 
 
 ### State Patch — REQUIRED before return
 
-Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage AR --prev PL` to atomically patch `tasks.AR0` + the `PL→AR` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage AR --prev PL` to atomically patch `tasks.AR0` + the `PL→AR` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
@@ -291,12 +294,12 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage AR --p
   "open_questions": [{"id":"sw-AR0-1","class":"decision","ref":"architecture-0.md#elicitation-sweep","blocks_next_stage":false}]}' --digest
 ```
 
-Union by `.id` (last writer wins, newest at the tail): never clobbers PL's entries, and a re-run is byte-identical. Omitting it loses the decision silently — the orchestrator does not digest it for you. Canonical rule: `handoff-protocol.md#facts-union`. `--digest` prints the rows it wrote — that is the confirmation; never `cat`/`jq` `state.json` afterwards.
+Union by `.id` (last writer wins, newest at the tail): never clobbers PL's entries, and a re-run is byte-identical. Omitting it loses the decision silently — the orchestrator does not digest it for you. Canonical rule: `skills/worktask/references/contracts/facts-merge.md#facts-union`. `--digest` prints the rows it wrote — that is the confirmation; never `cat`/`jq` `state.json` afterwards.
 
 #### One call, no jq edits to `state.json`
 
 That call writes `tasks.AR0`, the `PL→AR0` edge and the `facts` arrays. The ledger has no
-`stages{}` map to fill (`handoff-protocol.md § Ledger root`), and a refused call is fixed by its
+`stages{}` map to fill (`skills/worktask/references/contracts/ledger-root.md § Ledger root`), and a refused call is fixed by its
 flags, never by rewriting the file: exit 4 naming a ledger dir "inside the plugin root" means cwd
 is not the project, so add `--state <project>/.context/state.json`.
 

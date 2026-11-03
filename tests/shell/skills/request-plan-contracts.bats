@@ -7,9 +7,8 @@
 # that reduce to a predicate, so the contradiction cannot silently come back.
 #
 # Contracts:
-#   No rule surface names a slash command that does not resolve to commands/*.md
-#     (or a Claude Code built-in).
-#   commands/request-plan.md makes no "no exception" claim and cites SKILL.md § 4
+#   No rule surface names a slash command without a command, skill, or built-in entry.
+#   commands/request-plan.md makes no "no exception" claim and cites the handoff anchor
 #     as the authority for the trigger rule.
 #   references/plan-template.md carries the required Surface-check line inside its
 #     Recommended-next-step block.
@@ -67,12 +66,13 @@ slash_tokens() {
 
 # --- no surface names a command that does not exist --------------------------
 
-# Prints every token from stdin that names neither a commands/*.md nor a built-in.
+# The worktask skill retains its public slash shorthand without a command file.
 unresolved_commands() {
   local t
   while read -r t; do
     [ -n "$t" ] || continue
     case " $BUILTIN_COMMANDS " in *" $t "*) continue ;; esac
+    [ "$t" = "/worktask" ] && [ -f "${PLUGIN_ROOT}/skills/worktask/SKILL.md" ] && continue
     [ -f "${PLUGIN_ROOT}/commands/${t#/}.md" ] || printf '%s\n' "$t"
   done
 }
@@ -110,10 +110,11 @@ $bad"
   assert_failure
 }
 
-@test "the command file cites SKILL.md § 4 as the trigger-rule authority" {
-  run grep -cE 'SKILL\.md.{0,4}§ ?4' "${PLUGIN_ROOT}/${COMMAND_FILE}"
+@test "the command file cites the canonical handoff anchor as the trigger-rule authority" {
+  run grep -cF 'skills/request-plan/SKILL.md#4-recommend-the-handoff' "${PLUGIN_ROOT}/${COMMAND_FILE}"
   assert_success
-  [ "$output" -ge 1 ] || fail "commands/request-plan.md never points at SKILL.md § 4"
+  [ "$output" -ge 1 ] || fail "commands/request-plan.md never points at the canonical handoff anchor"
+  grep -q '^### 4\. Recommend the handoff$' "${PLUGIN_ROOT}/${SKILL}"
 }
 
 # --- the template carries the surface-check line ------------------------------

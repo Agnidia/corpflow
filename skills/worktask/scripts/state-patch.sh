@@ -45,7 +45,7 @@
 #                           with no artifact there is no frontmatter to build a patch from,
 #                           so NEITHER the stage entry NOR the handoff edge is written.
 #                           To record a stage whose artifact does not exist, write
-#                           state.json directly (handoff-protocol.md#layer-1-fallback).
+#                           state.json directly (skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback).
 # @arg --facts <json>       Union-merge compressed facts into facts.*.  Object keyed by any
 #                           subset of decisions | open_questions | files_modified |
 #                           tests_added | branch | stream_branches.  COMPOSES with --stage: applied after the
@@ -130,7 +130,7 @@
 # @arg --resolve-models [--corpflow <path>]   Stamp state.models{<agent>: {model,effort,source}}
 #                                             for every agents/*.md row, merging a CORPFLOW.md
 #                                             `## Models` override row by row, fail-open, over
-#                                             the built-in matrix (skills/shared/stage-codes.md
+#                                             the built-in matrix (skills/worktask/references/stage-codes.md
 #                                             § Agent Model Matrix). Default lookup, per
 #                                             heading: ${CONTEXT_DIR%/.context}/CORPFLOW.md
 #                                             when it has `## Models`, else
@@ -361,7 +361,7 @@
 #
 # Single-writer / idempotent-merge invariant: state.json is written only when the
 # patch changes its content.  Temp file is PID+RANDOM-namespaced to guard against
-# PID reuse in Task subagents (CR-7 from handoff-protocol.md#atomic-write).
+# PID reuse in Task subagents (CR-7 from skills/worktask/references/contracts/ledger-writes.md#atomic-write).
 #
 # Minimum shell: bash 3.2+ (macOS default); relies on no bash 4+ features so the
 # SubagentStop hook environment on older macOS is fully supported.
@@ -379,7 +379,7 @@ STATE_LOCK_STALE_S="${STATE_LOCK_STALE_S:-60}"
 
 # Stage codes whose completion acts outside the ledger (FN commits/pushes/opens a PR, RE
 # tags a release), so resetting one invites a second commit or tag for one unit of work.
-# Canonical list: skills/shared/stage-codes.md § Side-effect-bearing stages — bash cannot
+# Canonical list: skills/worktask/references/stage-codes.md § Side-effect-bearing stages — bash cannot
 # read that table, so QA asserts the two agree.
 REPLAY_SIDE_EFFECT_STAGES="FN,RE"
 
@@ -416,7 +416,7 @@ log_msg() {
   printf '%s [%s] %s\n' "$(date -u +%FT%TZ)" "$level" "$msg" >> "$LOG_FILE" 2> /dev/null || true
 }
 
-# Stage code → artifact BASENAME (mirrors state-merge.sh and handoff-protocol.md#stage-artifact-map).
+# Stage code → artifact BASENAME (mirrors state-merge.sh and skills/worktask/references/contracts/artifact-map.md#stage-artifact-map).
 basename_for_stage() {
   case "$1" in
     PL) printf 'planning' ;;
@@ -473,7 +473,7 @@ searched_basenames_for_stage() {
 }
 
 # Resolve on-disk artifact for a stage BASENAME.
-# Resolution order (per handoff-protocol.md#stage-artifact-map):
+# Resolution order (per skills/worktask/references/contracts/artifact-map.md#stage-artifact-map):
 #   1. Exact .context/<base>-<RUN_INDEX>.md when RUN_INDEX is known.
 #   2. Highest-N numbered artifact (newest run_index).
 #   3. Empty (absent) — never yields a literal '*'.
@@ -584,7 +584,7 @@ parse_frontmatter() {
   # ledger row while failing its own boundary check, with nothing connecting the two.
   if ! corpflow_fm_has_handoff "$fmfile"; then
     rm -f "$fmfile"
-    printf >&2 'ERROR: %s has frontmatter with no `handoff:` block — every stage template nests under it (stage-contracts.md#tpl-<CODE>). Rewrite the block; handoff-harness.sh refuses this shape too.\n' \
+    printf >&2 'ERROR: %s has frontmatter with no `handoff:` block — every stage template nests under it (skills/worktask/references/contracts/template-rules.md#per-stage-frontmatter-templates). Rewrite the block; handoff-harness.sh refuses this shape too.\n' \
       "$art"
     log_msg ERROR "frontmatter in ${art} has no handoff: block — refused"
     return 1
@@ -1217,7 +1217,7 @@ trap '_lock_release; _finding_cleanup' EXIT
 #   facts.decisions          → newest 8 PER TASK (tail-newest, matching the eviction rule).
 #   facts.open_questions     → newest 4 PER TASK, resolved-evicted-first WITHIN each task.
 #                              4 is the contract's own per-stage emission ceiling
-#                              (stage-contracts.md § Ledger bounds), so the transport bound
+#                              (skills/worktask/references/contracts/sweep-items.md § Ledger bounds), so the transport bound
 #                              and the emission bound are the same number and a conforming
 #                              writer never spills.
 #   facts.dispatched_agents  → last 6 launched survive, free slots backfilled with the
@@ -2348,7 +2348,7 @@ if [[ -n "$RESOLVE_MODELS_OP" ]]; then
   # shellcheck source=model-matrix-lib.sh
   . "$_RM_LIB"
 
-  # Same per-heading precedence CORPFLOW.md § Routing follows (skills/worktask/SKILL.md
+  # Same per-heading precedence CORPFLOW.md § Routing follows (skills/worktask/references/orchestration.md
   # § Validation check 12): project root, then the user-scope file. No hit -> matrix only.
   _RM_CORPFLOW="$RESOLVE_MODELS_CORPFLOW_ARG"
   if [[ -z "$_RM_CORPFLOW" ]]; then
@@ -2562,7 +2562,7 @@ if [[ -n "$TASK_OP" ]]; then
   # (state.models, Validation check 13) is untouched by this reversal.
 
   # `metadata.effort` is a dispatch parameter the ledger carries, not free text: the Step
-  # C.0a resolver bumps it one rung (`skills/shared/stage-contracts.md § Blocking items are
+  # C.0a resolver bumps it one rung (`skills/worktask/references/stage-contracts.md § Blocking items are
   # resolved, not asked`), and an off-ladder value would surface there as a failed dispatch
   # a stage or more later rather than at the write that introduced it. Checked on the two
   # ops that persist metadata. Absent is fine — the field is optional and older ledgers
@@ -3494,7 +3494,7 @@ if [[ -n "$STAGE_ARG" || -n "$ARTIFACT_ARG" ]]; then
   if [[ -z "$ART" || ! -f "$ART" ]]; then
     log_msg WARN "no artifact resolved (stage=${STAGE_ARG:-} artifact=${ARTIFACT_ARG:-}) — no-op"
     # `--prev` present with `--via` absent is the documented signature of a Layer-1 agent
-    # self-patch (handoff-protocol.md#layer-1-fallback), i.e. a stage patching the artifact it just
+    # self-patch (skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback), i.e. a stage patching the artifact it just
     # wrote. Finding nothing there is a real failure, so it is the one unresolved case that
     # must not exit 0. Hook and Step-6.5 callers pass --via and keep the no-op contract.
     if [[ -n "$PREV_ARG" && -z "$VIA_ARG" && -z "$ALLOW_MISSING_ARTIFACT" ]]; then
@@ -3503,7 +3503,7 @@ if [[ -n "$STAGE_ARG" || -n "$ARTIFACT_ARG" ]]; then
         _searched=$(searched_basenames_for_stage "$STAGE_ARG" | sed 's/$/-N.md/' | tr '\n' ' ')
       fi
       [[ -n "$ARTIFACT_ARG" ]] && _searched="${_searched}${ARTIFACT_ARG} "
-      printf >&2 'ERROR: self-patch for stage %s found no artifact.\n  searched (in .context/): %s\n  Write the artifact, then re-run. If you cannot, write state.json directly (handoff-protocol.md#layer-1-fallback);\n  --allow-missing-artifact only silences this error and still patches NOTHING.\n' \
+      printf >&2 'ERROR: self-patch for stage %s found no artifact.\n  searched (in .context/): %s\n  Write the artifact, then re-run. If you cannot, write state.json directly (skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback);\n  --allow-missing-artifact only silences this error and still patches NOTHING.\n' \
         "${STAGE_ARG:-<unset>}" "${_searched:-<none>}"
       log_msg ERROR "self-patch unresolved (stage=${STAGE_ARG:-} prev=${PREV_ARG}) — exit 3"
       exit 3
@@ -3715,7 +3715,7 @@ ${list}"
     exit 2
   fi
   # Nothing kept AND nothing rejected means the payload was legitimately EMPTY —
-  # `{"open_questions":[]}` is what stage-contracts.md § Closing Elicitation Sweep tells a stage
+  # `{"open_questions":[]}` is what skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep tells a stage
   # with nothing to ask to emit. Refusing it turned a no-op into a hard stop that also aborted the
   # stage-completion merge the same call was paired with. The union is skipped (it would be a
   # no-op anyway) and execution falls through to that merge.

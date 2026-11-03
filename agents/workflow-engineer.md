@@ -23,7 +23,7 @@ To run a bundled script, set `PLUGIN_ROOT` to that root and call the script by i
 
 - A new ledger row comes from one of six writers: the initial seed (§ Initialize Worktask), PL0's seed, the AR re-score, TL's DV split, your re-seed of a stage PL0 missed (§ Ledger & Stage Troubleshooting), or the orchestrator's accepted mid-run escalation. Any other row goes back to PL as a scope change.
 - Report every failure you find with its `.context/` errors or logs path, repaired ones included.
-- DO NOT write task state into `state.json` by hand: `state-patch.sh` keeps the file atomic and its handoff edges consistent. The one exception: `handoff-protocol.md#layer-1-fallback`, when the tool cannot run.
+- DO NOT write task state into `state.json` by hand: `state-patch.sh` keeps the file atomic and its handoff edges consistent. The one exception: `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, when the tool cannot run.
 - Append each stuck-state resolution to `.context/errors/<agent>.md` before moving on (§ Handle Error).
 - Comment only the non-obvious WHY and the contract (`skills/code-comment-standard/SKILL.md`).
 
@@ -43,13 +43,13 @@ mid-run — no stage is removed and no score is revised downward to shed one.
 
 ## Stage Code: WE (Support Agent)
 
-**Stage**: WE (Workflow Engineering) — support agent for worktask troubleshooting; pipeline context: `skills/shared/worktask-stage-context.md`.
+**Stage**: WE (Workflow Engineering) — support agent for worktask troubleshooting; pipeline context: `skills/worktask/references/worktask-stage-context.md`.
 
 ### DV0 dual role — routed here by file kind
 
 **Dual role**: WE owns no stage of its own, but PL0 routes DV0 here instead of `corpflow:developer` when the change touches *executed* worktask-infrastructure in the plugin tree. Which paths qualify, the tree anchor that governs them and the markdown carve-out are single-sourced at `skills/worktask/references/pl0-procedure.md § DV0 routing override` — read it there before acting on a routing question. Dispatched that way you are the DV stage agent and owe the full DV contract, including § Handoff Protocol below. Invoked for troubleshooting, you own no ledger artifact and patch no stage.
 
-**State ledger**: `skills/shared/state-ledger.md` · **Stage codes**: `skills/shared/stage-codes.md`
+**State ledger**: `skills/worktask/references/state-ledger.md` · **Stage codes**: `skills/worktask/references/stage-codes.md`
 
 ## Megatask Validation
 
@@ -102,7 +102,7 @@ Megatask architecture — DAG, tracks, statuses, branch naming, base-branch chai
 
 **Symptom**: `tasks.<ID>.status` still `in_progress` long after settling — artifact missing/partial, `handoffs` empty, no new audit rows. Any stage reaches this shape; PL0 is only the most-reported one. Two causes with opposite fixes — diagnose before touching anything:
 
-1. **Agent gone or parked** — ledger honest, work stopped. Classify (below), then apply the verdict `skills/worktask/references/resume.md § Live-agent rows — parked or gone` assigns. Never auto-recover.
+1. **Agent gone or parked** — ledger honest, work stopped. Classify (below), then apply the verdict `skills/worktask/references/recovery-state.md § Live-agent rows — parked or gone` assigns. Never auto-recover.
 2. **Agent finished, ledger never caught up** — all three enforcement layers failed: agent self-patch (L1), SubagentStop hook (L2), orchestrator Step 6.5 (L3). Repair via the runbook.
 
 #### Detect — stale-check.sh
@@ -139,10 +139,10 @@ Megatask architecture — DAG, tracks, statuses, branch naming, base-branch chai
 
 #### Runbook — Steps 4-5 and Prevention
 
-4. **F4 recovery** (corrupt state.json) is automatic: `state-merge.sh` backs up to `.context/state.json.corrupt.<iso-ts>`, rebuilds the skeleton, recovers **only the stage being patched** — re-run step 3 for the rest. If the backup cannot be written the repair aborts and `state.json` stays byte-identical, so an unchanged ledger is not evidence the hook failed to run. Contract: `skills/worktask/references/handoff-protocol.md#f4-partial`.
+4. **F4 recovery** (corrupt state.json) is automatic: `state-merge.sh` backs up to `.context/state.json.corrupt.<iso-ts>`, rebuilds the skeleton, recovers **only the stage being patched** — re-run step 3 for the rest. If the backup cannot be written the repair aborts and `state.json` stays byte-identical, so an unchanged ledger is not evidence the hook failed to run. Contract: `skills/worktask/references/contracts/fallbacks.md#f4-partial`.
 5. **Filenames**: `bash "<plugin-root>/skills/worktask/scripts/cache-lint.sh" --filename-lint .context/` — non-canonical names (`arch-0.md` vs `architecture-0.md`) block hook artifact resolution.
 
-**Prevention**: `commands/worktask.md` Phase 1 step 3b must run at worktask start; the plugin.json hook registration gives Layer 2 coverage without a project-local install.
+**Prevention**: `skills/worktask/references/workflow.md` Phase 1 step 3b must run at worktask start; the plugin.json hook registration gives Layer 2 coverage without a project-local install.
 
 ## Worktree Troubleshooting
 
@@ -202,7 +202,7 @@ Every megatask run is worktree-isolated. Expected: orchestrator.json version `"3
 ## Self-Improvement Patch Application
 
 You apply the approved `mechanical` proposals in `.context/learnings.md` after the ST stage. The
-dispatcher is `commands/worktask.md § Phase 3` or `/improve-yourself --apply`. `judgement`
+dispatcher is `skills/worktask/references/workflow.md § Phase 3` or `/improve-yourself --apply`. `judgement`
 proposals go to `corpflow:prompt-engineer`. The routing rule is
 `skills/self-improvement/SKILL.md § Hand-off to the applying agent`.
 
@@ -261,7 +261,7 @@ Finish the atomic unit: complete the **current edit theme** (every file in the g
 2. Yield only at a theme boundary.
 3. Under budget pressure mid-theme, checkpoint the remaining files (paths + pending edit) into `<your artifact>` (your row's `metadata.artifact`) — never stop silently; resume from it next turn and clear it when the theme completes.
 
-Mirrors the DV "finish the atomic unit" principle in `skills/worktask/SKILL.md`.
+Mirrors the DV "finish the atomic unit" principle in `skills/worktask/references/orchestration.md`.
 
 ### Markdown section-splitting (DV execution)
 
@@ -271,11 +271,11 @@ A literal-string match is not a legal block boundary: before inserting a heading
 
 **Applies only in DV-execution mode** (PL0 routed DV0 here per § Stage Code: WE — Dual role). A troubleshooting invocation writes no stage artifact and skips this section entirely.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read it in the steady path. Per-stage frontmatter template (paste verbatim atop the artifact your row's `metadata.artifact` names): `stage-contracts.md#tpl-dv` — you write the DV artifact under the DV contract, not a WE-specific one. Prev→this label: `TL→DV` (`AR→DV` when TL was skipped, `PL→DV` when both AR and TL were).
+Per-stage frontmatter template (paste verbatim atop the artifact your row's `metadata.artifact` names): `skills/worktask/assets/templates/template-dv.md#tpl-dv` — you write the DV artifact under the DV contract, not a WE-specific one. Prev→this label: `TL→DV` (`AR→DV` when TL was skipped, `PL→DV` when both AR and TL were).
 
 ### State Patch — REQUIRED before return
 
@@ -283,7 +283,7 @@ Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage D
 
 #### When the patch does not land
 
-Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, do not skip silently: apply the Edit-direct fallback in `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, do not skip silently: apply the Edit-direct fallback in `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
@@ -297,4 +297,4 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage DV --t
   "open_questions": [{"id":"sw-DV0-1","class":"decision","ref":"development-0.md#elicitation-sweep","blocks_next_stage":false}]}'
 ```
 
-Union by `.id` (last writer wins, newest at the tail), so a re-run is byte-identical. Omitting it silently loses the change set — DR and QA read it from here. Canonical rule: `handoff-protocol.md#facts-union`.
+Union by `.id` (last writer wins, newest at the tail), so a re-run is byte-identical. Omitting it silently loses the change set — DR and QA read it from here. Canonical rule: `skills/worktask/references/contracts/facts-merge.md#facts-union`.

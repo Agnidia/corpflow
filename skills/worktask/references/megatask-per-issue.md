@@ -1,6 +1,6 @@
 # Megatask per-issue run
 
-Read from `commands/worktask.md § Per-issue run under /megatask` when `/megatask` launched this
+Read from `skills/worktask/references/workflow.md § Per-issue run under /megatask` when `/megatask` launched this
 run: the dispatch prompt carries a `PL0.metadata` stamp with `megatask_group`. A run that a user
 started directly skips this file.
 
@@ -11,10 +11,10 @@ started directly skips this file.
 environment in which every Bash call opens with
 `cd "<wt>" && export WORKSPACE_ROOT="<wt>" MILESTONE_MODE=1 &&`,
 `<wt>` being the issue's absolute worktree path. Keep that prefix on every call, the snippets
-in `commands/worktask.md` included. It is what makes the state scripts write `<wt>/.context/state.json` instead of
+in `skills/worktask/references/workflow.md` included. It is what makes the state scripts write `<wt>/.context/state.json` instead of
 megatask's own ledger, and what the scan, preflight, publish and branch scripts read as a
 per-issue run. Hooks never see that export: they bind to `<wt>` from the `WORKSPACE_ROOT=`
-banner line in the acting agent's prompt, so keep `commands/worktask.md § Banner injection` on every stage brief. No
+banner line in the acting agent's prompt, so keep `skills/worktask/references/stage-entry.md § Banner injection` on every stage brief. No
 user is reachable.
 
 ### Per-issue run — what changes
@@ -23,8 +23,8 @@ user is reachable.
 |---|---|
 | 2a-pre, 2a | Both scripts print `result=skipped reason=milestone_mode`; no `AskUserQuestion` runs |
 | 3c | `branch-name.sh` self-disables; `init-worktree.sh` already named the branch |
-| 4 | The stamp overlays the payload (`commands/worktask.md § Step 4 — the /megatask stamp`) |
+| 4 | The stamp overlays the payload (`skills/worktask/references/launch-planning.md § Step 4 — the /megatask stamp`) |
 | A | `publish-pl-issue.sh` defers with `reason=milestone_mode` |
-| Any stop for the user | Settles the issue first (`skills/worktask/SKILL.md § USER under /megatask`) |
+| Any stop for the user | Settles the issue first (`skills/worktask/references/workspace-scheduling.md § USER under /megatask`) |
 | Phase 3 | Skipped |
 | `EnterWorktree` | Never called: the prefix already runs every call in `<wt>` |

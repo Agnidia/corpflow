@@ -549,3 +549,22 @@ _test_helper_cleanup() {
 teardown() {
   _test_helper_cleanup
 }
+
+# Contract assertions can span leaves; only the marked canonical bodies form this test view.
+contract_source() {
+  local source="$1" rel out module
+  if ! grep -q '<!-- canonical-module: ' "$source" 2>/dev/null; then
+    printf '%s' "$source"
+    return
+  fi
+  out="$(mktemp -d "${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/contract-source.XXXXXX")"
+  out="$out/$(basename "$source")"
+  while IFS= read -r rel; do
+    module="$(dirname "$source")/$rel"
+    [ -f "$module" ] || return 1
+    awk '/^<!-- canonical-body:start -->$/ { body=1; next }
+         body { print }' "$module" >> "$out"
+  done < <(sed -n 's/.*<!-- canonical-module: \(.*\) -->.*/\1/p' "$source")
+  printf '%s' "$out"
+}
+export -f contract_source

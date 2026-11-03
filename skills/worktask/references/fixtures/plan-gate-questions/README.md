@@ -1,6 +1,6 @@
 # Plan-Gate Open-Question Fixtures
 
-Spec fixtures for `skills/worktask/references/pl0-procedure.md § Plan-Gate Open-Question Batching`
+Spec fixtures for `skills/worktask/references/planning-decisions.md § Plan-Gate Open-Question Batching`
 — specifically `§ Facts are PL0's job; decisions are the user's` and
 `§ Dependency ordering across gate rounds`. They describe **expected inputs → outputs** for the
 prompt workflow and are NOT executable application tests. QA validates the PM's behaviour against

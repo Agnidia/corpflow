@@ -50,7 +50,7 @@ Assess each by likelihood × impact (High/Medium/Low); document indicators, miti
 | QA | Quality concern → code quality deep dive |
 | Any | Tech debt decision → prioritization, remediation plan |
 
-Only `team-lead` holds the `Agent(corpflow:technical-lead)` grant today. The AR/DV/QA rows (mirrored in `skills/shared/stage-codes.md § Support Agents` and `worktask-stage-context.md § Support Stages`) record intent, not a wired dispatch path.
+Only `team-lead` holds the `Agent(corpflow:technical-lead)` grant today. The AR/DV/QA rows (mirrored in `skills/worktask/references/stage-codes.md § Support Agents` and `worktask-stage-context.md § Support Stages`) record intent, not a wired dispatch path.
 
 ## TC Return Contract
 
@@ -84,9 +84,9 @@ Distinct key, enum, and lifecycle — keep them separate:
 | | DR `handoff.verdict` | TC `tc_review.tc_verdict` |
 |---|---|---|
 | Key | `verdict`, in the `handoff:` frontmatter of `developer-review-N.md` | `tc_verdict`, in a `tc_review:` block in the consult's return message |
-| Enum | `pass` / `fail` (`stage-contracts.md#tpl-dr`) | `approve` / `reject` / `conditional` |
+| Enum | `pass` / `fail` (`skills/worktask/assets/templates/template-dr.md#tpl-dr`) | `approve` / `reject` / `conditional` |
 | Lifecycle | Patched into `state.json` by `state-patch.sh`; drives the retry/escalate matrix | Advisory, read by the calling agent; never patched into the ledger |
 
 Don't unify the keys or reuse `pass`/`fail` for TC: `state-patch.sh` reads `.handoff.verdict` (awk fallback: a `verdict:` line), so a shared key would make an advisory consult look like a stage gate to the ledger tooling.
 
-State ledger: stage TC (support agent) — a consult produces no `tasks.TC*` entry and no handoff edge (`skills/shared/state-ledger.md`).
+State ledger: stage TC (support agent) — a consult produces no `tasks.TC*` entry and no handoff edge (`skills/worktask/references/state-ledger.md`).

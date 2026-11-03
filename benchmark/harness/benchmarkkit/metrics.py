@@ -130,6 +130,8 @@ class StageAttribution:
     parent_cache_creation: Optional[int] = None
     parent_cache_read: Optional[int] = None
     parent_out: Optional[int] = None
+    duration_s: Optional[float] = None
+    diagnostics: Optional[dict] = None
 
     def to_dict(self) -> dict:
         d = {
@@ -147,6 +149,10 @@ class StageAttribution:
         for key in _PARENT_KEYS:
             if getattr(self, key) is not None:
                 d[key] = getattr(self, key)
+        if self.duration_s is not None:
+            d["duration_s"] = self.duration_s
+        if self.diagnostics is not None:
+            d["diagnostics"] = self.diagnostics
         return d
 
     @classmethod
@@ -161,6 +167,7 @@ class StageAttribution:
             coverage=StageCoverage.from_dict(d.get("coverage")),
             arm=d.get("arm"),
             **{key: d.get(key) for key in _PARENT_KEYS},
+            duration_s=d.get("duration_s"), diagnostics=d.get("diagnostics"),
         )
 
 

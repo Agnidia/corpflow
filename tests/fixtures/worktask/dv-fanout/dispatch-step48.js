@@ -7,11 +7,13 @@ const doc = fs.readFileSync(skillPath, 'utf8');
 const section = heading => {
   const start = doc.indexOf(`##### Step 4.8 — ${heading}\n`);
   if (start < 0) throw new Error(`missing section: ${heading}`);
-  const next = doc.indexOf('##### ', start + 6);
-  const body = doc.slice(start, next < 0 ? undefined : next);
-  const code = body.match(/```typescript\n([\s\S]*?)\n```/);
-  if (!code) throw new Error(`missing code: ${heading}`);
-  return code[1];
+  const restStart = doc.indexOf("\n", start) + 1;
+  const rest = doc.slice(restStart);
+  const next = rest.search(/^#{1,5} /m);
+  const body = doc.slice(start, next < 0 ? undefined : restStart + next);
+  const blocks = Array.from(body.matchAll(/```typescript\n([\s\S]*?)\n```/g), match => match[1]);
+  if (!blocks.length) throw new Error(`missing code: ${heading}`);
+  return blocks.join('\n');
 };
 
 let state = JSON.parse(fs.readFileSync(statePath, 'utf8'));

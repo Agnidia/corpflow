@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Run native iOS tests on a dedicated host simulator, without model or API calls."""
+
+import argparse
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+
+
+def command(argv, cwd, timeout=30):
+    env = {k: os.environ[k] for k in ("PATH", "HOME", "TMPDIR", "LANG", "DEVELOPER_DIR")
+           if k in os.environ}
+    return subprocess.run(argv, cwd=cwd, env=env, text=True, capture_output=True, timeout=timeout)
+
+
+def validate(app, record, runner=command):
+    app = Path(app).resolve()
+    record = Path(record).resolve()
+    logs = app / ".context/native-validation"
+    logs.mkdir(parents=True, exist_ok=True)
+    result = {"status": "blocked", "app": str(app), "api_cost_usd": 0,
+              "validation_scope": "host iOS tests configured in the shared scheme"}
+
+    def call(argv, timeout=30):
+        proc = runner(argv, str(app), timeout)
+        if proc.returncode:
+            raise RuntimeError((proc.stderr or proc.stdout or "native command failed")[-2000:])
+        return proc.stdout
+
+    try:
+        if not (app / "TicTacToe.xcodeproj").is_dir():
+            raise RuntimeError("TicTacToe.xcodeproj is required for native validation")
+        runtimes = json.loads(call(["xcrun", "simctl", "list", "runtimes", "--json"]))
+        available = [r for r in runtimes["runtimes"] if r.get("isAvailable") is True
+                     and r.get("name", "").startswith("iOS ")]
+        if not available:
+            result.update(status="skipped", reason="No available iOS Simulator runtime")
+        else:
+            runtime = max(available, key=lambda r: tuple(int(v) for v in r["version"].split(".")))
+            name = "Corpflow Native Validation " + hashlib.sha256(str(app).encode()).hexdigest()[:8]
+            devices = json.loads(call(["xcrun", "simctl", "list", "devices", "--json"]))
+            device = next((d for d in devices["devices"].get(runtime["identifier"], [])
+                           if d.get("name") == name and d.get("isAvailable") is True), None)
+            if device:
+                udid = device["udid"]
+            else:
+                types = runtime.get("supportedDeviceTypes") or json.loads(call(
+                    ["xcrun", "simctl", "list", "devicetypes", "--json"]))["devicetypes"]
+                phones = [d for d in types if d.get("name", "").startswith("iPhone ")]
+                chosen = next((d for d in phones if d["name"] == "iPhone 17"), phones[0])
+                udid = call(["xcrun", "simctl", "create", name, chosen["identifier"],
+                             runtime["identifier"]]).strip()
+            if not udid or any(c not in "0123456789abcdefABCDEF-" for c in udid):
+                raise RuntimeError("CoreSimulator returned an invalid device identifier")
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            bundle = logs / f"native-{stamp}.xcresult"
+            logfile = logs / f"native-{stamp}.log"
+            result.update(simulator_id=udid, runtime=runtime["name"], result_bundle=str(bundle),
+                          log=str(logfile))
+            argv = ["xcodebuild", "test", "-project", "TicTacToe.xcodeproj", "-scheme",
+                    "TicTacToe-iOS", "-destination", f"platform=iOS Simulator,id={udid}",
+                    "-derivedDataPath", str(logs / "DerivedData"), "-resultBundlePath", str(bundle),
+                    "-parallel-testing-enabled", "NO", "-disableAutomaticPackageResolution",
+                    "CODE_SIGNING_ALLOWED=NO", "ONLY_ACTIVE_ARCH=YES"]
+            proc = runner(argv, str(app), 1200)
+            logfile.write_text(proc.stdout + "\n" + proc.stderr)
+            result.update(status="passed" if proc.returncode == 0 else "failed",
+                          returncode=proc.returncode)
+            if proc.returncode:
+                result["reason"] = "Native tests failed; see the log and result bundle"
+            else:
+                summary = json.loads(call(["xcrun", "xcresulttool", "get", "test-results",
+                                           "summary", "--path", str(bundle)]))
+                if not isinstance(summary.get("passedTests"), int) or summary["passedTests"] < 1:
+                    raise RuntimeError("Native result bundle contains no passing tests")
+                if summary.get("failedTests") != 0:
+                    raise RuntimeError("Native result bundle reports test failures")
+                result["summary"] = summary
+    except (RuntimeError, OSError, ValueError, KeyError, IndexError, subprocess.TimeoutExpired) as exc:
+        result.update(status="blocked", reason=str(exc))
+    record.parent.mkdir(parents=True, exist_ok=True)
+    record.write_text(json.dumps(result, indent=2) + "\n")
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--app", default=".")
+    parser.add_argument("--record")
+    args = parser.parse_args()
+    record = args.record or Path(args.app) / ".context/native-validation/result.json"
+    result = validate(args.app, record)
+    print(json.dumps(result, indent=2))
+    return 0 if result["status"] in ("passed", "skipped") else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

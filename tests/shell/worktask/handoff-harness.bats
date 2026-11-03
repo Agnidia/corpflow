@@ -2180,7 +2180,7 @@ ANCHORS="$FIXTURES/worktask/anchors"
   assert_failure 1
   assert_output --partial "fail: anchor-lint stage=ST missing required H2 '## followups' in retrospective-0.drift.md"
   [ "$(grep -c "unexpected H2 '## " <<< "$output")" -eq 5 ] || fail "want 5 unexpected lines: $output"
-  assert_output --partial "nest it as H3 (handoff-protocol.md#anchor-allow-list)"
+  assert_output --partial "nest it as H3 (skills/worktask/references/contracts/artifact-anchors.md#anchor-allow-list)"
 }
 
 @test "anchors: every stage's conforming fixture passes; dropping any one required H2 fails" {

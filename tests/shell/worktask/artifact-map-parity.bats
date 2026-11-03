@@ -16,7 +16,7 @@
 #   1. skills/worktask/scripts/cache-lint.sh   _STAGE_TABLE (field 3)
 #   2. skills/worktask/scripts/state-patch.sh  basename_for_stage()
 #   3. hooks/state-merge.sh                    _basename_for_stage()
-#   4. skills/worktask/SKILL.md                ARTIFACT_BASE (orchestrator executes it)
+#   4. skills/worktask/references/orchestration.md                ARTIFACT_BASE (orchestrator executes it)
 #   5. hooks/anchor-preflight.sh               ARTIFACT_RE alternation
 #   6. handoff-protocol.md                     #stage-artifact-map table
 #   7. agents/workflow-engineer.md             manual-repair brace-glob (basenames only,
@@ -124,7 +124,7 @@ map_from_stage_table() { # <abs-file>
     awk "/const ARTIFACT_BASE/,/^};/" "$1" \
       | grep -oE "[A-Z]{2}: \"[a-z-]+\"" \
       | sed -E "s/([A-Z]{2}): \"([a-z-]+)\"/\1=\2/"
-  ' _ "$PLUGIN_ROOT/skills/worktask/SKILL.md"
+  ' _ "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/orchestration.md")"
   assert_success
   [ "$output" = "$(expected_map)" ]
 }
@@ -161,7 +161,7 @@ map_from_stage_table() { # <abs-file>
     awk "/^## #stage-artifact-map/,/^### Run-index resolution/" "$1" \
       | grep -E "^\| [A-Z]{2} \|" \
       | sed -E "s/^\| ([A-Z]{2}) \| .?([a-z-]+)-N\.md.*/\1=\2/"
-  ' _ "$PLUGIN_ROOT/skills/worktask/references/handoff-protocol.md"
+  ' _ "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/handoff-protocol.md")"
   assert_success
   [ "$output" = "$(expected_map)" ]
 }
@@ -173,7 +173,7 @@ map_from_stage_table() { # <abs-file>
            skills/worktask/scripts/state-patch.sh \
            hooks/state-merge.sh \
            hooks/anchor-preflight.sh; do
-    run bash -c 'grep -nE "\"analyzing\"|'"'"'analyzing'"'"'|\|analyzing\|" "$1" || true' _ "$PLUGIN_ROOT/$f"
+    run bash -c 'grep -nE "\"analyzing\"|'"'"'analyzing'"'"'|\|analyzing\|" "$1" || true' _ "$(contract_source "$PLUGIN_ROOT/$f")"
     assert_output ""
   done
 }

@@ -370,11 +370,11 @@ CASES = [
     ("refactor", "buried", "std", "every agent picks its own model name and they have drifted apart. plan a cleanup.",
      ["skills/shared/model-selection.md"]),
     ("docs", "buried", "std", "the two-letter abbreviations for pipeline steps mean different things in different files. plan the documentation.",
-     ["skills/shared/stage-codes.md"]),
+     ["skills/worktask/references/stage-codes.md"]),
     ("docs", "buried", "std", "nobody can tell what one step of the pipeline owes the next. plan the documentation.",
-     ["skills/shared/stage-contracts.md"]),
+     ["skills/worktask/references/stage-contracts.md"]),
     ("docs", "buried", "std", "there is no written schema for the run record every step reads and writes. plan the documentation.",
-     ["skills/shared/state-ledger.md"]),
+     ["skills/worktask/references/state-ledger.md"]),
     ("docs", "buried", "std", "we have no agreed split between unit, integration and end-to-end coverage. plan the documentation.",
      ["skills/shared/testing-strategy.md"]),
     ("bug", "buried", "std", "developers mark which tests to run in source comments and no two files agree on the format. plan a fix.",
@@ -388,9 +388,9 @@ CASES = [
     ("bug", "buried", "std", "our scripts break when the plugin is installed somewhere other than where we develop it. plan a fix.",
      ["skills/shared/plugin-root-resolution.md"]),
     ("bug", "buried", "std", "people start a task by pasting a phrase instead of running the entry point, and it half-works. plan a fix.",
-     ["skills/shared/worktask-invocation.md"]),
+     ["skills/worktask/SKILL.md"]),
     ("refactor", "buried", "std", "each agent restates the whole pipeline in its own words and the copies have drifted. plan a cleanup.",
-     ["skills/shared/worktask-stage-context.md"]),
+     ["skills/worktask/references/worktask-stage-context.md"]),
     ("bug", "buried", "std", "our post-mortems stop at the first plausible cause and never reach the systemic one. plan a fix.",
      ["skills/shared/five-whys.md"]),
     ("feature", "buried", "std", "i want to hand the planner a Word document and have it read as text. plan it.",
@@ -932,14 +932,14 @@ REFUTED_PREMISE = {
          "attach-visual-evidence.sh embeds DV captures into the PR body and the issue on "
          "any run with metadata.requires_screenshots=true; dv-screenshot-capture drives it"),
     125: ("shipped", "no written schema for the run record",
-          "skills/shared/state-ledger.md carries the run-record JSON Schema, including the "
+          "skills/worktask/references/state-ledger.md carries the run-record JSON Schema, including the "
           "task.metadata properties, across five documented parts"),
     153: ("shipped", "nothing says how to classify each change",
           "skills/self-improvement/references/change-categories.md is the classification "
           "taxonomy: category table, first-match decision tree, and a confidence table"),
     159: ("shipped", "the planning step has no written procedure",
           "skills/worktask/references/pl0-procedure.md is 713 lines of PL0 procedure, cited "
-          "from product-manager.md and commands/worktask.md"),
+          "from product-manager.md and skills/worktask/references/workflow.md"),
     163: ("shipped", "nothing turns them into a pass rate",
           "eval-grade.py scores every stored response and prints per-case verdicts, a "
           "per-dimension breakdown and the aggregate passed/graded line"),

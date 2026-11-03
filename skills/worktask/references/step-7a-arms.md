@@ -1,8 +1,8 @@
 # Step 7a arms — parked needs at the boundary
 
-Read a section here only when its predicate in `skills/worktask/SKILL.md § Step 7a — the
+Read a section here only when its predicate in `skills/worktask/references/retry-routing.md § Step 7a — the
 parked-need arms` holds. The boundary code every iteration runs stays in SKILL.md; this file
-holds the arms it calls. An unqualified `§` names a section of `skills/worktask/SKILL.md`.
+holds the arms it calls. An unqualified `§` names a section of `skills/worktask/references/orchestration.md`.
 
 ## Step 7a — the megatask arm
 
@@ -23,7 +23,7 @@ working directory, which can be another tree.
 function stopParked(park) {
   if (park.workspace_written) return;   // STOP: nothing more dispatches
   const ws = path.join(path.dirname(contextDir()), "workspace.json");
-  // The PARK guard's own write (commands/worktask.md § Escalation guard — unattended
+  // The PARK guard's own write (workflow.md § Escalation guard — unattended
   // `/megatask` per-issue runs (PARK)), only for an absent or unparseable file.
   const reason = isSymlink(ws) ? "symlink" : park.workspace_reason;
   if (reason === "missing" || reason === "malformed") return writeWorkspaceParked(ws);
@@ -123,7 +123,7 @@ function resumeUserDecision(need) {
 ### Step 7a — why the answer is never forwarded
 
 The answer is already in this conversation. Forwarding it, whole or paraphrased, is the prose relay
-a stage must refuse (`skills/shared/stage-contracts.md § A user decision is accepted only from the
+a stage must refuse (`skills/worktask/references/stage-contracts.md § A user decision is accepted only from the
 ledger`). So `rb.instruction` goes out as is: through `SendMessage` to a live stage, or as a
 re-dispatch suffix. The stage reads the answer only through the verifier.
 
@@ -148,7 +148,7 @@ function deliverResume(rb, body) {
 - "done" → resumed at once. The user did what the request asked, and the resumed stage checks
   `verify`, when the need has one, before it continues.
 - "stop here" → nothing is written. The task stays parked, and the run stops per § Escalation
-  Chains; a later `/worktask --resume` asks again (`references/resume.md § Reply routing`).
+  Chains; a later `/worktask --resume` asks again (`skills/worktask/references/recovery-gates.md § Reply routing`).
 - Free text → the answer itself, such as the reply the user got from a peer. It resumes like "done"
   and reaches the stage as a fenced block; no audit row holds it. It is never consent.
 - A `user_decision` need offers the stage's own options instead of "done" and "stop here". Whatever

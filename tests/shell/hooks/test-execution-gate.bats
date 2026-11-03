@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Tests for hooks/test-execution-gate.sh — PreToolUse gate enforcing
-# skills/shared/testing-strategy.md § Test-Execution Authority.
+# skills/worktask/references/testing-strategy.md § Test-Execution Authority.
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
 SCRIPT="hooks/test-execution-gate.sh"
@@ -1288,7 +1288,7 @@ assert_dv_allowed() {
 @test "D3: SKILL.md step 5 marks in_progress in the ledger the gate reads" {
   # The instruction IS the fix — nothing else makes the gate reachable — and the
   # orchestrator executes this block, so drift here re-inerts every case above.
-  local skill="$PLUGIN_ROOT/skills/worktask/SKILL.md"
+  local skill="$(contract_source "$PLUGIN_ROOT/skills/worktask/references/orchestration.md")"
   run grep -A2 '// 5. Mark in_progress' "$skill"
   assert_success
   assert_output --partial 'state-patch.sh --task-status ${task.id} in_progress'

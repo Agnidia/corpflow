@@ -5,7 +5,7 @@
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
 SCRIPT="skills/worktask/scripts/doc-option-check.sh"
-CONTRACTS="skills/shared/stage-contracts.md"
+CONTRACTS="skills/worktask/references/stage-contracts.md"
 
 setup() {
   WD="$(mk_tmpworkdir)"
@@ -567,7 +567,7 @@ check() {
 
 @test "the F-8 fixture yields the exact finding the DC contract example quotes" {
   local example n=1
-  example="$(grep -oE 'finding: "[^"]+"' "$PLUGIN_ROOT/$CONTRACTS" | head -1 | sed 's/^finding: "//; s/"$//')"
+  example="$(grep -oE 'finding: "[^"]+"' "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" | head -1 | sed 's/^finding: "//; s/"$//')"
   [ "$example" = "README.md:42: env API_BIND undefined" ]
   : > "$WD/readme"
   while [ "$n" -lt 42 ]; do printf 'filler\n' >> "$WD/readme"; n=$((n + 1)); done

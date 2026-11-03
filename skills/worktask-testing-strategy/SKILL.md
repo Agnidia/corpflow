@@ -62,7 +62,7 @@ One method may sweep every substate, or write one per substate; what matters is 
 |---|---|---|
 | Test scope — what was planned | `<plan_file> § test-strategy` (resolve via `task.metadata.plan_file`; fallback: newest `.context/planning-*.md`) | Runs integration + E2E as the plan defines; checks every acceptance criterion is tested |
 | Test architecture — how tests are structured | `architecture-N.md`, only when AR ran (with no AR the plan's test strategy is the whole authority and DV owns the test shape) | Reviews DV's unit tests for quality and completeness |
-| Implemented unit tests + the existing-tests-to-update list | Every DV artifact — `refs.dev[]`, or the ledger per `skills/worktask/references/handoff-protocol.md § Iterating the DV tasks` | Fills coverage gaps (edge cases, boundaries) and reports metrics in `testing.md` |
+| Implemented unit tests + the existing-tests-to-update list | Every DV artifact — `refs.dev[]`, or the ledger per `skills/worktask/references/contracts/artifact-map.md § Iterating the DV tasks` | Fills coverage gaps (edge cases, boundaries) and reports metrics in `testing.md` |
 
 ## Logic Change Handling
 

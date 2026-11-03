@@ -81,7 +81,7 @@ Output: TSV rows `<path>\t<rule_num>\t<target>\t<lines_added>\t<lines_removed>` 
 
 #### Mapping Rules (apply first match)
 
-Happy path: a prompt file (`agents/*.md`, `skills/**/SKILL.md`, `commands/*.md`) maps to itself (self-edit signal); `.context/<stage-artifact>-N.md` to its producing agent (lookup via `skills/shared/stage-contracts.md`); source code to this worktask's DV agent (`metadata.agent` — platform-specific or `developer`); docs (`README.md`, `docs/**`) to `agents/technical-writer.md`; no match discards, logged only. Full 17-rule spec, platform-aware resolution and edge cases: `references/target-mapping.md`.
+Happy path: a prompt file (`agents/*.md`, `skills/**/SKILL.md`, `commands/*.md`) maps to itself (self-edit signal); `.context/<stage-artifact>-N.md` to its producing agent (lookup via `skills/worktask/references/stage-contracts.md`); source code to this worktask's DV agent (`metadata.agent` — platform-specific or `developer`); docs (`README.md`, `docs/**`) to `agents/technical-writer.md`; no match discards, logged only. Full 17-rule spec, platform-aware resolution and edge cases: `references/target-mapping.md`.
 
 **Filter:** drop any item whose target is not in the used-in-context set, logging it under `## Out-of-Context Discards`. We only learn from agents that actually worked on this task; an edit to an unrelated file is noise here.
 
@@ -184,7 +184,7 @@ Filename grammar follows `skills/logging-conventions/SKILL.md`.
 
 ## Handoff to the applying agent
 
-After user approval (orchestrated per `commands/worktask.md`), each checked item goes to the agent that owns its enforcement form, one commit per proposal:
+After user approval (orchestrated per `skills/worktask/references/workflow.md`), each checked item goes to the agent that owns its enforcement form, one commit per proposal:
 
 - `judgement` → `corpflow:prompt-engineer`, which owns prompt prose: `agents/prompt-engineer.md § Self-Improvement Patch Application`.
 - `mechanical` → `corpflow:workflow-engineer`, which owns the scripts, hooks and bats tests a deterministic check lives in.
@@ -205,7 +205,7 @@ A target that carries frontmatter (an agent, skill or command file) takes one `v
 
 ## Cross References
 
-- `skills/shared/stage-contracts.md` — ST output contract; Step 4 producer lookup
+- `skills/worktask/references/stage-contracts.md` — ST output contract; Step 4 producer lookup
 - `skills/logging-conventions/SKILL.md` — log path rules
 - `skills/shared/five-whys.md` — Deferred items that recur across worktasks
 - `commands/optimize-agent.md` — scoring rubric for proposal confidence
@@ -214,5 +214,5 @@ A target that carries frontmatter (an agent, skill or command file) takes one `v
 - `agents/stakeholder.md` — invokes this skill (automatic path at ST)
 - `agents/prompt-engineer.md` — applies approved `judgement` proposals
 - `agents/workflow-engineer.md` — applies approved `mechanical` proposals
-- `commands/worktask.md` — orchestrator wires the approval loop after ST
+- `skills/worktask/references/workflow.md` — orchestrator wires the approval loop after ST
 - `tests/shell/skills/{detect-user-changes,build-context-set,map-and-filter,append-labels,label-stats,pipeline-counts}.bats` — executable behavior fixtures for the pipeline scripts

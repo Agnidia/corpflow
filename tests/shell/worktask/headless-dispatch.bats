@@ -604,7 +604,7 @@ exit 0'
 }
 
 @test "b10: a null permission_mode on the ledger row inherits parent-mode instead of refusing (the common row shape)" {
-  # PL0 stamps permission_mode only on SR/FN under --secure/--full (state-ledger.md:212); every
+  # PL0 stamps permission_mode only on SR/FN under --secure/--full (skills/worktask/references/contracts/ledger-streams.md#dispatch-writer-rules); every
   # other row, this DV row included, carries it null. No --parent-mode either, so this also
   # exercises the "omitted defaults to manual" path end to end.
   echo hi > "$WS/prompt.txt"

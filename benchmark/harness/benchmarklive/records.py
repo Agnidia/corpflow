@@ -41,7 +41,9 @@ def _stage_attributions(usages: list, arm: Optional[str]) -> list:
                          parent_fresh_in=u.parent_input_tokens,
                          parent_cache_creation=u.parent_cache_creation,
                          parent_cache_read=u.parent_cache_read,
-                         parent_out=u.parent_output_tokens)
+                         parent_out=u.parent_output_tokens,
+                         duration_s=u.duration_s if u.diagnostics is not None or u.duration_s > 0 else None,
+                         diagnostics=u.diagnostics)
         for name, u in usages
     ]
 

@@ -18,7 +18,7 @@ load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
 COORD="$PLUGIN_ROOT/skills/agent-coordination/SKILL.md"
 REGISTRY="$PLUGIN_ROOT/skills/agent-coordination/references/audit-actions.md"
-WORKTASK="$PLUGIN_ROOT/skills/worktask/SKILL.md"
+WORKTASK="$(contract_source "$PLUGIN_ROOT/skills/worktask/references/orchestration.md")"
 MEGATASK="$PLUGIN_ROOT/skills/megatask/SKILL.md"
 
 # The audit `action` registry is the `actions:` lines of references/audit-actions.md.

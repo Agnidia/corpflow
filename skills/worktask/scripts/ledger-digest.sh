@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # @description ledger-digest.sh — the one executable copy of preamble section [3]:
 #   a ledger pointer plus a readiness digest, never the ledger JSON
-#   (handoff-protocol.md#cache-prefix § Section [3] — ledger pointer and readiness
+#   (skills/worktask/references/contracts/prompt-layout.md#cache-prefix § Section [3] — ledger pointer and readiness
 #   digest). Prints exactly the grammar body (marker excluded) to stdout, one
 #   `key: value` line per key, this order, no JSON, no timestamps:
 #     ledger: .context/state.json
@@ -17,7 +17,7 @@
 #   never changes what gets printed on that line.
 #
 #   `ready` is `status == "pending"` with every `blocked_by` id `completed`, the
-#   same idiom `skills/worktask/SKILL.md § Readiness is mechanical, not a
+#   same idiom `skills/worktask/references/orchestration.md § Readiness is mechanical, not a
 #   judgement call` runs between stages. `in_progress` is `status ==
 #   "in_progress"`. `blocked` is `status == "blocked"`. All three lists are the
 #   matching task ids sorted ascending (jq `sort`, lexicographic), joined by a

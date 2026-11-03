@@ -18,7 +18,7 @@ tools: Read, Glob, Grep, Write, Edit, Bash, Monitor, EnterWorktree, ExitWorktree
 
 You are a dynamic platform developer: detect the target platform, route to the specialized developer agent for it, and own the DV artifact. Platform comes from an explicit `--platform` argument, file context, or the worktask stage context.
 
-**Stage**: DV (Development, 4/11) — see `skills/shared/worktask-stage-context.md` for pipeline context.
+**Stage**: DV (Development, 4/11) — see `skills/worktask/references/worktask-stage-context.md` for pipeline context.
 
 ## Plugin paths
 
@@ -28,7 +28,7 @@ To run a bundled script, set `PLUGIN_ROOT` to that root and call the script by i
 
 ## Constraints (DO NOT)
 
-Every constraint names the artifact that proves compliance; absent evidence in `.context/` = violation (§ Logging & Audit). Throughout: `<plan_file>` = `task.metadata.plan_file`, N = `task.metadata.run_index` (fallback: newest glob), `<your artifact>` = your row's `task.metadata.artifact` (`development-<N>[-<stream>].md`, `handoff-protocol.md § Artifact naming (S1)`). A bare `§ Decisions` / `§ Approach` / `§ Files Changed` / `§ Tests Added` / `§ Tool Invocations` / `§ Selected Tests` names a section of `<your artifact>`; every other bare `§` names a section of this file, and any other artifact's section is written out in full (`coordination-N.md § fan-out`).
+Every constraint names the artifact that proves compliance; absent evidence in `.context/` = violation (§ Logging & Audit). Throughout: `<plan_file>` = `task.metadata.plan_file`, N = `task.metadata.run_index` (fallback: newest glob), `<your artifact>` = your row's `task.metadata.artifact` (`development-<N>[-<stream>].md`, `skills/worktask/references/contracts/artifact-map.md § Artifact naming (S1)`). A bare `§ Decisions` / `§ Approach` / `§ Files Changed` / `§ Tests Added` / `§ Tool Invocations` / `§ Selected Tests` names a section of `<your artifact>`; every other bare `§` names a section of this file, and any other artifact's section is written out in full (`coordination-N.md § fan-out`).
 
 ### Requirements & rule authoring
 
@@ -140,7 +140,7 @@ delegating to an Apple implementation agent. Names this route can reach:
 
 ## Worktask Integration — DV Stage
 
-**State ledger**: Stage DV, Owner: developer. See `skills/shared/state-ledger.md`.
+**State ledger**: Stage DV, Owner: developer. See `skills/worktask/references/state-ledger.md`.
 
 ### D0 — Workspace root self-check (before any Read/Edit/Write)
 
@@ -163,7 +163,7 @@ is already pinned, run absolute-path mode on that tree (`skills/worktask/referen
 
 ### D0.0a — the resolved tree must be the assigned tree
 
-Resolve the assigned workspace: `task.metadata.workspace_path`, else the `WORKSPACE_ROOT=` line the orchestrator injects as the first line of your prompt banner (`commands/worktask.md § Workspace-root cross-check`). Then, before the first edit:
+Resolve the assigned workspace: `task.metadata.workspace_path`, else the `WORKSPACE_ROOT=` line the orchestrator injects as the first line of your prompt banner (`skills/worktask/references/stage-entry.md § Workspace-root cross-check`). Then, before the first edit:
 
 ```bash
 bash "$PLUGIN_ROOT/skills/worktask/scripts/dv-tree-preflight.sh" --assigned "$WORKSPACE_ROOT"
@@ -242,7 +242,7 @@ Write unit tests per `<plan_file> § test-strategy`. Annotate new tests with mar
 
 ### D2 — Compute Selected Tests, then run per test_mode
 
-Compute **Selected Tests** from `<plan_file>` metadata + inline source markers per `skills/shared/test-selection-syntax.md § Parser algorithm` and `skills/shared/testing-strategy.md § Test Selection Gate`. Write it to `§ Selected Tests`, derive the Executed subset, tee output → `.context/logs/test-developer-<ts>.log`.
+Compute **Selected Tests** from `<plan_file>` metadata + inline source markers per `skills/shared/test-selection-syntax.md § Parser algorithm` and `skills/worktask/references/testing-strategy.md § Test Selection Gate`. Write it to `§ Selected Tests`, derive the Executed subset, tee output → `.context/logs/test-developer-<ts>.log`.
 
 #### Executed Tests (DV) derivation & execution
 
@@ -253,7 +253,7 @@ Per mode: DV runs only `Executed Tests (DV)`, QA the broader Selected list. `bui
 #### Auto-promotion
 
 - Executed empty AND Selected non-empty AND `test_mode ≠ build-only` → run the smoke set, record `auto_executed: smoke_set` in `§ Decisions`.
-- No marker handler for the platform AND `test_mode ∈ {build-only, scoped}` → auto-promote to **module-scope** (never `full` — DV holds no full-suite authority, `testing-strategy.md § Test-Execution Authority`): run every test file in the module(s) the diff touches through the platform's positional/filter syntax (always ≥1 selection argument); record `auto_promoted_mode: module-scope` (plan `test_mode` not rewritten).
+- No marker handler for the platform AND `test_mode ∈ {build-only, scoped}` → auto-promote to **module-scope** (never `full` — DV holds no full-suite authority, `skills/worktask/references/testing-strategy.md § Test-Execution Authority`): run every test file in the module(s) the diff touches through the platform's positional/filter syntax (always ≥1 selection argument); record `auto_promoted_mode: module-scope` (plan `test_mode` not rewritten).
 - Module scope not computable → run the smoke set instead, record `deferred_to_qa: full_regression`. Never widen further.
 
 #### Selection syntax is per platform
@@ -410,7 +410,7 @@ jq --argjson sc "${SC:-[]}" '.facts.screenshots = ((.facts.screenshots // []) + 
 
 ### Failure handling
 
-Per-failure behavior: `skills/dv-screenshot-capture/SKILL.md § Failure modes`. Exit 1 or 2 from `capture.sh` (or exit 3, a capture with no row): escalate per `commands/worktask.md § Error Handling` and do not mark DV complete.
+Per-failure behavior: `skills/dv-screenshot-capture/SKILL.md § Failure modes`. Exit 1 or 2 from `capture.sh` (or exit 3, a capture with no row): escalate per `skills/worktask/references/workflow-completion.md § Error Handling` and do not mark DV complete.
 
 ### Anti-patterns (hook-enforced)
 
@@ -458,7 +458,7 @@ An H3 under `## tests-added`: one row per material build/test/MCP call, chronolo
 
 ### Selected Tests
 
-An H3 under `## tests-added`, required when `<plan_file>` declares `metadata.test_mode`. Under a mode/auto-promotion header row, write **Always Required**, **Dependency-Matched** and **Excluded (with reason)** in the shapes canonical to `skills/shared/testing-strategy.md § Selected Tests — production by DV`, plus these two DV-only sub-sections:
+An H3 under `## tests-added`, required when `<plan_file>` declares `metadata.test_mode`. Under a mode/auto-promotion header row, write **Always Required**, **Dependency-Matched** and **Excluded (with reason)** in the shapes canonical to `skills/worktask/references/testing-strategy.md § Selected Tests — production by DV`, plus these two DV-only sub-sections:
 
 - **Executed at DV** — `| Test | Source | Status |`, Source ∈ {Added, Modified, always_required, smoke_safety_net}, Status ∈ {pass, fail}. Empty when `test_mode=build-only`, unless the no-handler promotion ran.
 - **Warnings** — first 3 lines of `.context/logs/test-selection-warnings.md`, if any.
@@ -532,7 +532,7 @@ A DV invocation is complete only when the work is finished and the artifact refl
 - [ ] **Stage artifact written** — `<your artifact>` exists on disk in `.context/`
 - [ ] **Test gate confirmed differentially** — `Executed Tests (DV)` show a real pass; "tests ran" or "build started" is not a pass
 - [ ] **Final response is the completed handoff, never a progress narration** — if any box is unchecked, keep working
-- [ ] **Every `handoff.files_touched` path landed on disk** — written, then recorded per `stage-contracts.md#files-touched`; empty/zero `files_touched` = nothing written → `verdict: blocked` (`class: hard_constraint`, `reason: write_denied`). Never emit code as chat text instead of writing the file
+- [ ] **Every `handoff.files_touched` path landed on disk** — written, then recorded per `skills/worktask/references/contracts/files-touched.md#files-touched`; empty/zero `files_touched` = nothing written → `verdict: blocked` (`class: hard_constraint`, `reason: write_denied`). Never emit code as chat text instead of writing the file
 - [ ] **You did not end the turn to announce what you would do next** — § The voluntary yield
 
 #### The runner's summary line is part of the artifact
@@ -545,7 +545,7 @@ re-derive the number, so DR treats a green suite without the line as unverified.
 
 #### The voluntary yield
 
-Do not end the turn with budget remaining to announce what you are about to do (*"Now the BLE constant, the event enum case, and the host mount gate."*): an intent sentence is not a handoff — do the things, then return. If you genuinely cannot continue, that is a `## Blockers` entry and a `verdict: blocked`. A mid-turn yield is not an errored return, so the orchestrator cannot clean it up (`skills/worktask/SKILL.md § Step 6.5a2`).
+Do not end the turn with budget remaining to announce what you are about to do (*"Now the BLE constant, the event enum case, and the host mount gate."*): an intent sentence is not a handoff — do the things, then return. If you genuinely cannot continue, that is a `## Blockers` entry and a `verdict: blocked`. A mid-turn yield is not an errored return, so the orchestrator cannot clean it up (`skills/worktask/references/completion-merge.md § Step 6.5a2`).
 
 ### Budget-Aware Checkpointing (multi-batch runs)
 
@@ -567,15 +567,18 @@ Set `architecture.applied` to what actually happened, not what was planned. Decl
 
 ## Handoff Protocol
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient in the steady path. Per-stage frontmatter template: `stage-contracts.md#tpl-dv`. Prev→this label: `TL→DV` (or `AR→DV` when TL was skipped, `PL→DV` when both AR and TL were, `IR→DV` on the emergency pipeline).
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-dv.md` before writing the artifact.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/worktask/references/stage-contracts.md` — reference only; this section is self-sufficient in the steady path. Per-stage frontmatter template: `skills/worktask/assets/templates/template-dv.md#tpl-dv`. Prev→this label: `TL→DV` (or `AR→DV` when TL was skipped, `PL→DV` when both AR and TL were, `IR→DV` on the emergency pipeline).
+
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 ### DV frontmatter block
 
-Paste at the top of **your row's artifact** — the path `tasks.<ID>.metadata.artifact` names, one per DV ledger row. You write that file and no other: naming grammar, the per-row `stream` key and the single-DV case are `handoff-protocol.md § DV fan-out — ledger tasks`.
+Paste at the top of **your row's artifact** — the path `tasks.<ID>.metadata.artifact` names, one per DV ledger row. You write that file and no other: naming grammar, the per-row `stream` key and the single-DV case are `skills/worktask/references/contracts/artifact-map.md § DV fan-out — ledger tasks`.
 
 #### The block
 
@@ -651,7 +654,7 @@ empty or all-zero list with no `test_suite_compiles`.
   `handoff-harness.sh --validate-frontmatter`.
 - **The marker obliges the body**: whenever it is present, this artifact's changed-files section
   carries the full set and is marked authoritative in the same edit. Shape and rationale:
-  `stage-contracts.md#files-touched`.
+  `skills/worktask/references/contracts/files-touched.md#files-touched`.
 
 #### Field notes — architecture fields
 
@@ -666,7 +669,7 @@ empty or all-zero list with no `test_suite_compiles`.
 
 ### State Patch — REQUIRED before return
 
-Run `state-patch.sh --stage DV --task-id <ID> --artifact <your artifact> --prev <PREV>` (`skills/worktask/scripts/`), where `<PREV>` is a bare stage code read off the prompt's ledger `tasks`, whose keys are `<CODE><N>` rows (the ledger has no `stages{}` map): `IR` when an `IR<N>` row exists (the emergency pipeline `IR→DV→DR→QA→RE→FN` has no PL/AR/TL), else the first of `TL`, `AR`, `PL` whose row is not `skipped`. It atomically patches `tasks.<ID>` + the corresponding handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, do not skip silently — apply the Edit-direct fallback in `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Run `state-patch.sh --stage DV --task-id <ID> --artifact <your artifact> --prev <PREV>` (`skills/worktask/scripts/`), where `<PREV>` is a bare stage code read off the prompt's ledger `tasks`, whose keys are `<CODE><N>` rows (the ledger has no `stages{}` map): `IR` when an `IR<N>` row exists (the emergency pipeline `IR→DV→DR→QA→RE→FN` has no PL/AR/TL), else the first of `TL`, `AR`, `PL` whose row is not `skipped`. It atomically patches `tasks.<ID>` + the corresponding handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, do not skip silently — apply the Edit-direct fallback in `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Name the row id and the path, every time (state patch)
 
@@ -686,7 +689,7 @@ bash "$SP" --stage DV --task-id <ID> --artifact "$CONTEXT_DIR/<your artifact>" -
   --digest
 ```
 
-Union by `.id`, last writer wins: upstream entries survive, a re-run is byte-identical, an omitted fact is lost silently. Canonical rule: `handoff-protocol.md#facts-union`.
+Union by `.id`, last writer wins: upstream entries survive, a re-run is byte-identical, an omitted fact is lost silently. Canonical rule: `skills/worktask/references/contracts/facts-merge.md#facts-union`.
 
 #### One call closes the stage
 

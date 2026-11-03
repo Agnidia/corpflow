@@ -31,6 +31,12 @@ class SubprocessStdin(unittest.TestCase):
         self.assertEqual(r.exit_code, 124)
         self.assertIn("timed out after", r.stderr)
 
+    def test_timeout_keeps_already_emitted_capture(self):
+        code = "import time;print('partial capture',flush=True);time.sleep(5)"
+        r = Subprocess.run([sys.executable, "-c", code], timeout=0.2)
+        self.assertEqual(r.exit_code, 124)
+        self.assertEqual(r.stdout.strip(), "partial capture")
+
 
 if __name__ == "__main__":
     unittest.main()

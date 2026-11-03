@@ -5,7 +5,6 @@ argument-hint: '"<feature or requirement>" | --from-pr <number> | --from-file <p
 allowed-tools: Read, Glob, Grep, Write, Bash(gh pr diff:*), Bash(gh pr view:*)
 related:
   - agents/qa-engineer.md
-  - skills/worktask/SKILL.md
   - commands/product-requirements.md
   - commands/test-coverage.md
 ---

@@ -122,15 +122,13 @@ repo_grant_prefix() {
   printf '%s %s/%s' "$1" "$CORPFLOW_GRANT_TOKEN" "$2"
 }
 
-# repo_body <file> — the file's body without frontmatter, plus the body of every
-# skills/*/SKILL.md its `related:` list names: a command that loads its skill runs the
-# invocation the skill carries.
+# Grants cover the body and the skill resources loaded through `related:`.
 repo_body() {
   local file="$1" rel
   awk 'NR==1 && $0=="---"{fm=1;next} fm && /^---[[:space:]]*$/{fm=0;next} !fm' "$PLUGIN_ROOT/$file"
   while IFS= read -r rel; do
-    [ -f "$PLUGIN_ROOT/$rel" ] && awk 'NR==1 && $0=="---"{fm=1;next} fm && /^---[[:space:]]*$/{fm=0;next} !fm' "$PLUGIN_ROOT/$rel"
-  done < <(awk 'NR==1 && $0!="---"{exit} NR>1 && /^---[[:space:]]*$/{exit} /^related:/{r=1;next} r && /^  - skills\/[^ ]+\/SKILL\.md[[:space:]]*$/{print $2;next} r && !/^  - /{r=0}' "$PLUGIN_ROOT/$file")
+    [ -f "$PLUGIN_ROOT/$rel" ] && awk 'NR==1 && $0=="---"{fm=1;next} fm && /^---[[:space:]]*$/{fm=0;next} !fm' "$(contract_source "$PLUGIN_ROOT/$rel")"
+  done < <(awk 'NR==1 && $0!="---"{exit} NR>1 && /^---[[:space:]]*$/{exit} /^related:/{r=1;next} r && /^  - skills\/[^ ]+\.md[[:space:]]*$/{print $2;next} r && !/^  - /{r=0}' "$PLUGIN_ROOT/$file")
 }
 
 # repo_file_grants <file> — this suite's own grant collector, over the seam API only
@@ -183,7 +181,7 @@ repo_file_grants() {
       prefix="$(repo_grant_prefix "$interp" "$path")"
       # Frontmatter is stripped so a grant cannot pass by matching its own text.
       body="$(repo_body "$file")"
-      if ! printf '%s\n' "$body" | grep -qF -- "$prefix"; then
+      if ! grep -qF -- "$prefix" <<< "$body"; then
         missing="$missing$file -> $interp $path (no body invocation)
 "
         continue

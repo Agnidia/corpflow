@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Advisory duplicate-issue pre-flight for commands/worktask.md § Step 2a.
+# Advisory duplicate-issue pre-flight for skills/worktask/references/workflow.md § Step 2a.
 # Contract (skills/gh-issue-dedup § Two tiers):
 #   - A PARAPHRASED open issue is surfaced, which the exact-title auto-bind misses.
 #   - Every failure path (no gh, no auth, no remote, API error, garbage response,

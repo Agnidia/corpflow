@@ -43,16 +43,27 @@ The kind names what the log is, not which tool made it.
 
 ## Bash Pattern
 
-Same shape on every platform — make the directory, name the file, tee the merged stream. Only `<build-command>` changes (`xcodebuild … build`, `./gradlew :app:assembleDebug`, `go build ./...`, …).
+Save complete build, test, and diagnostic evidence before returning an excerpt.
+Use the controlled helper when a direct project command produces routine output:
 
 ```bash
-# Ensure .context/logs/ exists, then pipe background stdout+stderr.
-mkdir -p .context/logs
 LOG=".context/logs/build-<scope>-$(date -u +%Y%m%d-%H%M%S).log"
-<build-command> 2>&1 | tee "$LOG"
+python3 "$PLUGIN_ROOT/skills/worktask/scripts/bounded-output.py" --log "$LOG" -- <build-command>
 ```
 
-Use the same `tee` under Claude Code's `Bash` tool with `run_in_background: true`, so the stream persists even if the session closes.
+The helper retains the command exit status and writes the complete merged stream to an exclusive evidence file.
+Its response contains at most 8,000 Unicode characters, including the status, evidence path, and truncation marker.
+A truncated response includes the beginning and end, keeping late failures visible.
+Use a unique timestamp for each attempt; existing evidence files are never overwritten.
+
+### Targeted excerpts
+
+Bound ordinary search output through the same helper, or use supported tool output arguments.
+Retrieve further evidence with `--read --log <path> --start <character-offset>`.
+Larger source excerpts remain permitted when implementation or review needs them.
+This helper controls its own commands; it does not intercept arbitrary shell or MCP output.
+
+For a background stream, use `tee` with the existing log path and bound the result shown to the agent.
 
 ## Monitor-Tool Pattern
 
@@ -65,7 +76,7 @@ MCP auto-background: the tee pattern covers Bash-invoked builds/tests only. An M
 ## Cleanup & Retention
 
 - **Per-task hygiene**: `.context/logs/` clears with the rest of `.context/` when the task archives (worktask FN stage or `/worktask` completion).
-- **Size guard**: unique timestamps mean no rotation; large logs stay readable — stream or truncate on disk if needed.
+- **Size guard**: retain complete evidence on disk; bound displayed excerpts and retrieve specific sections when needed.
 - **Secrets**: never log secrets, tokens, or keychain data. If a tool prints them, redact before `tee` (e.g. `sed -E 's/(authorization|api[_-]?key|password|token|secret|bearer)[=:]\s*\S+/\1=REDACTED/'`) — a starter pattern, so review the output for leaks.
 - **Git**: `.context/` follows the project's existing ignore policy — no special handling.
 

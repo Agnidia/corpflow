@@ -22,7 +22,7 @@ from benchmarklive.dispatch import STAGE_TABLE
 
 _HARNESS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _PLUGIN_ROOT = os.path.dirname(os.path.dirname(_HARNESS))
-_STAGE_CODES = os.path.join(_PLUGIN_ROOT, "skills", "shared", "stage-codes.md")
+_STAGE_CODES = os.path.join(_PLUGIN_ROOT, "skills", "worktask", "references", "stage-codes.md")
 _MODEL_MATRIX_SH = os.path.join(
     _PLUGIN_ROOT, "skills", "worktask", "scripts", "model-matrix.sh"
 )

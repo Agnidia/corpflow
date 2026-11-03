@@ -41,7 +41,7 @@ opinion. Nothing downgrades mid-run.
 
 ## Test Execution
 
-Pyramid ratios, per-platform framework and naming maps, AAA pattern, and the DV/QA boundary are canonical in `skills/shared/testing-strategy.md` — read it, never re-derive them here.
+Read `skills/shared/testing-strategy.md` for the testing pyramid, frameworks, naming, and AAA pattern. Read `skills/worktask/references/testing-strategy.md` for the DV/QA boundary and execution policy.
 
 No platform test tooling lives here. Resolve the platform's plugin (`skills/shared/compatible-plugins.md § Registry`) and run `/<plugin>:build-test` — it owns that build system, returns a verdict instead of a raw log, and surfaces coverage. Pass test selection through that platform's own flag (grammar: `skills/shared/test-selection-syntax.md`). Plugin unavailable → fall back to the project's own runner via Bash, tee to the log path below, and note the fallback in `testing-N.md § Notes`. A direct run follows `skills/cost-optimization/SKILL.md § 4d. Command Output Hygiene`.
 
@@ -57,7 +57,7 @@ The harness fails a strict runner's `summary_line` (`skills/shared/testing-strat
 
 ### Diff-Only Read Rule (QA)
 
-Cheapest-first when only the verdict/decisions/refs or delta is needed: (1) read an upstream `handoff:` block, not the whole artifact; (2) if `state.json → facts.files_read` lists a source path, use `git diff <base>..HEAD -- <path>`, not `Read`; (3) anchor-scoped `Read` of a single `## anchor`. Full reads stay available when authoring tests needing the complete type/API surface, or when the above is insufficient. Absent `facts.files_read` → normal reads. Canonical: `stage-contracts.md#diff-only-read`.
+Cheapest-first when only the verdict/decisions/refs or delta is needed: (1) read an upstream `handoff:` block, not the whole artifact; (2) if `state.json → facts.files_read` lists a source path, use `git diff <base>..HEAD -- <path>`, not `Read`; (3) anchor-scoped `Read` of a single `## anchor`. Full reads stay available when authoring tests needing the complete type/API surface, or when the above is insufficient. Absent `facts.files_read` → normal reads. Canonical: `skills/worktask/references/contracts/stage-inputs.md#diff-only-read`.
 
 ### Turn-Budget Checkpoint (QA)
 
@@ -75,19 +75,19 @@ Your brief carries a `TURN BUDGET: <cap> turns. Checkpoint by turn <n>: …` lin
 
 ## Worktask Integration
 
-**Stage**: QA (QA Testing, 7/11) — pipeline context: `skills/shared/worktask-stage-context.md`.
+**Stage**: QA (QA Testing, 7/11) — pipeline context: `skills/worktask/references/worktask-stage-context.md`.
 
 ### QA Stage (QA Testing)
 
 - **Q0**: analyze requirements, review DV's unit tests, and list each coverage gap in `testing-N.md § Notes`.
-- **Q1**: add one test per `<plan_file>` edge case with no covering test, plus one per gap Q0 listed in `testing-N.md § Notes`, then dispatch execution per the **Test Selection Gate** (`testing-strategy.md § Test Selection Gate`); sub-sections below.
+- **Q1**: add one test per `<plan_file>` edge case with no covering test, plus one per gap Q0 listed in `testing-N.md § Notes`, then dispatch execution per the **Test Selection Gate** (`skills/worktask/references/testing-strategy.md § Test Selection Gate`); sub-sections below.
 - **Mutation evidence**: confirm a mutation actually applied (byte-diff against a backup) before trusting the result it produced — `testing-strategy.md § Mutation Testing`.
 
-QA is the sole holder of full-suite execution authority in this pipeline (`testing-strategy.md § Test-Execution Authority`). Escalate to a full run when any of: `test_mode: full`; DV recorded `deferred_to_qa`; Selected Tests is empty; a banned stage filed `requests_test_evidence`. Under `test_mode: full`, DV executes only its `Executed Tests (DV)` subset; QA runs the full suite.
+QA is the sole holder of full-suite execution authority in this pipeline (`skills/worktask/references/testing-strategy.md § Test-Execution Authority`). Escalate to a full run when any of: `test_mode: full`; DV recorded `deferred_to_qa`; Selected Tests is empty; a banned stage filed `requests_test_evidence`. Under `test_mode: full`, DV executes only its `Executed Tests (DV)` subset; QA runs the full suite.
 
 #### Q1 Three-Mode Dispatcher
 
-Read `metadata.test_mode` from `<plan_file>` (effective default `scoped`) and the `§ Selected Tests` list of every DV artifact — `refs.dev[]`, or the ledger per `skills/worktask/references/handoff-protocol.md § Iterating the DV tasks`; the union of those lists is the Selected Tests below.
+Read `metadata.test_mode` from `<plan_file>` (effective default `scoped`) and the `§ Selected Tests` list of every DV artifact — `refs.dev[]`, or the ledger per `skills/worktask/references/contracts/artifact-map.md § Iterating the DV tasks`; the union of those lists is the Selected Tests below.
 
 | `test_mode` (DV's effective mode, post-auto-promotion) | QA execution |
 |---|---|
@@ -136,7 +136,7 @@ Read every DV task's `.context/images/<worktask_id>/screenshots-<TASK_ID>.md` (a
 - **Q2**: handle failures — retry at most 3 times (`skills/agent-coordination/SKILL.md § Retry / Escalate Matrix`), then escalate to DV. On `environmental_contention` (`agent-coordination § Retry / Escalate Matrix — environmental contention`), re-baseline once on a quiet machine and record the outcome in `testing-N.md § Notes` — no blocking defect, no DV escalation. If the re-baseline fails with the same members, that classification is void: reclassify as `logic` and escalate normally.
 - **Q3**: done when `testing-N.md ## results` quotes the runner's summary line with zero failures, `## coverage` carries the changed-code coverage figure, and `acceptance-check.sh` exits 0.
 
-**State ledger**: Stage QA, Owner: qa-engineer. See `skills/shared/state-ledger.md`.
+**State ledger**: Stage QA, Owner: qa-engineer. See `skills/worktask/references/state-ledger.md`.
 
 ### Design Comparison (Visual QA)
 
@@ -295,17 +295,20 @@ Each native UI leg is one row of a `### Native UI Legs` table under `## results`
 
 ## Handoff Protocol
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read it in the steady path. Per-stage frontmatter template (paste verbatim at artifact top): `stage-contracts.md#tpl-qa`. Prev→this label: `DR→QA` (or `SR→QA` when SR runs).
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-qa.md` before writing the artifact.
+
+
+Frontmatter template: `skills/worktask/assets/templates/template-qa.md#tpl-qa`. Prev→this label: `DR→QA` (or `SR→QA` when SR runs).
 
 Every `verdict: no-go` lists each defect under `handoff.blocking_defects`, one short string per defect, citing repo-relative paths; detail goes in `testing-N.md#results`. The re-dispatched DV brief carries that list as its remediation, and the stage gate fails a no-go without it.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 ### State Patch — REQUIRED before return
 
-Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage QA --prev DR` (`--prev SR` when SR ran) to atomically patch `tasks.QA0` + the `DR→QA` (or `SR→QA`) handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage QA --prev DR` (`--prev SR` when SR ran) to atomically patch `tasks.QA0` + the `DR→QA` (or `SR→QA`) handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
@@ -318,7 +321,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage QA --p
   "open_questions": [{"id":"sw-QA0-1","class":"decision","ref":"testing-0.md#elicitation-sweep","blocks_next_stage":false}]}'
 ```
 
-Omitting it loses the fact silently: a stub that reaches only the frontmatter never reaches the FN gate's render, so the question is never asked. Union by `.id`, last writer wins. Canonical: `handoff-protocol.md#facts-union`.
+Omitting it loses the fact silently: a stub that reaches only the frontmatter never reaches the FN gate's render, so the question is never asked. Union by `.id`, last writer wins. Canonical: `skills/worktask/references/contracts/facts-merge.md#facts-union`.
 
 <!-- output-sections:begin stage=QA -->
 ### Artifact anchors

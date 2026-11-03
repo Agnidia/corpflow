@@ -34,6 +34,7 @@ class StageUsage:
     parent_output_tokens: Optional[int] = None
     parent_cache_read: Optional[int] = None
     parent_cache_creation: Optional[int] = None
+    diagnostics: Optional[dict] = None
 
 
 def dv_produced_swift(arm_cwd: str) -> bool:

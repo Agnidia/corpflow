@@ -4083,15 +4083,15 @@
           "why": "The plan must reach the surface this repo actually has. Relaxing this to 'any real path' let seven plans past that named a plausible neighbour and never touched the ground file",
           "type": "regex_any",
           "values": [
-            "skills/shared/stage-",
-            "skills/shared/stage-codes.md",
+            "skills/worktask/references/stage-",
+            "skills/worktask/references/stage-codes.md",
             "stage-codes",
             "stage-codes.md"
           ]
         }
       ],
       "grounding": [
-        "skills/shared/stage-codes.md"
+        "skills/worktask/references/stage-codes.md"
       ],
       "deferred": [
         "Whether the phases are sequenced by risk rather than chopped in thirds — needs a validated judge."
@@ -4121,15 +4121,15 @@
           "why": "The plan must reach the surface this repo actually has. Relaxing this to 'any real path' let seven plans past that named a plausible neighbour and never touched the ground file",
           "type": "regex_any",
           "values": [
-            "skills/shared/stage-",
-            "skills/shared/stage-contracts.md",
+            "skills/worktask/references/stage-",
+            "skills/worktask/references/stage-contracts.md",
             "stage-contracts",
             "stage-contracts.md"
           ]
         }
       ],
       "grounding": [
-        "skills/shared/stage-contracts.md"
+        "skills/worktask/references/stage-contracts.md"
       ],
       "deferred": [
         "Whether the phases are sequenced by risk rather than chopped in thirds — needs a validated judge."
@@ -4146,7 +4146,7 @@
       },
       "expected_outcome": "refute",
       "refute_kind": "shipped",
-      "premise_refuted_by": "skills/shared/state-ledger.md carries the run-record JSON Schema, including the task.metadata properties, across five documented parts",
+      "premise_refuted_by": "skills/worktask/references/state-ledger.md carries the run-record JSON Schema, including the task.metadata properties, across five documented parts",
       "assertions": [
         {
           "id": "disputes-the-premise",
@@ -4176,7 +4176,7 @@
         }
       ],
       "grounding": [
-        "skills/shared/state-ledger.md"
+        "skills/worktask/references/state-ledger.md"
       ],
       "deferred": [
         "Whether the evidence cited actually proves the premise false — needs a validated judge with repo access.",
@@ -4436,15 +4436,13 @@
           "why": "The plan must reach the surface this repo actually has. Relaxing this to 'any real path' let seven plans past that named a plausible neighbour and never touched the ground file",
           "type": "regex_any",
           "values": [
-            "skills/shared/worktask-",
-            "skills/shared/worktask-invocation.md",
-            "worktask-invocation",
-            "worktask-invocation.md"
+            "skills/worktask/SKILL.md",
+            "worktask"
           ]
         }
       ],
       "grounding": [
-        "skills/shared/worktask-invocation.md"
+        "skills/worktask/SKILL.md"
       ],
       "deferred": [
         "Whether the phases are sequenced by risk rather than chopped in thirds — needs a validated judge."
@@ -4474,15 +4472,15 @@
           "why": "The plan must reach the surface this repo actually has. Relaxing this to 'any real path' let seven plans past that named a plausible neighbour and never touched the ground file",
           "type": "regex_any",
           "values": [
-            "skills/shared/worktask-stage-",
-            "skills/shared/worktask-stage-context.md",
+            "skills/worktask/references/worktask-stage-",
+            "skills/worktask/references/worktask-stage-context.md",
             "worktask-stage-context",
             "worktask-stage-context.md"
           ]
         }
       ],
       "grounding": [
-        "skills/shared/worktask-stage-context.md"
+        "skills/worktask/references/worktask-stage-context.md"
       ],
       "deferred": [
         "Whether the phases are sequenced by risk rather than chopped in thirds — needs a validated judge."
@@ -5426,7 +5424,7 @@
       },
       "expected_outcome": "refute",
       "refute_kind": "shipped",
-      "premise_refuted_by": "skills/worktask/references/pl0-procedure.md is 713 lines of PL0 procedure, cited from product-manager.md and commands/worktask.md",
+      "premise_refuted_by": "skills/worktask/references/pl0-procedure.md is 713 lines of PL0 procedure, cited from product-manager.md and skills/worktask/references/workflow.md",
       "assertions": [
         {
           "id": "disputes-the-premise",

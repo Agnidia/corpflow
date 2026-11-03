@@ -132,7 +132,7 @@ matrix_target() {
 # default for the role, or a default dispatch would be refused.
 grant_covers() {
   local f="$1" alias="$2" target tools
-  tools="$(grep -E '^tools:' "$PLUGIN_ROOT/$f")"
+  tools="$(grep -E '^tools:' "$(contract_source "$PLUGIN_ROOT/$f")")"
   target="$(matrix_target "$alias")"
   [ -n "$target" ] || { echo "no matrix target for corpflow:$alias" >&2; return 1; }
   printf '%s\n' "$tools" | grep -qF "Agent($target)" \
@@ -142,7 +142,7 @@ grant_covers() {
 @test "grants: DV, SR and QA list every matrix default for their role, no bare Agent" {
   local f p
   for f in agents/developer.md agents/security-reviewer.md agents/qa-engineer.md; do
-    if grep -E '^tools:' "$PLUGIN_ROOT/$f" | grep -qE '(^tools:|,)[[:space:]]*Agent([[:space:]]*(,|$))'; then
+    if grep -E '^tools:' "$(contract_source "$PLUGIN_ROOT/$f")" | grep -qE '(^tools:|,)[[:space:]]*Agent([[:space:]]*(,|$))'; then
       echo "$f: bare Agent grant" >&2; return 1
     fi
   done
@@ -167,12 +167,12 @@ grant_covers() {
 
 @test "grants: /worktask carries a bare Agent grant, since a stage row may name any plugin's agent" {
   local tools
-  tools="$(grep -E '^allowed-tools:' "$PLUGIN_ROOT/commands/worktask.md")"
-  [ -n "$tools" ] || { echo "commands/worktask.md: no allowed-tools line" >&2; return 1; }
+  tools="$(grep -E '^allowed-tools:' "$PLUGIN_ROOT/skills/worktask/SKILL.md")"
+  [ -n "$tools" ] || { echo "skills/worktask/references/workflow.md: no allowed-tools line" >&2; return 1; }
   printf '%s\n' "$tools" | grep -qE '(^allowed-tools:|,)[[:space:]]*Agent([[:space:]]*(,|$))' \
-    || { echo "commands/worktask.md: no bare Agent grant" >&2; return 1; }
+    || { echo "skills/worktask/references/workflow.md: no bare Agent grant" >&2; return 1; }
   if printf '%s\n' "$tools" | grep -qE 'Agent\([a-z-]+:'; then
-    echo "commands/worktask.md: literal Agent(plugin:agent) grant remains" >&2
+    echo "skills/worktask/references/workflow.md: literal Agent(plugin:agent) grant remains" >&2
     return 1
   fi
 }

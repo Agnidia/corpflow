@@ -9,17 +9,19 @@ Keep stage handoffs small without dropping decision-critical information.
 
 ## State Ledger as Compression Primitive
 
-The worktask ledger (`.context/state.json`, ≤500 tokens) is the canonical compressed view of every upstream stage. PL0 creates it; each stage patches it atomically on completion (`skills/worktask/references/handoff-protocol.md#atomic-write`). Read it before any artifact to pick which anchors to grep.
+The ledger (`.context/state.json`, ≤500 tokens) compresses state. PL0 creates it; each stage patches it atomically on completion (`skills/worktask/references/contracts/ledger-writes.md#atomic-write`). Read its digest first, followed by the current stage brief, for artifact anchors.
+
+### Ledger contents
 
 - **In the ledger**: stage status, verdict, retry_count, top decisions, open questions, handoff one-liners. No diffs, file contents or test output — fetch those from disk.
 - **In artifacts**: full reasoning, tables, code snippets, evidence. The ledger points; the artifact carries.
-- **Eviction order on overflow** (`handoff-protocol.md#state-json-schema`): completed-stage artifact paths once handoff strings capture the essentials → resolved open questions → decisions older than 2 stages back.
+- **Eviction order on overflow** (`skills/worktask/references/contracts/ledger-root.md#state-json-schema`): completed-stage artifact paths once handoff strings capture the essentials → resolved open questions → decisions older than 2 stages back.
 
-Cross-stage prompt caching is the orchestrator's job: preamble order, stable-prefix rules and `cache-lint.sh` live in `handoff-protocol.md#cache-prefix`.
+Cross-stage prompt caching is the orchestrator's job: preamble order, stable-prefix rules and `cache-lint.sh` live in `skills/worktask/references/contracts/prompt-layout.md#cache-prefix`.
 
 ## Handoff Frontmatter as Canonical Compression Form
 
-Every stage artifact starts with a `---\nhandoff:\n` YAML block (≤200 tokens, ≤30 lines) carrying verdict, top decisions, and refs. Downstream stages grep it (≈70 tokens) instead of the full artifact (2–5k tokens), and read the full file only for an anchor flagged in `next_stage_focus`. Fields per stage: `handoff-protocol.md#frontmatter-schema`.
+Every stage artifact starts with a `---\nhandoff:\n` YAML block (≤200 tokens, ≤30 lines) carrying verdict, top decisions, and refs. Downstream stages read it before resolving referenced sections and relevant source files or tests. Expand reads when unresolved requirements or findings justify them. Fields per stage: `skills/worktask/references/contracts/frontmatter.md#frontmatter-schema`.
 
 ```yaml
 ---
@@ -32,6 +34,25 @@ handoff:
   refs: { decisions: architecture.md#decisions, tests: development.md#tests-added }
 ---
 ```
+
+## Targeted Reading
+
+Read the ledger digest and stage brief, then upstream handoff frontmatter and required referenced sections.
+Next inspect relevant source files, tests, and dependencies; broaden exploration when unresolved requirements or findings require it.
+A missing reference remains a blocker for its dependent check.
+Use the ordinary source inventory from `skills/cost-optimization/SKILL.md`; explicitly include generated artifacts when investigating them.
+Code and security reviews must inspect implementation and dependencies beyond the handoff summary.
+
+## Transition Validation
+
+Run `handoff-harness.sh --validate-transition ARTIFACT --state STATE --return-file RETURN` before transitioning.
+The helper returns one consolidated validation result and labels its words-times-1.33 token proxy as an estimate.
+Provider usage remains a separate measured value; this proxy is not exact Codex tokenization.
+The existing ledger budget remains advisory; structural artifact and return violations stop the transition.
+An optional `--compressor EXECUTABLE` permits one compression attempt, using a candidate copy.
+Compression must preserve acceptance criteria, unresolved blockers, decisions, and evidence references.
+If validation still fails, stop the transition and retain the original and candidate for repair.
+Never truncate those fields automatically.
 
 ## Core Principles
 
@@ -121,7 +142,7 @@ Use the extended inbound figure only on a live 1M window for a genuinely complex
 
 ## Exploration Cache Budget
 
-Per-content budgets for `.context/exploration.md`. The file-level cap and the template live in `skills/worktask/references/initialization-patterns.md § Pre-Stage Exploration Cache`; these rows split that cap:
+Per-content budgets for `.context/exploration.md`. The file-level cap and the template live in `skills/worktask/references/initialization-exploration.md § Pre-Stage Exploration Cache`; these rows split that cap:
 
 | Content Type | Token Budget | Technique |
 |-------------|-------------|-----------|

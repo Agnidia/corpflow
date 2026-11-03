@@ -7,7 +7,7 @@ The corpflow orchestrator dispatches every stage in-process via `Agent({ subagen
 ## Translation Table
 
 | `task.metadata` key | CLI flag | Type | Honoured in-process? | Stage examples |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `agent` | `--agent <name>` | string | N/A (in-process uses `Agent({subagent_type})`) | overrides the session's `settings.json` `agent` default; e.g. force `corpflow:developer` for a one-shot run |
 | `--all` (listing flag, not a `metadata` key) | `claude agents --all` | bool | N/A (listing only) | includes **completed** sessions in `claude agents [--json]` output; pair with `state` to tell `done` apart from `running`/`blocked` |
 
@@ -16,7 +16,7 @@ The corpflow orchestrator dispatches every stage in-process via `Agent({ subagen
 #### Model assignment
 
 | `task.metadata` key | CLI flag | Type | Honoured in-process? | Stage examples |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `model` | `--model <alias>` | string | **Yes** (passed to `Agent()`) | DV→`opus`; QA/FN→`sonnet` |
 
 A managed `availableModels` allowlist also constrains subagent overrides, and `enforceAvailableModels` the Default model, so a requested id may silently resolve to another. Benchmark-parity snapshots use pinned ids (§ Alias note); audit rather than assume.
@@ -24,19 +24,19 @@ A managed `availableModels` allowlist also constrains subagent overrides, and `e
 #### Effort tier assignment
 
 | `task.metadata` key | CLI flag | Type | Honoured in-process? | Stage examples |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `effort` | `--effort <tier>` | `low\|medium\|high\|xhigh\|max` | **Yes** (`Agent` `effort`, 2.1.292) | DV complex→`xhigh`; DR→`high`; FN→`medium`; RE→`low` |
 
 `claude agents --effort` also accepts `ultracode`, which is not a plugin `metadata.effort` tier; the plugin enum stays `low/medium/high/xhigh/max`. In `/effort`, Ultracode is its own toggle (Tab, or `/effort ultracode [on|off]`) that no longer forces `xhigh` and stays on at any level, so an operator who has it on still runs the tier the stage passes. A managed or user `maxEffortLevel` caps effort on every provider — a tier pinned above the cap runs at the cap with no error.
 
 #### Effort route and transport
 
-The route decision lives in `skills/worktask/scripts/effort-route.sh` (architecture-1.md ADR-3). Since 2.1.292 the default is in-process, with the tier on the `Agent` tool's `effort` parameter. This CLI surface is the opt-in: `CORPFLOW_HEADLESS_ROUTE=on` sends every non-haiku stage headless. `--effort` outranks the agent's own `effort:` frontmatter here too (probed at 2.1.292). `effort_transport` names the surface that applied the tier: `agent-param` (in-process, including the fallback after a headless `warn`), `dispatch-flag` (this CLI surface), `frontmatter` (no `effort` passed: an unstamped row) or `none` (haiku). `commands/worktask.md § Step C.0a` is the one canonical table.
+The route decision lives in `skills/worktask/scripts/effort-route.sh` (architecture-1.md ADR-3). Since 2.1.292 the default is in-process, with the tier on the `Agent` tool's `effort` parameter. This CLI surface is the opt-in: `CORPFLOW_HEADLESS_ROUTE=on` sends every non-haiku stage headless. `--effort` outranks the agent's own `effort:` frontmatter here too (probed at 2.1.292). `effort_transport` names the surface that applied the tier: `agent-param` (in-process, including the fallback after a headless `warn`), `dispatch-flag` (this CLI surface), `frontmatter` (no `effort` passed: an unstamped row) or `none` (haiku). `skills/worktask/references/workflow.md § Step C.0a` is the one canonical table.
 
 ### Translation table — permission, workspace & MCP
 
 | `task.metadata` key | CLI flag | Type | Honoured in-process? | Stage examples |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `permission_mode` | `--permission-mode <mode>` | `default\|acceptEdits\|plan\|bypassPermissions` | **Yes — audited** (§ Permission-Mode Pinning) | SR/FN→`default`; DV under `--auto=[plan]`→`bypassPermissions`. The CLI's choices are `acceptEdits\|auto\|bypassPermissions\|manual\|dontAsk\|plan`, with no `default`: pass plugin `default` as `manual`. `auto` and `dontAsk` are CLI-only values, not plugin `metadata.permission_mode` tiers |
 | `workspace_path` | `--cwd <path>` | string | N/A (in-process inherits parent cwd) | megatask tracks → per-issue worktree |
 | `add_dirs` (array) | repeated `--add-dir <path>` | string[] | N/A | cross-repo work, monorepo siblings |
@@ -45,21 +45,23 @@ The route decision lives in `skills/worktask/scripts/effort-route.sh` (architect
 ### Translation table — plugins, skip-permissions & settings
 
 | `task.metadata` key | CLI flag | Type | Honoured in-process? | Stage examples |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `plugin_dir_overrides` (array) | repeated `--plugin-dir <path>` | string[] | N/A | local plugin development; a path may name a folder of plugins, and each child folder with a manifest loads |
 | `dangerously_skip_permissions` | `--dangerously-skip-permissions` | bool | Advisory; orchestrator may refuse | CI batch only, with a deny-list in `settings.json` |
 | `settings_path` | `--settings <path>` | string | N/A | provider / org config swap |
 
 ### Translation table — compaction and retry
 
-The optional fields in `skills/shared/state-ledger.md § Compaction and retry controls` are enforced headless controls, not advisory hints.
+The optional fields in `skills/worktask/references/contracts/ledger-streams.md § Compaction and retry controls` are enforced headless controls, not advisory hints.
 `headless-dispatch.sh` accepts matching hyphenated arguments, such as `--auto-compact-window 200000` and `--retry-watchdog true`.
 Explicit arguments override ledger values; otherwise the child inherits runtime defaults and its existing environment.
 A configured compaction window also pins the child environment, so an inherited window cannot defeat the task setting.
 Environment overrides apply only to the child, including a resumed child. No parent or sibling environment changes.
 
 Pass the complete metadata object to `effort-route.sh --dispatch-controls`. Configured controls require `CORPFLOW_HEADLESS_ROUTE=on`, including haiku stages.
-The headless dispatcher refuses an in-process fallback when any control is configured. Codex routes without an equivalent transport must refuse before spawning.
+Configured controls forbid an in-process fallback. Codex routes without an equivalent transport must refuse before spawning.
+
+#### Runtime compaction precedence
 
 `autoCompactWindow` in agent frontmatter or `--agents` definitions accepts integer token counts from 100000 to 1000000 (2.1.296).
 An inherited positive `CLAUDE_CODE_AUTO_COMPACT_WINDOW` caps that frontmatter field: from 2.1.312 a lower frontmatter value wins, and a higher one is ignored. Fork agents ignore that field; do not substitute a fork for a configured stage.
@@ -90,7 +92,7 @@ cd "$WORKTREE" && WORKSPACE_ROOT="$LEDGER_ROOT" \
 ### Stage permission defaults
 
 | Stage | `$AGENT` | `$MODE` |
-|---|---|---|
+| --- | --- | --- |
 | **DV** | `corpflow:developer` | `bypassPermissions` |
 | **DR** | `corpflow:technical-lead` | `acceptEdits` |
 | **SR** | `corpflow:security-reviewer` | `default` |
@@ -103,7 +105,7 @@ A DV child gets bypass only from `--permission-mode`, never from saved consent. 
 
 ### Model & effort defaults
 
-`$MODEL` and `$EFFORT` come from `skills/shared/stage-codes.md § Agent Model Matrix` (a two-hop join: § Primary Stages resolves the stage to its agent, the matrix resolves that agent to its pair; § Secure overrides under `--secure` or `--full` replaces the resolved pair outright, so it can also lower a pair `CORPFLOW.md` raised). Pass the model as the alias; the pinned ids in § Alias note are for benchmark-parity runs only. Override per task when `metadata.model` / `metadata.effort` are set. `benchmark/harness/benchmarklive/stage_table.py` mirrors those rows as the machine-checked SSOT; model rules (aliases, cost tiers, the effort ladder) stay in `skills/shared/model-selection.md`.
+`$MODEL` and `$EFFORT` come from `skills/worktask/references/stage-codes.md § Agent Model Matrix` (a two-hop join: § Primary Stages resolves the stage to its agent, the matrix resolves that agent to its pair; § Secure overrides under `--secure` or `--full` replaces the resolved pair outright, so it can also lower a pair `CORPFLOW.md` raised). Pass the model as the alias; the pinned ids in § Alias note are for benchmark-parity runs only. Override per task when `metadata.model` / `metadata.effort` are set. `benchmark/harness/benchmarklive/stage_table.py` mirrors those rows as the machine-checked SSOT; model rules (aliases, cost tiers, the effort ladder) stay in `skills/shared/model-selection.md`.
 
 ### Alias note
 
@@ -159,7 +161,7 @@ claude agents --json | jq -r --arg track "$TRACK_ID" '
 
 ### Usage patterns
 
-- **Resume pre-check** — before respawning a subagent during resume, query live sessions; if any `agent_id` from `.context/state.json.facts.dispatched_agents[]` still appears, reattach via `SendMessage` instead of re-delegating (`skills/worktask/references/resume.md § Resume Procedure` step 0).
+- **Resume pre-check** — before respawning a subagent during resume, query live sessions; if any `agent_id` from `.context/state.json.facts.dispatched_agents[]` still appears, reattach via `SendMessage` instead of re-delegating (`skills/worktask/references/recovery-procedure.md § Resume Procedure` step 0).
 - **Parallel track health** — `claude agents --json | jq '[.[] | select(.tag=="corpflow-track")] | length'` should equal the orchestrator-derived `parallel_tracks`. Less = stalled track.
 - **Status-line integration** — drives tmux / status-bar widgets showing the active stage without polluting `.context/`.
 
@@ -178,7 +180,7 @@ Rows also render a `done/total` progress count in the human-readable (non-`--jso
 
 #### `--all` semantics
 
-`claude agents [--json] --all` includes completed sessions (otherwise filtered out); blocked and just-dispatched sessions are always listed. With `state`, a resume scan can tell a `blocked` agent (reattach via `SendMessage`) from a genuinely absent one (re-delegate) (`skills/worktask/references/resume.md § Resume Procedure` step 0).
+`claude agents [--json] --all` includes completed sessions (otherwise filtered out); blocked and just-dispatched sessions are always listed. With `state`, a resume scan can tell a `blocked` agent (reattach via `SendMessage`) from a genuinely absent one (re-delegate) (`skills/worktask/references/recovery-procedure.md § Resume Procedure` step 0).
 
 #### "Needs input" status axis
 
@@ -307,6 +309,8 @@ Two ways to spawn background shell work without occupying a foreground agent tur
 - Main-conversation subagents run in the background; their own Agent calls default to the foreground. Keep waiting for completion evidence.
 - `CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL` affects workflow agents only. It refines existing `model`/`model_resolved` auditing; it needs no new ledger field.
 - CLI 2.1.303 returned `[]` during the integration probe. This does not confirm, rename, or remove any baseline row key.
+### Service and retry defaults
+
 - A stopped `claude agents` service can end running sessions after about one minute (macOS and Linux without an installed service, 2.1.295).
 - New watchdog limits bound retry waits; overload backoff uses `CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS`. Do not increase pipeline retry counts implicitly.
 - `CLAUDE_CODE_AUTO_MODE_MODEL` selects the client-side classifier model only. It does not select the stage or server-side classifier model.
@@ -316,6 +320,8 @@ Two ways to spawn background shell work without occupying a foreground agent tur
 
 - A `claude -p` that fails at startup exits 1 and prints the error (2.1.314). Before, it exited 0 with no output and read as a successful run. `headless-dispatch.sh` needs 2.1.316 as its floor.
 - A non-zero exit whose log has no stream-json `init` event is `startup_failed`: the CLI refused a flag, settings file or MCP config before a session existed, so no tool ran. A missing agent prints `--agent '<id>' not found` and stays `agent_unresolved`.
+### Output and session lifecycle
+
 - `--output-format json`/`stream-json` writes DEL, C1 and Unicode format characters as `\uXXXX` escapes (2.1.311). Parsed values do not change.
 - A plugin can no longer keep a headless run going past `--max-turns`, Stop or ended input by spawning subagents (2.1.304).
 - `claude respawn <id>` reports a missing session before it starts the service. The service error now suggests `claude daemon stop --any` (2.1.311).

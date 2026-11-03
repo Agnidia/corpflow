@@ -8,7 +8,7 @@ How to write for a model; `skills/shared/model-selection.md` owns which model an
 stage gets.
 
 Each alias carries a discipline block: the literal text the orchestrator injects at preamble slot
-`[4b]`, selected by `task.metadata.model` (`skills/worktask/references/handoff-protocol.md#cache-prefix`).
+`[4b]`, selected by `task.metadata.model` (`skills/worktask/references/contracts/prompt-layout.md#cache-prefix`).
 The fenced block is the section body only — the `<<<model-discipline>>>` marker belongs to the
 envelope — and `cache-lint.sh` and `brief-compose.sh` read it byte for byte.
 
@@ -19,11 +19,10 @@ counters and the vendor page documenting it, so the block is re-checked against 
 
 ## Why this lives at dispatch and not in the agent files
 
-`Agent()` carries `model` but no per-dispatch effort argument (`commands/worktask.md § Step C.0a —
-the tier only reaches some dispatch surfaces`). An agent's `effort:` frontmatter
-(`skills/shared/stage-codes.md § Model alias notes`) fixes only that agent's static tier, never a
-per-dispatch raise or lowering, so in-process prompt text is still the only lever on the rest of
-the model's behaviour. An agent file is the wrong home for that lever anyway: the same agent can
+`Agent()` carries `model` and `effort`; the transport determines which requested tier reaches the session
+(`skills/worktask/references/closing-sweep.md#step-c0a--reading-the-two-effort-fields`).
+The discipline block controls behaviour beyond the model and effort settings.
+An agent file is the wrong home for that block: the same agent can
 be re-tiered, and a block right for `sonnet` is wrong for `opus` — the sonnet block caps extra
 work and requires a check before reporting done; the opus block has the model explore before
 acting and never stop early.
@@ -164,7 +163,7 @@ still get Fable 5. The block is safe on both: each line is a counter-instruction
 case on a model without the behaviour is a no-op. The long-output line carries the prompt half
 of the 5.1 page's `#leave-room-for-long-outputs-at-xhigh-and-max-effort`; the `max_tokens` half
 belongs to Claude Code (`model-selection.md § Output headroom at xhigh and max`). The live
-consumer is the `--auto=[decision]` pass (`skills/worktask/SKILL.md § Auto-Decision Delegation
+consumer is the `--auto=[decision]` pass (`skills/worktask/references/orchestration.md § Auto-Decision Delegation
 (decision_gate)`).
 
 ## haiku

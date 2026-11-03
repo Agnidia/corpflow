@@ -7,6 +7,7 @@ Argv: bench-report [--history <path>] [--out <path>] [--plugin-root <dir>]
 
 import os
 import sys
+import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -19,19 +20,21 @@ def die(message, code):
 
 
 def main(argv):
-    history = out = plugin_root = None
+    history = out = plugin_root = run_path = None
     i = 0
     while i < len(argv):
         a = argv[i]
         if a in ("-h", "--help"):
-            print("bench-report [--history <path>] [--out <path>] [--plugin-root <dir>]")
+            print("bench-report [--history <path> | --run <record>] [--out <path>] [--plugin-root <dir>]")
             sys.exit(0)
-        if a in ("--history", "--out", "--plugin-root"):
+        if a in ("--history", "--out", "--plugin-root", "--run"):
             if i + 1 >= len(argv):
                 die(f"bench-report: {a} needs a value", 64)
             value = argv[i + 1]
             i += 2
-            if a == "--history":
+            if a == "--run":
+                run_path = value
+            elif a == "--history":
                 history = value
             elif a == "--out":
                 out = value
@@ -46,7 +49,16 @@ def main(argv):
     root = plugin_root or cwd
 
     try:
-        written = report.build_report(history_path, out_path, plugin_root=root)
+        if run_path:
+            with open(run_path, encoding="utf-8") as stream:
+                record = json.load(stream)
+            text = report.render_html({record["mode"]: [record]}, plugin_root=root)
+            os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+            with open(out_path, "w", encoding="utf-8") as stream:
+                stream.write(text)
+            written = out_path
+        else:
+            written = report.build_report(history_path, out_path, plugin_root=root)
     except Exception as exc:  # noqa: BLE001 — top-level CLI guard
         die(f"[report] error: {exc}", 1)
     print(f"[report] wrote {written}")

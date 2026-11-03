@@ -100,7 +100,7 @@ mk_plugin_layout() {
   self="$root/corpflow"
   mk_git_fixture --dir "$self" \
     --file 'agents/developer.md:Build via /apple-developer:build-test.\nGrant: Agent(system-developer:python-developer)\n' \
-    --file 'commands/worktask.md:Routes to Agent(apple-developer:ios-developer).\n' >/dev/null
+    --file 'skills/worktask/references/workflow.md:Routes to Agent(apple-developer:ios-developer).\n' >/dev/null
   mkdir -p "$root/apple-developer/commands" "$root/apple-developer/agents" \
            "$root/system-developer/agents"
   : > "$root/apple-developer/commands/build-test.md"

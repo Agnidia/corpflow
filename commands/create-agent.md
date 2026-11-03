@@ -12,7 +12,7 @@ related:
 # Create Agent Command
 
 Generate a production-ready agent definition with the canonical frontmatter and the required body
-sections, plus its row in `skills/shared/stage-codes.md § Agent Model Matrix`, which holds the
+sections, plus its row in `skills/worktask/references/stage-codes.md § Agent Model Matrix`, which holds the
 model and effort.
 
 ## Options
@@ -73,14 +73,14 @@ Without `--model`, select from purpose keywords: procedural (format, convert, va
 balanced (implement, review, design) → `sonnet`, complex reasoning (architect, optimize, research)
 → `opus`. Effort follows the model: `haiku` → `low`, `sonnet` → `medium`, `opus` → `high`.
 
-When the output is `agents/<name>.md`, Edit `skills/shared/stage-codes.md § Agent Model Matrix` to
+When the output is `agents/<name>.md`, Edit `skills/worktask/references/stage-codes.md § Agent Model Matrix` to
 add `| <name> | <model> | <effort> |` in alphabetical order, and write the same effort into the
 frontmatter `effort:`. Any other `--output` path gets no row, because the matrix parser rejects a
 row with no `agents/<name>.md` behind it; § Output Format then records `not written` and Next Steps
 names the row to add after the file moves.
 
 Model tiers and stage→model mapping: see `skills/shared/model-selection.md` and
-`skills/shared/stage-codes.md` (canonical).
+`skills/worktask/references/stage-codes.md` (canonical).
 
 ## Tool Presets
 
@@ -122,7 +122,7 @@ above the `tools:` line it explains and moves with it.
 #### Model and effort keys
 
 `model:` is not a frontmatter field: model selection stays a per-dispatch `Agent()` argument
-(`skills/shared/stage-codes.md § Model alias notes`), resolved by `model-matrix-lib.sh`/`model_resolve`.
+(`skills/worktask/references/stage-codes.md § Model alias notes`), resolved by `model-matrix-lib.sh`/`model_resolve`.
 `effort:` is required and equals the new agent's Effort cell in `§ Agent Model Matrix`
 (`stage-codes.md § Static effort and dispatch overrides`), so a newly-scaffolded agent needs a
 matrix row, written by § Model Auto-Selection.
@@ -133,8 +133,7 @@ matrix row, written by § Model Auto-Selection.
 |---|---|
 | `description` | Trigger first, per `agents/prompt-engineer.md § Description grammar` (G1, G2): `Use PROACTIVELY for <trigger>. <keyword sentence>.` — e.g. "Use PROACTIVELY for query optimization or migration planning. Database specialist for schema design." |
 | Purpose | Role, domain and boundaries, integration context. |
-| Worktask Integration | Stage code, state ledger integration, handoff protocols. |
-| Model fit | Write the body for the model this agent resolves to in `skills/shared/stage-codes.md § Agent Model Matrix`; `skills/shared/model-prompting.md` lists what each alias needs countered, and `commands/prompt-audit.md § Body rules 5-7` is the check. |
+| Model fit | Write the body for the model this agent resolves to in `skills/worktask/references/stage-codes.md § Agent Model Matrix`; `skills/shared/model-prompting.md` lists what each alias needs countered, and `commands/prompt-audit.md § Body Rules (agents, commands, skills)` is the check. |
 | Emphasis | Generate the plain imperative. `CRITICAL`/`MUST` is earned by a recorded failure, later. |
 
 #### Slots that carry their own shape
@@ -148,7 +147,7 @@ Both slots are required, and so is the shape below.
 
 ### Completion Verification (optional)
 
-A supplement to `skills/shared/stage-contracts.md § Completion Verification`, never a restatement.
+A supplement to `skills/worktask/references/stage-contracts.md § Completion Verification`, never a restatement.
 Include it only when the stage adds checks the shared contract does not cover; omit it otherwise.
 Sits immediately before § Handoff Protocol.
 
@@ -162,7 +161,7 @@ Sits immediately before § Handoff Protocol.
 
 Do not add this section to a support agent: it asserts a ledger-write responsibility, so an agent
 that owns no stage artifact must not carry it. Current exemptions, verified against
-`skills/shared/stage-codes.md`:
+`skills/worktask/references/stage-codes.md`:
 
 | Agent | Why exempt |
 |---|---|

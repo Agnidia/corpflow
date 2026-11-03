@@ -160,10 +160,24 @@ None of them downgrade a reported live failure, and none of them settle the surf
 way. If a local observation genuinely changes the tier, name the observation and say what it rules
 out; absence of local wreckage rules out nothing.
 
+## PL0 Complexity Score
+
+Read when PL0 scores a worktask for pipeline selection. This rubric is separate from the 0–25 estimation factor score.
+
+| Factor | Low (0-2) | Medium (3-5) | High (6-10) |
+|--------|-----------|--------------|-------------|
+| **New patterns** | None | 1-2 new | 3+ new |
+| **Integration points** | 1-2 | 3-5 | 6+ |
+| **Cross-cutting concerns** | None | 1 area | Multiple |
+| **Risk level** | Minimal | Moderate | High |
+| **Documentation needs** | Inline | README | ADR + API docs |
+
+**Scoring**: Sum factor scores (0-50 total)
+
 ## PL0 Stage-Set & Test-Mode by Complexity Score
 
 PL0 uses the 0–50 complexity score to pick the stage set and the default `test_mode`
-(`skills/worktask/references/pl0-procedure.md § Dynamic Worktask Sizing (PL0 Stage)`, which owns
+(`skills/worktask/references/planning-artifacts.md § Dynamic Worktask Sizing (PL0 Stage)`, which owns
 the `skipped_stages` / `added_stages` stamping, and `§ Required Metadata: Test Selection Gate`).
 
 ### Stage set table
@@ -229,7 +243,7 @@ shed one. Scores freeze at the plan gate, or every High run re-argues its way to
 
 ```yaml
 requests_stage_escalation:
-  stage: SR                    # a code from skills/shared/stage-codes.md
+  stage: SR                    # a code from skills/worktask/references/stage-codes.md
   falsified: "<verbatim quote from metadata.skipped_stages[].reason>"
   discovered: "<the tree fact PL0 could not have known, with file:line>"
   reason: "<200 chars or fewer>"

@@ -42,6 +42,39 @@ _selected_files() {
   sel_select_for_path "$1" "${2:-M}" | awk -F'\t' '$1 == "BATS" { print $2 }' | LC_ALL=C sort -u
 }
 
+_matrix_rule_ids_valid() {
+  local rows="$1" ids maxid count i
+  ids="$(printf '%s\n' "$rows" | awk -F'\t' '{ print $3 }')"
+  if printf '%s\n' "$ids" | grep -Ev '^R[0-9][0-9]+$' > /dev/null; then
+    output="malformed matrix rule id"
+    return 1
+  fi
+  maxid="$(printf '%s\n' "$ids" | sed 's/^R//' | sort -n | tail -1)"
+  [ -n "$maxid" ] || { output="the matrix declares no rule ids"; return 1; }
+  count="$(printf '%s\n' "$ids" | wc -l | tr -d ' ')"
+  for ((i = 1; i <= 10#$maxid; i++)); do
+    if ! printf '%s\n' "$ids" | grep -Fx "$(printf 'R%02d' "$i")" > /dev/null; then
+      output="$(printf 'R%02d' "$i") is missing from the matrix"
+      return 1
+    fi
+  done
+  [ "$count" -eq "$((10#$maxid))" ] || { output="duplicate matrix rule ids"; return 1; }
+}
+
+@test "matrix rule ids accept 100 and still reject gaps duplicates and malformed ids" {
+  local rows="" i
+  for ((i = 1; i <= 100; i++)); do
+    rows+="$(printf 'fixture\tNONE\tR%02d\tfixture' "$i")"$'\n'
+  done
+  _matrix_rule_ids_valid "${rows%$'\n'}"
+  ! _matrix_rule_ids_valid "$(printf '%s' "$rows" | awk -F'\t' '$3 != "R99"')"
+  [[ "$output" == *"R99 is missing"* ]]
+  ! _matrix_rule_ids_valid "${rows}fixture"$'\tNONE\tR100\tduplicate'
+  [[ "$output" == *"duplicate"* ]]
+  ! _matrix_rule_ids_valid "${rows}fixture"$'\tNONE\tRbad\tmalformed'
+  [[ "$output" == *"malformed"* ]]
+}
+
 # --- shape: the matrix is real ----------------------------------------------
 
 @test "M1: the matrix parses, and the inventory it is judged against is plausible" {
@@ -95,14 +128,8 @@ _selected_files() {
   # and a removed row leaves a gap this names. Retire a row by setting its target
   # to NONE (+ `# STALE-OK:` if the glob also goes dead), never by deleting the
   # id — that is the idiom R23/R24 already use.
-  ids="$(sel_matrix_rows | awk -F'\t' '{ print $3 }' | grep -c '^R[0-9][0-9]$' || true)"
-  maxid="$(sel_matrix_rows | awk -F'\t' '$3 ~ /^R[0-9][0-9]$/ { print $3 }' | LC_ALL=C sort | tail -1)"
-  [ -n "$maxid" ] || fail "the matrix declares no R.. rule ids at all; every L2 row is gone"
-  for (( i = 1; i <= ${maxid#R} + 0; i++ )); do
-    sel_matrix_rows | awk -F'\t' -v w="$(printf 'R%02d' "$i")" '$3 == w { found = 1 } END { exit !found }' \
-      || fail "$(printf 'R%02d' "$i") is missing from the matrix — rule ids must be contiguous R01..$maxid; retire a row with target NONE instead of deleting it"
-  done
-  [ "$ids" -eq "${maxid#R}" ] || fail "$ids rule ids for a max of $maxid — duplicate or malformed ids"
+  _matrix_rule_ids_valid "$(sel_matrix_rows)" || fail "$output"
+
 
   # Completeness half of M10: M10 proves the deleted-row mechanism on a synthetic
   # fixture, which by construction cannot notice a real row going missing. Here
@@ -206,7 +233,7 @@ _selected_files() {
   # still resolve; artifact-map-parity.bats is the test that catches the stranded
   # -analyzing bug and names both of these.
   local p sel
-  for p in skills/worktask/SKILL.md agents/workflow-engineer.md; do
+  for p in skills/worktask/references/orchestration.md agents/workflow-engineer.md; do
     sel="$(_selected_files "$p")"
     case "$sel" in
       *"tests/shell/worktask/artifact-map-parity.bats"*) ;;
