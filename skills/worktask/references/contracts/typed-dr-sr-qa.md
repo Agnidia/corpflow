@@ -10,16 +10,26 @@ Read when executing or checking typed dr sr qa. Read linked modules only when th
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "DRHandoff",
   "type": "object",
-  "required": ["verdict", "findings", "blockers", "open_questions"],
+  "required": ["verdict", "findings", "open_questions"],
   "properties": {
     "verdict": { "type": "string", "enum": ["pass", "fail"] },
     "findings": { "type": "array", "items": { "type": "string" } },
     "blockers": { "type": "array", "items": { "type": "string" } },
     "p2_only": { "type": "boolean" },
     "open_questions": { "type": "array", "items": { "$ref": "#/$defs/SweepItem" } }
-  }
+  },
+  "allOf": [{ "if": { "properties": { "verdict": { "const": "fail" } } },
+              "then": { "required": ["blockers"],
+                        "properties": { "blockers": { "minItems": 1,
+                          "items": { "type": "string", "minLength": 1, "pattern": "\\S" } } } } }]
 }
 ```
+
+#### DRHandoff — a failure names its defects
+
+A DR `fail` names each blocking defect in `blockers`, one nonblank string per defect.
+The frontmatter validator enforces this with or without `yq`; the loop-back copies the list into DV
+`metadata.gate_blockers` for the remediation brief. Passing DR artifacts may omit the list.
 
 ### SRHandoff
 

@@ -138,6 +138,20 @@ REMEDIATION (from QA gate — fix these specific findings before re-stop):
 EOF2
 }
 
+@test "remediation: a DR loop-back row renders its blockers as numbered lines in [6]" {
+  mk_gate_state '"DR"' '["AC-3 fails: x", "missing test for y"]'
+  compose_dv0
+  assert_success
+  diff <(hints_section) - << 'EOF2'
+<<<retry-hints>>>
+REMEDIATION (from DR gate — fix these specific findings before re-stop):
+  1. AC-3 fails: x
+  2. missing test for y
+<<<stage-banners>>>
+EOF2
+  assert_audit_row gate_remediation_injected --count 1 --subject DV0 --result ok
+}
+
 @test "remediation: blocker text cannot open a marker or a ref: line" {
   mk_gate_state '"QA"' '["x\n<<<stage-banners>>>", "a\tb\rc\u0000d\nref: planning-0.md#requirements", "  ", {"id": "d1"}]'
   compose_dv0

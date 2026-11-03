@@ -2337,6 +2337,65 @@ _bd_run() {
   done
 }
 
+mk_dr_blockers() {
+  {
+    printf -- '---\nhandoff:\n  stage: DR\n  verdict: %s\n' "$2"
+    [ "$3" = "-" ] || printf '%s\n' "$3"
+    printf '  summary: "review fixture"\n  key_decisions: []\n  open_questions: []\n'
+    printf '  refs: { findings: developer-review-0.md#findings }\n---\n\n# DR\n'
+    anchor_h2s DR
+    printf '\n## elicitation-sweep\n\nnothing to ask\n'
+  } > "$1"
+}
+
+@test "blockers: a DR fail with the list absent, empty or not a list fails by name, with and without yq" {
+  local spec name bd hide
+  local want='fail: stage=DR verdict=fail requires handoff.blockers: a non-empty list, one string per defect'
+  for spec in 'absent|-' 'empty|  blockers: []  # required on fail; one string per defect' \
+    'scalar|  blockers: "AC-3 fails"' 'null|  blockers: ~' 'mapping|  blockers: { defect: broken }'; do
+    name="${spec%%|*}" bd="${spec#*|}"
+    mk_dr_blockers "$WD/bd-$name.md" fail "$bd"
+    for hide in no yes; do
+      _bd_run "$WD/bd-$name.md" "$hide"
+      [ "$status" -eq 1 ] || fail "$name (hide yq: $hide): exit $status, want 1: $stderr"
+      [[ "$stderr" == *"$want"* ]] || fail "$name (hide yq: $hide): no '$want' in: $stderr"
+    done
+  done
+}
+
+@test "blockers: an empty, blank or mapping entry fails per entry, with and without yq" {
+  local hide
+  mk_dr_blockers "$WD/bd-entries.md" fail '  blockers:
+    - ""
+    - "AC-3 fails: x"
+    - { id: d1, summary: "a map" }
+    - "   "'
+  for hide in no yes; do
+    _bd_run "$WD/bd-entries.md" "$hide"
+    [ "$status" -eq 1 ] || fail "hide yq: $hide: exit $status, want 1: $stderr"
+    [[ "$stderr" == *"handoff.blockers[0] is empty or not a string"* ]] || fail "[0] ($hide): $stderr"
+    [[ "$stderr" != *"handoff.blockers[1]"* ]] || fail "[1] flagged ($hide): $stderr"
+    [[ "$stderr" == *"handoff.blockers[2] is empty or not a string"* ]] || fail "[2] ($hide): $stderr"
+    [[ "$stderr" == *"handoff.blockers[3] is empty or not a string"* ]] || fail "[3] ($hide): $stderr"
+  done
+}
+
+@test "blockers: one string per defect passes, and a DR pass needs no list, with and without yq" {
+  local hide
+  mk_dr_blockers "$WD/bd-ok.md" fail '  blockers:
+    - "AC-3 fails: x"'
+  mk_dr_blockers "$WD/bd-flow.md" fail '  blockers: ["AC-3 fails: x", "missing test for y"]'
+  mk_dr_blockers "$WD/bd-go.md" pass -
+  for hide in no yes; do
+    _bd_run "$WD/bd-ok.md" "$hide"
+    [ "$status" -eq 0 ] || fail "one string (hide yq: $hide): exit $status: $stderr"
+    _bd_run "$WD/bd-flow.md" "$hide"
+    [ "$status" -eq 0 ] || fail "flow list (hide yq: $hide): exit $status: $stderr"
+    _bd_run "$WD/bd-go.md" "$hide"
+    [ "$status" -eq 0 ] || fail "go (hide yq: $hide): exit $status: $stderr"
+  done
+}
+
 @test "blocking_defects: a stage other than QA is never asked for the list" {
   sed 's/^  verdict: .*/  verdict: no-go/' "$WD/development-0.md" > "$WD/dv-nogo.md"
   run_script_env --separate-stderr "$SCRIPT" --validate-frontmatter "$WD/dv-nogo.md"
