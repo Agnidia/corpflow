@@ -16,7 +16,14 @@ load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 SCRIPT="skills/worktask/scripts/pr-body-lint.sh"
 
 setup() {
+  unset MILESTONE_MODE INCIDENT_MODE CORPFLOW_PR_BODY_STRICT
   WD="$(mk_tmpworkdir)"
+  # The checkout's ledger and git history must not determine fixture routing or issue anchors.
+  export GIT_CEILING_DIRECTORIES="${WD%/*}"
+  cd "$WD" || return 1
+  mkdir -p .context
+  printf '{"version":1,"worktask_id":"w","run_index":0,"metadata":{"github_issue_number":12},"tasks":{},"facts":{}}\n' \
+    > .context/state.json
   CLEAN="$WD/clean.md"
   cat > "$CLEAN" << 'EOF'
 ## Motivation
@@ -33,6 +40,21 @@ two-way: a lint rule; revert the commit. Blast radius: PR-body warnings only.
 
 Closes #12
 EOF
+}
+
+@test "isolation: ambient milestone state and routing flags do not steer lint fixtures" {
+  local outer="$WD/outer"
+  mkdir -p "$outer/.context"
+  printf '{"metadata":{"milestone":2},"tasks":{}}\n' > "$outer/.context/state.json"
+  printf '{}\n' > "$outer/workspace.json"
+  cd "$outer"
+  run env MILESTONE_MODE=1 INCIDENT_MODE=1 CORPFLOW_PR_BODY_STRICT=1 \
+    bash "$PLUGIN_ROOT/tests/vendor/bats-core/bin/bats" \
+    --filter '^(happy:|P[1234]:|edge:|contract: findings|regression: the exact|over-match:)' \
+    "$PLUGIN_ROOT/tests/shell/worktask/pr-body-lint.bats"
+  assert_success
+  assert_output --partial "1..20"
+  refute_output --partial "not ok"
 }
 
 @test "contract: --self-test passes (smoke, NON-counting)" {
