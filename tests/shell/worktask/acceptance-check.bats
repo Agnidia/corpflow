@@ -171,11 +171,26 @@ fail_open_dv() {  # <command> — one command with an exit=0 row
 @test "fail-open: || exit 1, || false, quoted, nested or non-tail forms are not reported" {
   local c
   for c in "grep -q x f || exit 1" "grep -q x f || false" "grep -q 'a || true' f" \
-    'test "$(grep -c x f || true)" = 0' "( grep -q x f || true )" "grep -q x f || true; test -s f" \
-    "grep -q x f || echo x | cmp - f" "a 2>&1 | cmp - f" "grep -q x f || echo x 2>&1 | cmp - f"; do
+    'test "$(grep -c x f || true)" = 0' "grep -q x f || true; test -s f" \
+    "grep -q x f || echo x | cmp - f" "a 2>&1 | cmp - f" "grep -q x f || echo x 2>&1 | cmp - f" \
+    "( grep -q x f || true ) | cmp - f" "( grep -q x f || true ); test -s f" \
+    "{ grep -q x f || true; test -s f; }" "( grep -q x f || exit 1 )" \
+    'test -n "${x}" || true; test -s f' "( a ) && test -s \$(b || true)" "( a || true ) foo"; do
     fail_open_dv "$c"
     run bash "$CHECK" --dv "$DV"
     [ "$status" -eq 0 ] || fail "flagged: $c -> $output"
+  done
+}
+
+@test "fail-open: a tail inside a trailing subshell or brace group is reported" {
+  local c
+  for c in "( grep -q x f || true )" "{ grep -q x f || true; }" \
+    "( grep -q x f || echo no ) 2>/dev/null" "a | ( grep -q x || true )" \
+    "( ( grep -q x f || :) )" "test -s f && { grep -q x f || printf x; } >&2"; do
+    fail_open_dv "$c"
+    run bash "$CHECK" --dv "$DV"
+    [ "$status" -eq 1 ] || fail "not flagged: $c"
+    assert_line "fail-open: $c"
   done
 }
 

@@ -78,7 +78,8 @@ loses.
 
 Each command must fail closed: a missing match, a tool error or a wrong count exits non-zero. A
 top-level `|| true`, `|| :`, `|| echo …` or `|| printf …` tail exits 0 whatever it found, so
-`acceptance-check.sh --dv` reports it as `fail-open:` in both modes and exits 1.
+`acceptance-check.sh --dv` reports it as `fail-open:` in both modes and exits 1. The same tail
+inside a `( )` or `{ }` group that ends the command is reported too.
 
 Each pattern is anchored to the whole token it checks (`^T-subject:`, not `^T-subject`). An
 unanchored prefix also matches a sibling added later, such as `T-subject-shape`, so the command
