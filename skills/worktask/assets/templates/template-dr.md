@@ -13,6 +13,7 @@ Apply [the DR artifact rules](../../references/contracts/artifact-rules-dr.md) b
 handoff:
   stage: DR
   verdict: pass                # pass / fail
+  blockers: []  # required on fail; one string per defect
   summary: "<N files reviewed. M findings, all addressed / K blockers remain>"
   key_decisions:
     - { id: dr1, summary: "<finding or approval>", anchor: "developer-review-N.md#findings" }

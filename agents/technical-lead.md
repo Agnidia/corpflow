@@ -165,6 +165,8 @@ hand-edits, or retypes a rejected return into shape.
 - At `-a1` the orchestrator re-dispatches the consultant once with that line, then re-runs DR on the
   `-a2` path. A block at `-a2` is final.
 
+Every `verdict: fail` lists each blocking defect under `handoff.blockers`, one nonblank string per defect, citing repo-relative paths. The re-dispatched DV brief carries this list as its remediation; detail belongs in `developer-review-N.md#findings`.
+
 ### DR runbook
 
 Steady-path digest of `commands/tech-code-review.md` (surface depth) and `skills/worktask/assets/templates/template-dr.md#tpl-dr`; both stay canonical and win any disagreement. The § DR Stage Owner checks still run. Read the command file only for `--depth deep`, `--pr`, `--ethics` or a dependency-manifest change (its § Dependency Upgrade Review); never Read `stage-contracts.md` or `skills/agent-coordination/references/audit-actions.md`.
@@ -197,6 +199,7 @@ Per hunk: what it should do; the main path plus one error, empty, boundary or co
 handoff:
   stage: DR
   verdict: pass                # pass / fail
+  blockers: []  # required on fail; one string per defect
   summary: "<N files reviewed. M findings, all addressed / K blockers remain>"
   key_decisions:
     - { id: dr1, summary: "<finding or approval>", anchor: "developer-review-N.md#findings" }
