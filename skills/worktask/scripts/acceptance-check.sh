@@ -24,8 +24,9 @@
 #
 # Every command must also fail closed. A command whose top-level tail is `|| true`, `|| :`,
 # `|| echo …` or `|| printf …` exits 0 whatever it found, so a green row proves nothing; it is
-# reported as `fail-open:` in both modes. `|| exit 1` and `|| false` are not reported, nor is a
-# `||` inside quotes, `$( )`, `( )` or `{ }`.
+# reported as `fail-open:` in both modes, and so is the same tail inside a `( )` or `{ }` group
+# that ends the command. `|| exit 1` and `|| false` are not reported, nor is a `||` inside
+# quotes, `$( )`, or a group that something else follows.
 #
 # stdout: `acceptance: <executed>/<required> executed, <failed> failed` then, per offending
 #   command, one `missing: <command>` or `failed: <command>` line and one `fail-open: <command>`
@@ -95,35 +96,58 @@ exit_rows() {  # <artifact> <skipfence 0|1>
 # true, :, echo or printf. "Top-level" is what decides the exit status: quotes, `$( )`, `( )`
 # and `{ }` are skipped, a pipeline after the `||` binds tighter so its last stage decides, and
 # an unquoted `#` word ends the line. The `&` and `|` of a redirect (`>&2`, `2>&1`, `<&0`, `&>`,
-# `>|`) are not list operators; counting them would hide `|| echo x >&2`, the commonest form. `[[ … || … ]]` is not tracked; its right operand is never
-# one of the four words in practice.
+# `>|`) are not list operators; counting them would hide `|| echo x >&2`, the commonest form.
+# A group exits with its last inner list, so when the last top-level segment is a whole `( )` or
+# `{ }` group, with at most redirects after it, its body is checked by the same rule. A `$( )`
+# or `${ }` is not a group. `[[ … || … ]]` is not tracked; its right operand is never one of the
+# four words in practice.
 fail_open() {  # <command>
   printf '%s\n' "$1" | awk '
-    {
-      s = $0; n = length(s); q = ""; depth = 0; last = ""; tail = 0
+    # gs/ge/gk: start, end and opener of the last depth-0 group; reset at each list operator,
+    # so they always describe the last segment.
+    function failopen(s,    n, q, depth, last, tail, i, c, p, two, gs, ge, gk, seg, lead, after, body, rest, word) {
+      n = length(s); q = ""; depth = 0; last = ""; tail = 1; gs = 0; ge = 0; gk = ""
       for (i = 1; i <= n; i++) {
         c = substr(s, i, 1)
         if (q == "\x27") { if (c == "\x27") q = ""; continue }
         if (c == "\\") { i++; continue }
         if (q == "\"") { if (c == "\"") q = ""; continue }
         if (c == "\x27" || c == "\"") { q = c; continue }
-        if (c == "(" || c == "{") { depth++; continue }
-        if ((c == ")" || c == "}") && depth > 0) { depth--; continue }
-        if (depth > 0) continue
-        if (c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[[:space:]]/)) { n = i - 1; break }
         p = (i > 1) ? substr(s, i - 1, 1) : ""
+        if (c == "(" || c == "{") {
+          if (depth == 0) {
+            ge = 0
+            if (p != "$" && (c == "(" || substr(s, i + 1, 1) ~ /[[:space:]]/)) { gs = i; gk = c } else gs = 0
+          }
+          depth++; continue
+        }
+        if ((c == ")" || c == "}") && depth > 0) { depth--; if (depth == 0 && gs) ge = i; continue }
+        if (depth > 0) continue
+        if (c == "#" && (i == 1 || p ~ /[[:space:]]/)) { n = i - 1; break }
         if (c == "&" && (p == ">" || p == "<" || substr(s, i + 1, 1) == ">")) continue
         if (c == "|" && p == ">") continue
         two = substr(s, i, 2)
-        if (two == "||" || two == "&&") { last = two; tail = i + 2; i++; continue }
-        if (c == ";" || c == "|" || c == "&") { last = c; tail = i + 1 }
+        if (two == "||" || two == "&&") { last = two; tail = i + 2; gs = 0; ge = 0; i++; continue }
+        if (c == ";" || c == "|" || c == "&") { last = c; tail = i + 1; gs = 0; ge = 0 }
       }
-      if (last != "||") exit
+      if (gs && ge) {
+        seg = substr(s, tail, n - tail + 1)
+        lead = seg; sub(/[^[:space:]].*$/, "", lead)
+        after = substr(s, ge + 1, n - ge)
+        if (tail + length(lead) == gs &&
+            after ~ /^([[:space:]]*[0-9]*(>>|>&|<&|&>|>\||<|>)[[:space:]]*[^[:space:]]+)*[[:space:]]*$/) {
+          body = substr(s, gs + 1, ge - gs - 1)
+          if (gk == "{") sub(/[[:space:];&]+$/, "", body)
+          return failopen(body)
+        }
+      }
+      if (last != "||") return 0
       rest = substr(s, tail, n - tail + 1)
       sub(/^[[:space:]]+/, "", rest)
       word = rest; sub(/[[:space:]].*$/, "", word)
-      if (word == "true" || word == ":" || word == "echo" || word == "printf") print s
-    }'
+      return (word == "true" || word == ":" || word == "echo" || word == "printf")
+    }
+    { if (failopen($0)) print $0 }'
 }
 
 [ -z "$QA" ] || [ -r "$QA" ] || usage_error "cannot read QA artifact: $QA"
