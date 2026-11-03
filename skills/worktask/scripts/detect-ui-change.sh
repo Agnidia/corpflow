@@ -6,7 +6,7 @@
 # DV/QA task metadata + state.json) and may overrule the verdict in either
 # direction, subject to the S1 floor. The flag drives dv-screenshot-capture and
 # its completion gate.
-# See skills/worktask/references/pl0-procedure.md § Required Metadata: Test Selection Gate.
+# See skills/worktask/references/planning-tests.md § Required Metadata: Test Selection Gate.
 #
 # Usage:
 #   detect-ui-change.sh <plan-file> [--platform <p>]

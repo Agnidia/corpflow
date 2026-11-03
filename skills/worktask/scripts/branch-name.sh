@@ -15,7 +15,7 @@
 #   even when the local rename did not happen: an upstream or an existing target blocks
 #   the local rename without making the PR head any less wrong. The orchestrator stamps
 #   `facts.branch` from `target_branch=` when `branch=` is empty or non-conventional
-#   (`commands/worktask.md § Step 3c`).
+#   (`skills/worktask/references/workflow.md § Step 3c`).
 #
 #   Inside a linked worktree the naming step RENAMES the local branch, like any other
 #   checkout, so `branch=` and `target_branch=` agree. The host's branch↔workspace mapping
@@ -55,7 +55,7 @@
 # @env INCIDENT_MODE      1 => incident routing; self-disables.
 # @env WORKSPACE_ROOT     Read transitively by fn_batch_scope / resolve_base_ref.
 # @env FN_BASE_REF        Highest-priority integration-branch override (unrenamed
-#                         despite the prefix — see handoff-protocol.md § metadata.base_ref).
+#                         despite the prefix — see skills/worktask/references/contracts/ledger-root.md § metadata.base_ref).
 #
 # @exitcode 0   Every rename-mode outcome (ok, noop, failed, skipped, unreachable
 #               library). `--print-target`: a conventional target was printed.
@@ -295,8 +295,8 @@ emit_branch() {
 # would reopen exactly the hole emit_branch exists to close.
 #
 # Emitted BEFORE `branch=` on every rename-mode arm, never after: `branch=<name>` is
-# specified as the script's FINAL stdout line in four places (commands/worktask.md
-# § Step 3c, skills/worktask/SKILL.md, handoff-protocol.md, skills/worktask/references/pl0-procedure.md)
+# specified as the script's FINAL stdout line in four places (skills/worktask/references/workflow.md
+# § Step 3c, skills/worktask/references/orchestration.md, handoff-protocol.md, skills/worktask/references/pl0-procedure.md)
 # and consumers tail for it. A new line appended at the end would silently retarget
 # every one of those parses.
 emit_target() {

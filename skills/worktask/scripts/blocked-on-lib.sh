@@ -6,7 +6,7 @@
 #   the router then refuses.
 #
 #   Change protocol: a new kind, detail key or resume_with value changes this file, the table in
-#   references/handoff-protocol.md § Schema — blocked_on, the seven arms at a glance, and the
+#   skills/worktask/references/contracts/blocked-needs.md § Schema — blocked_on, the seven arms at a glance, and the
 #   megatask Shared Seams registry entry together. Landing an arm flips its `landed` field here
 #   and its row in SKILL.md § Step 6.5a3 in the same PR.
 #

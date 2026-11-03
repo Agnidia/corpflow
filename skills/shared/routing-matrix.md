@@ -120,15 +120,14 @@ The `claude-code-workflows` family doubles its slug in invocation ids
 
 ## Resolution
 
-1. `state.routing` present in `.context/state.json` → use it (resolved once at worktask
-   init; see `skills/worktask/SKILL.md § Routing resolution`).
+1. `state.routing` present in `.context/state.json` → use it (resolved once; see `skills/worktask/references/stage-validation.md#validation-check-12--routing-resolution`).
 2. Else read `CORPFLOW.md § Routing` at the **user project root**, else at **user scope**
    (§ Per-heading precedence); its rows win over this matrix, alias by alias.
 3. Else (or for aliases not overridden) use the Default target column above.
-4. Dispatch injection is unchanged: resolve the target's root per
+4. For dispatch injection, resolve the target's root per
    `skills/cross-plugin-handoff/SKILL.md § Dispatch Injection`; if it ships a root
    `CORPFLOW.md`, open the prompt with that section's line, otherwise point the target at
-   `skills/worktask/references/handoff-protocol.md § frontmatter-schema` inline.
+   `skills/worktask/references/contracts/frontmatter.md § frontmatter-schema` inline.
 5. Target uninstalled or unknown → the `plugin_unavailable` degrade path
    (`agents/developer.md § Plugin unavailable`) with `alias` and `override_target` in the
    audit metadata: fall back override → default target → direct scoped-Bash build.
@@ -163,7 +162,7 @@ Location decides semantics:
 
 | Location | Kind | corpflow reads |
 |----------|------|----------------|
-| A *sibling plugin's* root | that plugin's stage contract (`skills/cross-plugin-handoff/references/plugin-contract.md § A.4`) | the whole file, as dispatch context |
+| A *sibling plugin's* root | that plugin's stage contract (`skills/cross-plugin-handoff/references/plugin-contract.md#4-a-root-corpflowmd`) | the whole file, as dispatch context |
 | The *user project's* root | project configuration | `## Routing` and `## Models` |
 | `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/` | user-scope configuration, every project | `## Routing` and `## Models`, each only when the project file lacks it |
 
@@ -175,4 +174,4 @@ headings are disjoint, and `## Routing` and `## Models` are reserved for the ove
 Stage-dispatching agents (`developer`, `software-architector`, `security-reviewer`,
 `qa-engineer`) carry a bare `Agent` grant so any override target dispatches. This matrix, not the
 frontmatter, is the canonical record of intended targets; the guardrail for the wider spawn surface
-is the mandatory routing audit row on every delegation (`agents/developer.md § Routing Audit`).
+is the mandatory routing audit row on every delegation (`skills/worktask/references/dv-reference.md#routing-audit`).

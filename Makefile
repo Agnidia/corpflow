@@ -26,6 +26,7 @@ PLUGIN_ROOT  := $(shell cd "$(dir $(lastword $(MAKEFILE_LIST)))" && pwd)
 BATS         := $(PLUGIN_ROOT)/tests/vendor/bats-core/bin/bats
 COVDIR       := $(PLUGIN_ROOT)/.coverage-kcov
 COVERAGE     ?= 0
+PROVIDER     ?= claude
 # Coverage line-coverage gate (per AC-3; 85 is the floor).
 COV_MIN      ?= 85
 
@@ -186,7 +187,7 @@ test-ios:
 # ---------------------------------------------------------------------------
 benchmark:
 	@echo "[benchmark] deterministic dual-path TTT (no --live, no network)…"
-	@"$(PLUGIN_ROOT)/benchmark/run-benchmark.sh"
+	@"$(PLUGIN_ROOT)/benchmark/run-benchmark.sh" --provider "$(PROVIDER)"
 	@echo "[benchmark] running harness self-tests (schema / rotation / generators)…"
 	@( cd "$(HARNESS_DIR)" && PYTHONPATH="$(HARNESS_DIR)/tests" python3 -m unittest discover -s tests -t . -p 'test_*.py' )
 	@python3 "$(HARNESS_DIR)/bin/bench-report" \
@@ -204,7 +205,7 @@ benchmark:
 # ---------------------------------------------------------------------------
 benchmark-live:
 	@echo "[benchmark-live] OPT-IN live A/B — credential probe + budget cap apply."
-	@live_args="--live --budget $${BUDGET:-50.00}"; \
+	@live_args="--live --provider $(PROVIDER) --budget $${BUDGET:-50.00}"; \
 	  [ -n "$(STAGES)" ] && live_args="$$live_args --stages $(STAGES)"; \
 	  [ -n "$(WITHOUT_ARM)" ] && live_args="$$live_args --without-arm $(WITHOUT_ARM)"; \
 	  [ -n "$(ARM)" ] && live_args="$$live_args --arm $(ARM)"; \
@@ -246,6 +247,11 @@ benchmark-analyze:
 	@python3 "$(HARNESS_DIR)/bin/bench-analyze" \
 	  --history "$(PLUGIN_ROOT)/benchmark/results/history.json" \
 	  --out "$(PLUGIN_ROOT)/benchmark/results/analysis.md"
+
+.PHONY: benchmark-native
+benchmark-native:
+	@[ -n "$(APP)" ] || { echo "usage: make benchmark-native APP=<generated-app>" >&2; exit 64; }
+	@python3 "$(HARNESS_DIR)/bin/bench-native-check" --app "$(APP)"
 
 # ---------------------------------------------------------------------------
 # clean: remove generated workdirs + coverage intermediates + caches + the

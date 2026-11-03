@@ -27,7 +27,7 @@ git worktree prune
 
 | Stage | Workspace Actions |
 |-------|-------------------|
-| PL | Read issue from workspace.json, write `<plan_file>` (numbered `planning-N.md` per `skills/worktask/references/pl0-procedure.md § Plan File & Run Index Naming`) |
+| PL | Read issue from workspace.json, write `<plan_file>` (numbered `planning-N.md` per `skills/worktask/references/planning-sizing.md § Plan File & Run Index Naming`) |
 | DV | Branch checked out, commit to workspace branch |
 | FN | Push branch, create PR, signal orchestrator |
 

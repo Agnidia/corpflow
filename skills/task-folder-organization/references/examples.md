@@ -23,7 +23,7 @@ Copy them into `.context/images/` under descriptive names (`login-screen-mockup.
 
 ## Folder Structure Examples
 
-> Every example shows run 0, so the plan file is `planning-0.md` and stage artifacts use suffix `-0`. A PL rerun increments N for that run's artifacts and preserves the earlier ones — see `skills/worktask/references/pl0-procedure.md § Plan File & Run Index Naming`.
+> Every example shows run 0, so the plan file is `planning-0.md` and stage artifacts use suffix `-0`. A PL rerun increments N for that run's artifacts and preserves the earlier ones — see `skills/worktask/references/planning-sizing.md § Plan File & Run Index Naming`.
 
 ### Which artifacts appear per variant
 

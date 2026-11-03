@@ -12,27 +12,30 @@ import json
 import os
 import subprocess
 from typing import Any, Optional
+from .providers.claude.models import MODEL_PINS
+from .source import source_digest
 
-# Per-stage dispatch table: stage -> (agent, model_id, effort).
-STAGE_TABLE = {
-    "PL": ("corpflow:product-manager", "claude-opus-5-5", "high"),
-    "AR": ("corpflow:software-architector", "claude-opus-5-5", "high"),
-    "TL": ("corpflow:team-lead", "claude-sonnet-5-5", "medium"),
-    "DV": ("corpflow:developer", "claude-opus-5-5", "high"),
-    "DR": ("corpflow:technical-lead", "claude-opus-5-5", "high"),
-    "SR": ("corpflow:security-reviewer", "claude-opus-5-5", "xhigh"),
-    "QA": ("corpflow:qa-engineer", "claude-sonnet-5-5", "medium"),
-    "DC": ("corpflow:technical-writer", "claude-haiku-5-5", "low"),
-    "FN": ("corpflow:project-manager", "claude-sonnet-5-5", "medium"),
-    "ST": ("corpflow:stakeholder", "claude-sonnet-5-5", "low"),
+STAGE_CONTRACTS = {
+    "PL": ("corpflow:product-manager", "opus", "high"),
+    "AR": ("corpflow:software-architector", "opus", "high"),
+    "TL": ("corpflow:team-lead", "sonnet", "medium"),
+    "DV": ("corpflow:developer", "opus", "high"),
+    "DR": ("corpflow:technical-lead", "opus", "high"),
+    "SR": ("corpflow:security-reviewer", "opus", "xhigh"),
+    "QA": ("corpflow:qa-engineer", "sonnet", "medium"),
+    "DC": ("corpflow:technical-writer", "haiku", "low"),
+    "FN": ("corpflow:project-manager", "sonnet", "medium"),
+    "ST": ("corpflow:stakeholder", "sonnet", "low"),
 }
+STAGE_TABLE = {s: (role, MODEL_PINS[tier], effort)
+               for s, (role, tier, effort) in STAGE_CONTRACTS.items()}
 
 CAPTURE_JSON = "json"
 CAPTURE_STREAM_JSON = "stream-json"
 
 # Bumped by hand whenever the graded task text changes; a workload change makes
 # token and quality figures incomparable just as surely as a model repin does.
-PROMPT_CONTRACT = "scripted-cli-v4"
+PROMPT_CONTRACT = "scripted-cli-v5"
 HARNESS_GENERATION = "python-3"
 
 # Pins the contract text this version names, so editing the contract without
@@ -70,6 +73,12 @@ def _cli_version() -> Optional[str]:
     return done.stdout.strip() or None if done.returncode == 0 else None
 
 
+@functools.lru_cache(maxsize=1)
+def _source_digest():
+    return source_digest(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))))))
+
+
 def build_era(plugin: Optional[Any] = None, arm_plugins: Optional[dict] = None,
               config_leaks: Optional[dict] = None) -> dict:
     """Stamp what this run's numbers are comparable against.
@@ -81,6 +90,9 @@ def build_era(plugin: Optional[Any] = None, arm_plugins: Optional[dict] = None,
     """
     era = {
         "harness": HARNESS_GENERATION,
+        "provider": "claude",
+        "source_digest": _source_digest(),
+        "pricing": {"basis": "CLI-reported USD", "source": "result.total_cost_usd"},
         "prompt_contract": PROMPT_CONTRACT,
         "model_pins": {stage: model for stage, (_agent, model, _effort) in STAGE_TABLE.items()},
         "cli_version": _cli_version(),

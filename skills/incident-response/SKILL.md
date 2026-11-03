@@ -61,7 +61,7 @@ DV hotfix builds: stream with `Monitor` over `run_in_background` Bash and tee to
 ### IR → DV Handoff Contract
 
 `incident-N.md` carries these four H3 sections before IR transitions to DV; the orchestrator
-validates per `${CLAUDE_SKILL_DIR}/../shared/stage-contracts.md § IR–ET`. Any empty section
+validates per `${CLAUDE_SKILL_DIR}/../worktask/references/stage-contracts.md § IR–ET`. Any empty section
 means DV is not dispatched and IR is re-queued with a `missing_input` error entry.
 
 #### Required Sections

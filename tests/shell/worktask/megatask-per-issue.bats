@@ -17,15 +17,15 @@
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
 MEGATASK_DOC="commands/megatask.md"
-WORKTASK_DOC="commands/worktask.md"
-SKILL_DOC="skills/worktask/SKILL.md"
+WORKTASK_DOC="skills/worktask/references/workflow.md"
+SKILL_DOC="skills/worktask/references/orchestration.md"
 ENV_HEAD="#### Step 3 — run environment in the per-issue prompt"
 PER_ISSUE_DOC="skills/worktask/references/megatask-per-issue.md"
 PER_ISSUE_HEAD='## Per-issue run under `/megatask`'
 SCRIPTS="skills/worktask/scripts"
 
 section() {
-  awk -v h="$2" '$0 == h {f=1; print; next} f && /^#/ {exit} f {print}' "$PLUGIN_ROOT/$1"
+  awk -v h="$2" '$0 == h {f=1; print; next} f && /^#/ {exit} f {print}' "$(contract_source "$PLUGIN_ROOT/$1")"
 }
 
 # The prefix as megatask Step 3 states it, `<wt>` still in place.

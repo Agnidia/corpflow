@@ -650,7 +650,7 @@ mk_worktree_repo() {
 }
 
 # The documented Step 3c stamping rule, executed rather than paraphrased
-# (commands/worktask.md § Step 3c — validate before stamping).
+# (skills/worktask/references/workflow.md § Step 3c — validate before stamping).
 stamp_from_output() {
   local out="$1" local_branch target stamp
   local_branch=$(printf '%s\n' "$out" | sed -n 's/^branch=//p' | tail -n 1)

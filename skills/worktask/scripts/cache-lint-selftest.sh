@@ -495,7 +495,7 @@ description: dummy
 
 ## Handoff Protocol
 
-Frontmatter template (paste verbatim at artifact top): `stage-contracts.md#tpl-re`.
+Frontmatter template (paste verbatim at artifact top): `skills/worktask/assets/templates/template-re.md#tpl-re`.
 
 ### State.json Atomic Merge — REQUIRED before return
 

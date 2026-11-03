@@ -12,11 +12,11 @@ related:
 
 # Agent Coordination
 
-Coordinating agents across worktask stages: handoffs, errors, the audit trail, dispatch limits.
+Worktask coordination: handoffs, errors, the audit trail, dispatch limits.
 
-- **Stage codes and agents**: `${CLAUDE_SKILL_DIR}/../shared/stage-codes.md`
-- **State ledger**: `${CLAUDE_SKILL_DIR}/../shared/state-ledger.md`
-- **Per-stage I/O contracts**: `${CLAUDE_SKILL_DIR}/../shared/stage-contracts.md` — each stage's Inputs → Outputs → Validation table.
+- **Stage codes and agents**: `${CLAUDE_SKILL_DIR}/../worktask/references/stage-codes.md`
+- **State ledger**: `${CLAUDE_SKILL_DIR}/../worktask/references/state-ledger.md`
+- **Per-stage I/O contracts**: `${CLAUDE_SKILL_DIR}/../worktask/references/stage-contracts.md` — stage I/O and validation.
 - `references/hook-monitoring.md` — wiring or debugging hooks: event catalog, matchers, conditional `if`, PreToolUse/PostToolUse decisions, gate-feedback contract, OTEL, agent teams vs subagents.
 - `references/headless-dispatch.md` — dispatching from CI/cron/a shell: `task.metadata` → `claude agents` flag bridge, live-session discovery, permission-mode pinning.
 - `references/audit-actions.md` — writing or reading an `audit.jsonl` row: every registered `action`, grouped by writer.
@@ -26,7 +26,7 @@ Coordinating agents across worktask stages: handoffs, errors, the audit trail, d
 
 1. Agent completes work matching the stage-contracts Required Outputs.
 2. Updates the ledger: `state-patch.sh --task-status <ID> completed`.
-3. Creates the stage artifact — `planning-0.md` for the first PL run, `planning-1.md` for the next (`skills/worktask/references/pl0-procedure.md § Plan File & Run Index Naming`) — with its required sections.
+3. Creates the stage artifact — `planning-0.md` for the first PL run, `planning-1.md` for the next (`skills/worktask/references/planning-sizing.md § Plan File & Run Index Naming`) — with its required sections.
 4. Writes a compressed handoff (50–100 tokens, § Handoff Message Format), open questions included.
 5. Orchestrator validates against stage-contracts before transition.
 6. Next agent starts: `state-patch.sh --task-status <ID> in_progress`.
@@ -74,17 +74,23 @@ Every stage reads `exploration.md`; source-file access differs.
 | `exhausted` | `retry_count == 3` | No | previous stage per chain |
 | `permission_denied` | auto-mode classifier denies a tool call | No | — (same agent) |
 
+#### Confirmed environment restrictions
+
+Confirmed permission or service restrictions record the operation, evidence reference, and required recovery in the existing blocked_on detail.
+Do not repeat the operation until that condition changes; route native checks to their trusted host without weakening the sandbox.
+Keep unperformed acceptance checks pending or blocked. Transient failures, provider limits, and implementation errors retain their separate recovery paths.
+
 Metadata: `retry_count++` on each retry; on escalation set `error_escalated_to` to the target and reset **`retry_count` alone** at handoff.
 
 #### Retry / Escalate Matrix — one ceiling, reachable from every retrying class
 
-Every retrying class shares the ceiling of 3, so `exhausted` is reachable from each; the non-retrying classes escalate on their first failure, or — `permission_denied` — park for the user. `skills/worktask/SKILL.md § Retry Logic` and its `retry_count == 3` trigger restate the ceiling; keep them equal to the table.
+Every retrying class shares the ceiling of 3, so `exhausted` is reachable from each; the non-retrying classes escalate on their first failure, or — `permission_denied` — park for the user. `skills/worktask/references/workspace-scheduling.md § Retry Logic` and its `retry_count == 3` trigger restate the ceiling; keep them equal to the table.
 
 #### Retry / Escalate Matrix — the per-edge escalation cap
 
 `metadata.escalation_counts` on the escalating task counts escalations per target, keyed by the target's full task id (`{"AR0": 2}`) so a split stage's writers do not share a counter. Increment it on each escalation handoff. Unlike `retry_count` it is not reset by that handoff: it is the only bound on a DV→AR→DV→AR ping-pong.
 
-At cap 2 on an edge the escalating task is written `status: "failed"` with `last_error.class: "exhausted"` instead of escalating again; `failed` is settled, so the completion loop terminates. Schema: `skills/shared/state-ledger.md § Schema — error & retry properties`.
+At cap 2 on an edge the escalating task is written `status: "failed"` with `last_error.class: "exhausted"` instead of escalating again; `failed` is settled, so the completion loop terminates. Schema: `skills/worktask/references/contracts/metadata-schema.md § Schema — error & retry properties`.
 
 #### Retry / Escalate Matrix — environmental contention
 
@@ -94,7 +100,7 @@ Trigger, all three: failures confined to wall-clock/async-timing suites; failing
 
 #### Retry / Escalate Matrix — permission denials
 
-`permission_denied` never retries and never escalates. The task parks `blocked` with `metadata.blocked_on` until the user answers, then the same stage agent resumes only the denied step — hence `— (same agent)` and no `ESCALATE_TO` entry. Parking touches none of `retry_count`, `escalation_counts` or `last_error`, so a denial never walks a stage toward `exhausted`. Mechanism: `skills/worktask/SKILL.md § Step 6.5a4`.
+`permission_denied` never retries and never escalates. The task parks `blocked` with `metadata.blocked_on` until the user answers, then the same stage agent resumes only the denied step — hence `— (same agent)` and no `ESCALATE_TO` entry. Parking touches none of `retry_count`, `escalation_counts` or `last_error`, so a denial never walks a stage toward `exhausted`. Mechanism: `skills/worktask/references/completion-merge.md § Step 6.5a4`.
 
 ### Escalation Chains
 
@@ -179,7 +185,7 @@ The full command, `classifier_reason` and `allow_rule` stay out of the audit log
 |-------|-----------------|
 | Orchestrator (`blocked-on-dispatch.sh route\|resume`, worktask Steps 6.5a3 and 7a) | `blocked_on`: one row per leg of a non-permission arm. `subject` and `task_id` are the task id; `result: "blocked"` on a leg that leaves the task parked, `"ok"` on the closing leg. `metadata.{kind, arm, leg}`, plus `fallback_from` and `owner_issue` on a fallback, `command_head` and `truncated` on a need with a command, and `decision_ref` on the closing leg |
 
-The permission arm writes no `blocked_on` row: its `denied` leg is the `permission_denied` row, its `granted` and `resumed` legs the `permission_resumed` row. A closing row's `decision_ref` is `blocked_on:<task_id>:<kind>:<n>` (`skills/worktask/references/handoff-protocol.md § Schema — blocked_on, decision_ref on the other arms`).
+The permission arm writes no `blocked_on` row: its `denied` leg is the `permission_denied` row, its `granted` and `resumed` legs the `permission_resumed` row. A closing row's `decision_ref` is `blocked_on:<task_id>:<kind>:<n>` (`skills/worktask/references/contracts/blocked-artifacts.md § Schema — blocked_on, decision_ref on the other arms`).
 
 #### Writers — blocked_on rows, the peer_session legs
 
@@ -331,7 +337,7 @@ Whether a stage splits depends on *who* initiates the split and *what* the depen
 | Stage failed and the retry needs narrower scope | **DV-initiated (sequential)** | DV1 is the focused retry; `retry_count` resets | DV0 full feature → DV1 auth only |
 | Single cohesive scope, <3 files | **No split** | DV0 handles it | `fix null check in login validator` |
 
-Full code patterns: `skills/worktask/references/initialization-patterns.md § Stage Sub-Task Splitting`.
+Full code patterns: `skills/worktask/references/initialization-tasks.md § Stage Sub-Task Splitting`.
 
 ### TL-Initiated DV Splitting
 
@@ -360,7 +366,7 @@ For a bug with multiple candidate causes: generate N hypotheses spanning differe
 | Technical decision | technical-lead |
 | Test design | qa-engineer |
 
-Model sizing: a worktask stage dispatch takes model and effort from `skills/shared/stage-codes.md`; other delegations use `skills/shared/model-selection.md § Selection Criteria`. Platform roster: `skills/shared/routing-matrix.md § Functional-role aliases`.
+Model sizing: a worktask stage dispatch takes model and effort from `skills/worktask/references/stage-codes.md`; other delegations use `skills/shared/model-selection.md § Selection Criteria`. Platform roster: `skills/shared/routing-matrix.md § Functional-role aliases`.
 
 #### Cross-plugin AR collaboration
 
@@ -408,11 +414,11 @@ Unlike a refused tool (`PermissionDenied`), nothing in the plugin hook vocabular
 
 `subject`, `reason`, `attempted_depth` and `cap` are required for both reasons, the last two as `null` under `chosen` so readers see stable keys: together they tell an operator whose judgment is missing from the output, which is the only question the row answers.
 
-Pairs with the orchestrator's forward-looking `dispatch_depth_projected` (`skills/worktask/SKILL.md § Validation check 11`): the projection warns before the stage runs; this row records what the projection missed.
+Pairs with the orchestrator's forward-looking `dispatch_depth_projected` (`skills/worktask/references/stage-validation.md § Validation check 11`): the projection warns before the stage runs; this row records what the projection missed.
 
 #### Background-by-default dispatch
 
-Subagents run in the background by default: the dispatching agent keeps its turn and receives the child's result as a completion notification. So (1) an `Agent()` launch acknowledgement is not stage completion — advance a stage (Step 6.5, the `completed` patch) only on the completion notification or the `subagent_stopped` audit row (`skills/worktask/SKILL.md § Orchestrator Execution Loop`); (2) unblocked sibling stages (parallel DVN tracks, DC+QA) overlap with no extra orchestration.
+Subagents run in the background by default: the dispatching agent keeps its turn and receives the child's result as a completion notification. So (1) an `Agent()` launch acknowledgement is not stage completion — advance a stage (Step 6.5, the `completed` patch) only on the completion notification or the `subagent_stopped` audit row (`skills/worktask/references/dispatch-readiness.md § Orchestrator Execution Loop`); (2) unblocked sibling stages (parallel DVN tracks, DC+QA) overlap with no extra orchestration.
 
 ##### Depth accounting & background permission prompts
 
@@ -461,7 +467,7 @@ Pass no `effort` to a haiku target, or when the brief has no `effort:` line.
 
 #### Model aliases, allowlists & @-mentions
 
-Agent-team teammates use the lead session's model unless overridden. Aliases (`fable`/`opus`/`sonnet`/`haiku`) work across all providers. A managed `availableModels` list also constrains subagent overrides, and `enforceAvailableModels` the Default model, so a valid alias may resolve to a different model (`skills/worktask/SKILL.md § Pre-Stage Validation` step 6). `@` mentions named subagents and other Claude sessions; `SendMessage` delivers to a bare name matching exactly one live session.
+Agent-team teammates use the lead session's model unless overridden. Aliases (`fable`/`opus`/`sonnet`/`haiku`) work across all providers. A managed `availableModels` list also constrains subagent overrides, and `enforceAvailableModels` the Default model, so a valid alias may resolve to a different model (`skills/worktask/references/stage-validation.md § Pre-Stage Validation` step 6). `@` mentions named subagents and other Claude sessions; `SendMessage` delivers to a bare name matching exactly one live session.
 
 #### Cross-session messaging
 
@@ -471,7 +477,7 @@ When a stage messages a peer session, read `skills/agent-coordination/references
 
 A `SendMessage` from a subagent to another session delivers the reply into the parent session's conversation, never back to the sending subagent. Only a sibling-or-parent subagent target in the same session round-trips — including resume: a subagent that resumes another agent via `SendMessage` is woken by that agent's completion.
 
-So a stage agent never messages another session and waits inline for the answer; it will not arrive. Return `verdict: "blocked"` with `handoff.blocked_on` of kind `peer_session` naming who to ask and what (`skills/worktask/references/handoff-protocol.md § Schema — blocked_on, the peer_session arm`). The orchestrator routes it (`skills/worktask/SKILL.md § Step 6.5a3`, `skills/worktask/references/resume.md § Reply routing`), and the durable mailbox (`skills/worktask/scripts/mailbox.sh`) carries the ask and relays the verified reply.
+So a stage agent never messages another session and waits inline for the answer; it will not arrive. Return `verdict: "blocked"` with `handoff.blocked_on` of kind `peer_session` naming who to ask and what (`skills/worktask/references/contracts/blocked-needs.md § Schema — blocked_on, the peer_session arm`). The orchestrator routes it (`skills/worktask/references/completion-merge.md § Step 6.5a3`, `skills/worktask/references/recovery-gates.md § Reply routing`), and the durable mailbox (`skills/worktask/scripts/mailbox.sh`) carries the ask and relays the verified reply.
 
 #### Skill discovery & subagent_type resolution
 
@@ -479,7 +485,7 @@ Subagents resolve project, user and plugin skills natively at every depth, so ne
 
 #### Dispatch flags
 
-`claude agents` dispatch flags map to `task.metadata` per `references/headless-dispatch.md § Translation Table`. PL0 populates the optional fields (`skills/worktask/references/pl0-procedure.md § Optional dispatch metadata`); external runners consume them per `commands/worktask.md § Headless Dispatch`.
+`claude agents` dispatch flags map to `task.metadata` per `references/headless-dispatch.md § Translation Table`. PL0 populates the optional fields (`skills/worktask/references/planning-sizing.md § Optional dispatch metadata`); external runners consume them per `skills/worktask/references/workflow.md § Headless Dispatch`.
 
 ### Monitor Tool for Background Events
 
@@ -498,7 +504,7 @@ Subagents resolve project, user and plugin skills natively at every depth, so ne
 | IR | `ssh prod tail -f /var/log/app.log` → recurring error pattern |
 | DR/SR | `swiftlint --reporter json` → warnings streamed for severity triage |
 | RE | `xcodebuild archive …` → signing / archive steps; abort on signing failure |
-| FN | `gh run watch <run-id>` → PR check progress; skipped when `metadata.ci` is `"disabled"` (`state-ledger.md § CI field`) |
+| FN | `gh run watch <run-id>` → PR check progress; skipped when `metadata.ci` is `"disabled"` (`skills/worktask/references/contracts/ledger-status.md § CI field`) |
 
 #### Stall Timeout
 
@@ -519,7 +525,7 @@ An MCP tool call past the auto-background threshold (default 2 minutes, `CLAUDE_
 
 ### MCP Tool Inheritance
 
-Subagents inherit MCP tools from servers already running in the parent at delegation time, so cross-plugin tools (XcodeBuildMCP, Pencil, …) need no per-tool `tools:` entries. A lazy-spawned server (`npx -y …` over stdio) starts only on its first tool call in a session, and inheriting the server reference does not spawn it, so a child can fail its first `mcp__<server>__*` call with "tool not available". The orchestrator does no warm-up: the platform plugin owns cold start and its CLI fallback (`skills/worktask/SKILL.md § Platform tooling ownership`).
+Subagents inherit MCP tools from servers already running in the parent at delegation time, so cross-plugin tools (XcodeBuildMCP, Pencil, …) need no per-tool `tools:` entries. A lazy-spawned server (`npx -y …` over stdio) starts only on its first tool call in a session, and inheriting the server reference does not spawn it, so a child can fail its first `mcp__<server>__*` call with "tool not available". The orchestrator does no warm-up: the platform plugin owns cold start and its CLI fallback (`skills/worktask/references/completion-handoff.md § Platform tooling ownership`).
 
 ### Subagent Worktree Access
 
@@ -527,7 +533,7 @@ Worktree-isolated subagents get Read/Edit access to their own worktree with no e
 
 ### Subagent runtime guarantees
 
-- **Partial progress is trustworthy**: a background subagent cut off by a rate limit or server error returns its partial work; an API error (usage limit) reaches the parent as an error, not a successful-looking result; a cutoff before any text fails cleanly; a teammate dying on an API error reports `failed` to the lead. Classify as `transient` (§ Retry / Escalate Matrix) — an errored return is never stage completion (`skills/worktask/SKILL.md` Step 6.5).
+- **Partial progress is trustworthy**: a background subagent cut off by a rate limit or server error returns its partial work; an API error (usage limit) reaches the parent as an error, not a successful-looking result; a cutoff before any text fails cleanly; a teammate dying on an API error reports `failed` to the lead. Classify as `transient` (§ Retry / Escalate Matrix) — an errored return is never stage completion (`skills/worktask/references/orchestration.md` Step 6.5).
 - **Forking**: `subagent_type: "fork"` inherits the parent's conversation and prompt cache — the cheapest handoff, paying cache-read rates instead of a re-sent brief. Fork when a stage keeps asking for upstream detail; dispatch normally when a narrow context is the point (`skills/cost-optimization/`).
 
 #### Isolation, cwd & key order
@@ -652,7 +658,7 @@ The `/config` "Dynamic workflow size" setting (`workflowSizeGuideline`; default 
 
 ### Gate prompts (AskUserQuestion)
 
-`AskUserQuestion` prompts are reserved for genuine decisions needing user input. Two gates exist and only two — the PL plan-approval gate and the FN finalization gate — and the FN gate also renders the batched closing elicitation sweep (`skills/shared/stage-contracts.md § Closing Elicitation Sweep`) immediately before its approve/reject call. Intra-loop stage transitions proceed without confirmation, with two bounded exceptions: a sweep item marked `blocks_next_stage` is rendered at its own stage boundary, because the next stage would otherwise build on a guess; and every permission-parked task is batched into one boundary prompt (`skills/worktask/SKILL.md § Step 7a`), because only the user can grant. Each is a render, not a gate — it creates no approval carrier and changes no gate's firing condition — and the first is opt-in per item.
+`AskUserQuestion` prompts are reserved for genuine decisions needing user input. Two gates exist and only two — the PL plan-approval gate and the FN finalization gate — and the FN gate also renders the batched closing elicitation sweep (`skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`) immediately before its approve/reject call. Intra-loop stage transitions proceed without confirmation, with two bounded exceptions: a sweep item marked `blocks_next_stage` is rendered at its own stage boundary, because the next stage would otherwise build on a guess; and every permission-parked task is batched into one boundary prompt (`skills/worktask/references/retry-routing.md § Step 7a`), because only the user can grant. Each is a render, not a gate — it creates no approval carrier and changes no gate's firing condition — and the first is opt-in per item.
 
 #### Gate prompts — idle behaviour
 

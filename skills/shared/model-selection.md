@@ -5,7 +5,7 @@ name: model-selection
 # Model Selection Guidelines
 
 Canonical for tiers, selection criteria, and alias/model behaviour. The stage→model assignment
-lives in `skills/shared/stage-codes.md`; how to write a prompt for the chosen model lives in
+lives in `skills/worktask/references/stage-codes.md`; how to write a prompt for the chosen model lives in
 `skills/shared/model-prompting.md`.
 
 ## Cost Tiers
@@ -13,7 +13,7 @@ lives in `skills/shared/stage-codes.md`; how to write a prompt for the chosen mo
 Standard API rates, USD per million tokens, for the model each alias resolves to (§ Aliases).
 
 | Alias | Model | Input $/Mtok | Output $/Mtok | Cache read $/Mtok | Relative cost | Use For |
-|-------|-------|--------------|---------------|-------------------|---------------|---------|
+| --- | --- | --- | --- | --- | --- | --- |
 | **haiku** | Haiku 5.5 | 0.10 | 0.50 | 0.01 | 1x (baseline) | Formatting, routing, checklists, status checks |
 | **sonnet** | Sonnet 5.5 | 2.00 | 10.00 | 0.10 | 20x haiku | Implementation, analysis, test design, coordination |
 | **opus** | Opus 5.5 | 4.00 | 20.00 | 0.20 | 40x haiku | Architecture decisions, review gates, complex reasoning, meta-optimization |
@@ -39,7 +39,7 @@ Re-check the rates against the `claude-api` skill whenever an alias moves to a n
 ## Aliases
 
 | Alias | Resolves to | Context | Pricing |
-|-------|-------------|---------|---------|
+| --- | --- | --- | --- |
 | `opus` | Opus 5.5 (`claude-opus-5-5`), the default Opus and Claude Code's default model outside Foundry | 1M by default, no usage-credit gate | § Cost Tiers; fast mode multiplier on top |
 | `sonnet` | Sonnet 5.5 (`claude-sonnet-5-5`), the default Sonnet on the Anthropic API | native 1M | § Cost Tiers |
 | `fable` | Fable 5.1 (`claude-fable-5-1`), Mythos-class top reasoning. Claude apps gateway sessions still resolve `fable` and `best` to Fable 5 | 1M by default (`[1m]` names normalize to the base id) | § Cost Tiers |
@@ -121,7 +121,7 @@ effort level instead of taking the new model's default or saved level.
 ### Effort frontmatter and caps
 
 Every corpflow agent file carries an `effort:` key next to `maxTurns:`, equal to that agent's
-Effort cell in `skills/shared/stage-codes.md § Agent Model Matrix` — the matrix stays the sole
+Effort cell in `skills/worktask/references/stage-codes.md § Agent Model Matrix` — the matrix stays the sole
 place a tier is decided, and `tests/shell/worktask/agent-effort-frontmatter.bats` holds the two
 in parity. No `model:` key exists on any agent file (sw-PL1-1); model selection stays a
 per-dispatch `Agent()` argument.
@@ -148,13 +148,13 @@ tier it actually ran at.
 ## Managed Allowlists and Org Restrictions
 
 Under management a valid alias may silently resolve to a different model, which is why Pre-Stage
-Validation step 6 (`skills/worktask/SKILL.md`) emits an audit row rather than blocking the
+Validation step 6 (`skills/worktask/references/orchestration.md`) emits an audit row rather than blocking the
 dispatch.
 
 ### Allowlist mechanics
 
 | Control | Behaviour |
-|---------|-----------|
+| --- | --- |
 | `availableModels` | Constrains subagent model overrides and the dispatch model picker; `enforceAvailableModels` extends it to the Default model. User/project settings cannot widen a managed list. |
 | Alias outside the list | Redirects deterministically to an allowed model rather than leaking the disallowed id. |
 | `/fast` | Refused when fast mode resolves to a non-allowlisted model, never a silent switch. |
@@ -164,7 +164,7 @@ dispatch.
 ### Restriction signals and fallbacks
 
 | Control | Behaviour |
-|---------|-----------|
+| --- | --- |
 | Family step-down | A restricted `model: opus` steps down to the newest org-allowed model in that family, not to the parent's model. |
 | Restriction warning | Workflow agents, forked skills, slash commands and resumed background agents warn when the parent runs instead of the requested restricted subagent model; check the step-6 audit row rather than assuming the alias resolved. |
 | Org default / restrictions | "Org default"/"Role default" shows in `/model`; restrictions cover the picker, `--model`, `/model` and `ANTHROPIC_MODEL` ("restricted by your organization's settings"). |
@@ -173,7 +173,7 @@ dispatch.
 #### Restriction signals — model resolution
 
 | Control | Behaviour |
-|---------|-----------|
+| --- | --- |
 | First-call 404 fallback | A subagent whose model 404s on its first call falls through the session's fallback-model chain; the parent's error names type, HTTP status, request id and model. The stage ran on a model `metadata.model` never asked for, so trust `dispatched_agents[].model_resolved`, not `model_requested`, when attributing cost. |
 | Refused alias target | An API refusal of the model an alias resolves to retries once on the previous same-tier model; a fallback retry that cannot run fast runs at standard speed. Attribute cost from `model_resolved`. |
 | `modelPicker` / `modelPricing` | Managed settings: `modelPicker` curates the `/model` list; `modelPricing` applies an org's contracted rates to `/cost`, the status line and telemetry, so a cost figure read under it is org-rated, not list-rated. |
@@ -204,11 +204,11 @@ without-credits caveat: `skills/context-compression/SKILL.md`.
 ## Selection Criteria
 
 A worktask stage never reads this table: its model and effort are its row in
-`skills/shared/stage-codes.md`. The table sizes everything else — ad-hoc delegations, support
+`skills/worktask/references/stage-codes.md`. The table sizes everything else — ad-hoc delegations, support
 work, a new agent's default.
 
 | Complexity | Model | Signals |
-|------------|-------|---------|
+| --- | --- | --- |
 | Simple | haiku | Procedural steps, well-defined output format, little reasoning, high volume / low latency, cost-first: status checks, formatting, platform routing |
 | Moderate | sonnet | Moderate reasoning, several considerations to balance, bounded creative output: test design, team coordination |
 | Complex | opus | Multi-step or novel reasoning, tradeoff-heavy decisions, high-stakes gates such as code review, meta-level work (agents about agents, prompt optimization), architecture and system analysis |
@@ -242,18 +242,6 @@ Agent({ subagent_type: "corpflow:qa-engineer", model: "sonnet", prompt: "..." })
   or skill sets one). In auto mode, a command or skill naming a model auto mode does not support
   keeps the session model for that turn.
 
-### Worktask stages: explicit, never inherited
-
-A worktask stage is always dispatched with an explicit `model`: the orchestrator reads
-`task.metadata.model` from the ledger, resolved from `skills/shared/stage-codes.md § Agent Model
-Matrix`, and passes it as a short alias — `Agent({ model: "opus" })`. No corpflow agent carries a
-`model:` key, so there is no frontmatter to fall back to.
-
-A dispatch that skips this fails silently: the stage runs on the parent session's model,
-`model_requested` and `model_resolved` disagree in `dispatched_agents[]`, and the sized effort
-tier is lost (an inherited Haiku, or any pinned id outside the `xhigh` targets, may run `xhigh`
-below the tier asked for, § xhigh routing).
-
 ## Default Subagent Model (`CLAUDE_CODE_SUBAGENT_MODEL`)
 
 `CLAUDE_CODE_SUBAGENT_MODEL` sets the default subagent model, not an override: an agent's
@@ -275,15 +263,15 @@ per-spawn `model` and the agent's `model:`. Ledger-dispatched stages lose their 
 `Agent({ model: "opus" })` still passes step 6, then runs on the forced model with no error.
 
 Two controls cover it. PL0 reads the variable before any spend and raises a plan-gate sweep item
-(`skills/worktask/references/pl0-procedure.md § Subagent model-force preflight — detection`), and
+(`skills/worktask/references/planning-tasks.md § Subagent model-force preflight — detection`), and
 Step 6.5b backfills `dispatched_agents[].model_resolved` when the runtime surfaces the model that
 ran, so cost follows the forced tier rather than the pin. The force applies at spawn, so there is
 no mid-stage switch for `hooks/model-switch-gate.sh` to refuse.
 
 ## Claude Code 2.1.304–2.1.316 model and effort
 
-`CLAUDE_CODE_SUBAGENT_EFFORT` (2.1.316) sets the effort of a subagent that no call, frontmatter or session names one for.
-Every ledger dispatch passes `effort`, so the variable reaches only an ad-hoc nested spawn that leaves it out.
+`CLAUDE_CODE_SUBAGENT_EFFORT` (2.1.316) sets a subagent’s default effort when the call, frontmatter, and session name none.
+Ledger dispatches pass `effort`; the variable reaches only nested spawns that omit it.
 This is the same exposure as `CLAUDE_CODE_SUBAGENT_MODEL`. Read the hook-reported `effort.level`, not the request.
 An admin effort cap makes Claude Code lower the tier and retry (2.1.314). Step 6.5b-cap caches the lower tier in
 `facts.capabilities.effort_cap`, and later routes pass it as `effort-route.sh --cap`.

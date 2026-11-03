@@ -16,7 +16,7 @@
 #   blocked-on-dispatch.sh --self-test
 #
 # @arg route   Validates the need against its arm. permission: writes nothing. host_environment:
-#              parks, re-probes the check with autonomy-preflight.sh in check mode and writes `probed`;
+#              parks and probes a new need once; repeats stay parked until explicit resume;
 #              a pass clears it and prints resume_block, anything else parks it as a user_action.
 #              user_decision: parks natively and writes `asked` (no fallback_from/owner_issue —
 #              the arm is landed). artifact: parks; a path the landing ladder admits that is
@@ -366,23 +366,33 @@ artifact_path_check() {
   esac
 }
 
-route_host_environment() {
-  local check platforms out result_json dr rb written=true
+host_environment_passes() {
+  local check platforms out result_json
   local args=(--auto plan)
   check=$(printf '%s' "$BO" | jq -r '.detail.check | tostring')
-  bo_park "$BO"
   platforms=$(jq -r '(.metadata.preflight.platforms? // [])
     | if type == "array" then map(tostring) | join(",") else "" end' "$STATE_PATH" 2> /dev/null) || platforms=""
-  # Ledger text becomes an argv element only in the shape a platform list has.
   if [[ "$platforms" =~ ^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$ ]]; then args+=(--platform "$platforms"); fi
   if [ "$check" = "git-reset-hard" ]; then args+=(--harness); fi
   out=$(bash "$PREFLIGHT" "${args[@]}" < /dev/null 2> /dev/null) || true
   result_json=$(printf '%s\n' "$out" | sed -n 's/^result_json=//p' | tail -n 1)
+  [ -n "$result_json" ] && printf '%s' "$result_json" \
+    | jq -e --arg c "$check" 'any(.checks[]?; .id == $c and .status == "pass")' > /dev/null 2>&1
+}
 
-  # Only an entry with this id reading pass clears the need: a skipped run (a megatask per-issue
-  # run skips the preflight) or a run that never probed this id proves nothing about it.
-  if [ -n "$result_json" ] && printf '%s' "$result_json" \
-    | jq -e --arg c "$check" 'any(.checks[]?; .id == $c and .status == "pass")' > /dev/null 2>&1; then
+route_host_environment() {
+  local dr rb written=true existing
+  existing=$(jq -c --arg id "$TASK_ARG" '.tasks[$id].metadata.blocked_on // null' "$STATE_PATH")
+  # The ledger survives an audit-write failure, so either record suppresses a repeated probe.
+  if printf '%s' "$existing" | jq -e --argjson b "$BO" \
+    '.kind == "host_environment" and .detail.check == $b.detail.check' > /dev/null 2>&1 \
+    || bo_leg_recorded host_environment probed; then
+    bo_park "$BO"
+    route_user_action host_environment true false
+    return 0
+  fi
+  bo_park "$BO"
+  if host_environment_passes; then
     ledger --claim "$TASK_ARG" || die 2 "state-patch refused --claim $TASK_ARG"
     ledger --task-meta "$TASK_ARG" --set '{"blocked_on":null}' \
       || die 2 "state-patch refused clearing blocked_on on $TASK_ARG"
@@ -392,13 +402,8 @@ route_host_environment() {
     bo_route_out host_environment probed false "$BO_ROW_WRITTEN" "" "" "$dr" "$rb"
     return 0
   fi
-
-  if bo_leg_recorded host_environment probed; then
-    written=false
-  else
-    bo_row blocked "$(bo_meta host_environment host_environment probed "" "" '{}' "")"
-    written="$BO_ROW_WRITTEN"
-  fi
+  bo_row blocked "$(bo_meta host_environment host_environment probed "" "" '{}' "")"
+  written="$BO_ROW_WRITTEN"
   route_user_action host_environment true "$written"
 }
 
@@ -949,6 +954,10 @@ cmd_resume() {
   # fallback), so that arm's closing leg is the one resume accepts.
   closing=$(bo_field "$(blocked_on_arm user_action)" 5)
   [ "$LEG_ARG" = "$closing" ] || die 1 "--leg $LEG_ARG is not the closing leg ($closing) of tasks.$TASK_ARG"
+
+  if [ "$BO_KIND" = "host_environment" ]; then
+    host_environment_passes || die 1 "tasks.$TASK_ARG: host recovery check still fails; keep acceptance blocked"
+  fi
 
   if [ "$BO_KIND" = "user_action" ]; then
     head=$(bo_command_head "$(printf '%s' "$BO" | jq -r '.detail.command // "" | tostring')")

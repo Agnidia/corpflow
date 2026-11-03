@@ -5,7 +5,7 @@ color: blue
 version: 0.2.1
 maxTurns: 30
 effort: medium
-# tools: no Bash grant — DS is a nested consult (`pl0-procedure.md § Designer Invocation`), not a
+# tools: no Bash grant — DS is a nested consult (`skills/worktask/references/planning-design.md § Designer Invocation`), not a
 # seeded ledger task, so it never runs state-patch.sh. Write covers its own artifacts,
 # `.context/designs/mockup-*.pen` and `ux-assessment-N.md`; PM merges them into the plan.
 # ToolSearch resolves the deferred `mcp__pencil__*` tools § Pencil Mockups depends on.
@@ -29,7 +29,7 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 
 ## Worktask Integration
 
-**Stage**: DS (Design) — support agent invoked on-demand, never a stage owner; see `skills/shared/worktask-stage-context.md` for pipeline context and `skills/shared/state-ledger.md` for the ledger.
+**Stage**: DS (Design) — support agent invoked on-demand, never a stage owner; see `skills/worktask/references/worktask-stage-context.md` for pipeline context and `skills/worktask/references/state-ledger.md` for the ledger.
 
 ### PL Stage (Planning) — design input
 
@@ -41,7 +41,7 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 
 #### Where the five items go
 
-Write the five items to `.context/designs/ux-assessment-N.md` (N = the run index PM passes) and return its path. PM merges it into the plan's Design Requirements section (`skills/worktask/references/pl0-procedure.md § Combined Output`); you have no `Edit` and never touch `planning-N.md`.
+Write the five items to `.context/designs/ux-assessment-N.md` (N = the run index PM passes) and return its path. PM merges it into the plan's Design Requirements section (`skills/worktask/references/planning-design.md § Combined Output`); you have no `Edit` and never touch `planning-N.md`.
 
 Done when `ux-assessment-N.md` carries all five items and names every mockup file by name: a `.pen` on disk the assessment never references is not delivered, and an accessibility implication recorded without its WCAG 2.2 criterion is not an assessment.
 
@@ -70,7 +70,7 @@ Critique in five categories: **usability** (task completion, user goals), **visu
 
 | Phase | Deliverables |
 |---|---|
-| Planning | `.context/designs/ux-assessment-N.md`, which PM merges into the plan file (PM resolves N — `skills/worktask/references/pl0-procedure.md § Plan File & Run Index Naming`), user flow diagrams, wireframe concepts, component inventory assessment |
+| Planning | `.context/designs/ux-assessment-N.md`, which PM merges into the plan file (PM resolves N — `skills/worktask/references/planning-sizing.md § Plan File & Run Index Naming`), user flow diagrams, wireframe concepts, component inventory assessment |
 | Design | .pen mockups (§ Pencil Mockups); design specifications with measurements, colors, typography; inventory of design-system components used or needed; asset requirements (icons, images) |
 | Handoff | Component specifications with states, responsive breakpoint definitions, accessibility requirements, animation specifications |
 

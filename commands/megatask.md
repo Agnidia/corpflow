@@ -10,7 +10,7 @@ related:
   - skills/megatask/references/schemas.md
   - skills/megatask/references/git-integration.md
   - skills/shared/milestone-helpers/SKILL.md
-  - commands/worktask.md
+  - skills/worktask/references/workflow.md
   - commands/milestone.md
   - agents/workflow-engineer.md
 ---
@@ -207,7 +207,7 @@ Execution loop, driven cooperatively with `hooks/megatask-monitor.sh`:
 The per-issue ledger does not exist until `/worktask` Step 3a seeds it, so megatask never writes
 that PL0 itself. Order: Step 3a seeds `tasks.PL0`; Step 4 stamps the gates from the `--auto`
 values (`bypass`/`auto`/`bypass`, the stamp's own values) and overlays this stamp in the same
-`--task-meta PL0` call, stamp keys winning (`commands/worktask.md § Step 4 — the /megatask
+`--task-meta PL0` call, stamp keys winning (`skills/worktask/references/workflow.md § Step 4 — the /megatask
 stamp`). No `checkpoint`/`user` default lands on a per-issue PL0. The run is unattended and
 milestone-agnostic; the batch markers below make it skip its own GitHub-issue publish, since the
 parent milestone/issue is the canonical record.
@@ -237,13 +237,13 @@ binds each hook process to `<wt>` from its payload; the first valid candidate wi
 command (read as text, never expanded), the payload's `cwd`, the hook's own cwd. Only a stamped
 `.worktrees/<group>/<issue#>` under megatask's root with its own ledger binds. The cwd ranks last,
 so a session inside one issue's worktree cannot pull other issues onto its ledger. Stage briefs
-carry the banner (`commands/worktask.md § Banner injection`). The audit, merge, DV-gate and
+carry the banner (`skills/worktask/references/stage-entry.md § Banner injection`). The audit, merge, DV-gate and
 `test-execution-gate` hooks then use `<wt>/.context/`, never the batch's. Each binding lives in one
 hook process, so concurrent issues cannot cross.
 
 #### Step 3 — PL0's model and effort
 
-Resolve the pair once per batch, the way `/worktask` does (`commands/worktask.md § Step 4 — PL0's
+Resolve the pair once per batch, the way `/worktask` does (`skills/worktask/references/workflow.md § Step 4 — PL0's
 model and effort`), never type it: `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/model-matrix.sh --resolve product-manager`
 prints `<model>`, `<effort>` and the source, tab-separated; paste the first two into every
 issue's stamp.
@@ -271,7 +271,7 @@ reference file is not.
 #### Step 3 — decision_gate and issue parking
 
 `decision_gate:"auto"` is stamped because a batch is unattended: PL0 open questions route through
-the Fable decision pass (`commands/worktask.md § Step A.4`) instead of parking on a human.
+the Fable decision pass (`skills/worktask/references/workflow.md § Step A.4`) instead of parking on a human.
 Escalate-class questions are never auto-decided — they park that one issue while the batch proceeds
 with the other unblocked issues.
 
@@ -279,7 +279,7 @@ with the other unblocked issues.
 
 Parking rides the monitor's existing failure path, so it needs no new state: the per-issue worktask
 writes `workspace.json.execution.status: "failed"` with `execution.reason: "parked_escalation"` and
-an `escalation_parked` audit row (`commands/worktask.md § Escalation guard — unattended /megatask per-issue runs (PARK)`);
+an `escalation_parked` audit row (`skills/worktask/references/workflow.md § Escalation guard — unattended /megatask per-issue runs (PARK)`);
 `hooks/megatask-monitor.sh` settles it like any failed issue — track freed, dependents stay
 `blocked`. Any other stop for the user settles the same way with `execution.reason:
 "escalated_to_user"` (`skills/worktask/scripts/megatask-settle.sh`). The batch summary lists each

@@ -10,7 +10,7 @@
 #   - planner prescriptions name git grep -P, never a bare \b anchor
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
-SKILL="skills/worktask/SKILL.md"
+SKILL="skills/worktask/references/orchestration.md"
 ARMS="skills/worktask/references/return-arms.md"
 QA_AGENT="agents/qa-engineer.md"
 
@@ -19,7 +19,7 @@ COUNT_JQ='[inputs|fromjson?|select(.action=="stage_returned_incomplete" and .met
 
 @test "step 4.7: the turn-budget banner calls turnBudget and audits turn_budget_injected" {
   run awk '/^##### Step 4.7 — turn-budget banner/ {on = 1; next} on && /^#/ {exit} on {print}' \
-    "$PLUGIN_ROOT/$SKILL"
+    "$(contract_source "$PLUGIN_ROOT/$SKILL")"
   assert_success
   [ -n "$output" ] || fail "no '##### Step 4.7 — turn-budget banner' section in $SKILL"
   assert_output --partial 'turnBudget(subagentType)'
@@ -30,7 +30,7 @@ COUNT_JQ='[inputs|fromjson?|select(.action=="stage_returned_incomplete" and .met
 }
 
 @test "turnBudget: the line is the REQ-2 text, the default is 50, the checkpoint is cap*4/5" {
-  run cat "$PLUGIN_ROOT/$ARMS"
+  run cat "$(contract_source "$PLUGIN_ROOT/$ARMS")"
   assert_output --partial 'const line = `TURN BUDGET: ${cap} turns. Checkpoint by turn ${checkpoint}: record progress, '
   assert_output --partial '`write the partial artifact without a handoff verdict, and return.`;'
   assert_output --partial 'const cap = read >= 1 ? read : 50;'
@@ -47,33 +47,33 @@ COUNT_JQ='[inputs|fromjson?|select(.action=="stage_returned_incomplete" and .met
     want="${pair#*:}"
     got=$((cap * 4 / 5))
     [ "$got" -eq "$want" ] || fail "cap $cap: expected checkpoint $want, got $got"
-    grep -qF "${cap}→${want}" "$PLUGIN_ROOT/$ARMS" || fail "worked row ${cap}→${want} missing from $ARMS"
+    grep -qF "${cap}→${want}" "$(contract_source "$PLUGIN_ROOT/$ARMS")" || fail "worked row ${cap}→${want} missing from $ARMS"
   done
 }
 
 @test "6.5a2: stage_returned_incomplete carries task_id and run_index" {
   run awk '/^## Step 6.5a2 — mark & audit/ {on = 1; next} on && /^## / {exit} on {print}' \
-    "$PLUGIN_ROOT/$ARMS"
+    "$(contract_source "$PLUGIN_ROOT/$ARMS")"
   assert_success
   assert_output --partial 'action: "stage_returned_incomplete"'
   assert_output --partial 'task_id: task.id, run_index: full.metadata.run_index ?? 0'
 }
 
 @test "6.5a2: at most 2 auto-resumes, each repeating the line; a 3rd blocks and audits stage_resume_exhausted" {
-  run cat "$PLUGIN_ROOT/$ARMS"
+  run cat "$(contract_source "$PLUGIN_ROOT/$ARMS")"
   assert_output --partial 'if (n <= 2) {'
   assert_output --partial '(auto-resume ${n} of 2)'
   assert_output --partial '${turnBudget(subagentType).line}'
   assert_output --partial '.metadata.task_id==$id and (.metadata.run_index//0)==$n)]|length'
   assert_output --partial 'state-patch.sh --task-status ${task.id} blocked'
   assert_output --partial 'action: "stage_resume_exhausted"'
-  grep -qF 'auto-resume ≤2 per row, then escalate' "$PLUGIN_ROOT/$SKILL" \
+  grep -qF 'auto-resume ≤2 per row, then escalate' "$(contract_source "$PLUGIN_ROOT/$SKILL")" \
     || fail "SKILL.md step 6.5a2 does not name the bound and the escalate path"
 }
 
 @test "6.5a2: the count reads the audit log by an inline path, never an unset \$LOG_DIR" {
   run awk '/^## Step 6.5a2 — resume, never re-delegate/ {on = 1; next} on && /^## / {exit} on {print}' \
-    "$PLUGIN_ROOT/$ARMS"
+    "$(contract_source "$PLUGIN_ROOT/$ARMS")"
   assert_success
   assert_output --partial '${WORKSPACE_ROOT:-\${CLAUDE_PROJECT_DIR:-.}}/.context/logs/audit.jsonl'
   refute_output --partial '$LOG_DIR'
@@ -112,16 +112,16 @@ COUNT_JQ='[inputs|fromjson?|select(.action=="stage_returned_incomplete" and .met
   run cat "$PLUGIN_ROOT/skills/worktask/references/dv-reference.md"
   assert_output --partial "**At the checkpoint turn** your brief's \`TURN BUDGET\` line names"
   assert_output --partial "The delegate's brief carries its own \`TURN BUDGET\` line"
-  run cat "$PLUGIN_ROOT/skills/worktask/references/resume.md"
+  run cat "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/resume.md")"
   assert_output --partial '`stage_resume_exhausted`'
 }
 
 @test "prescriptions: planners name git grep -P with a -w fallback, never a bare \\b anchor" {
   local f
   for f in agents/product-manager.md skills/worktask/references/pl0-procedure.md; do
-    grep -qF 'git grep -P' "$PLUGIN_ROOT/$f" || fail "$f does not prescribe git grep -P"
-    grep -qF 'git grep -w' "$PLUGIN_ROOT/$f" || fail "$f does not name the git grep -w fallback"
-    grep -F '[[:<:]]' "$PLUGIN_ROOT/$f" | grep -vqF 'BSD/macOS-only' \
+    grep -qF 'git grep -P' "$(contract_source "$PLUGIN_ROOT/$f")" || fail "$f does not prescribe git grep -P"
+    grep -qF 'git grep -w' "$(contract_source "$PLUGIN_ROOT/$f")" || fail "$f does not name the git grep -w fallback"
+    grep -F '[[:<:]]' "$(contract_source "$PLUGIN_ROOT/$f")" | grep -vqF 'BSD/macOS-only' \
       && fail "$f names [[:<:]] without marking it BSD/macOS-only"
   done
   run grep -rF -e '`\b`-anchored greps' -e 'word-boundary anchors (`\b`)' \

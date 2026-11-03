@@ -4,7 +4,7 @@ name: test-selection-syntax
 
 # Test Selection Syntax
 
-Inline source-level markers that DV parses to compute the `Selected Tests` list consumed by QA. Companion to `skills/shared/testing-strategy.md § Test Selection Gate`.
+Inline source-level markers that DV parses to compute the `Selected Tests` list consumed by QA. Companion to `skills/worktask/references/testing-strategy.md § Test Selection Gate`.
 
 ## Markers
 
@@ -134,7 +134,7 @@ Diff `src/components/LoginForm.tsx` + a design PNG under `test_mode: build-only`
 
 ### Migration: untagged repository
 
-Zero markers under `test_mode: build-only` yields an empty Selected Tests list (apart from `metadata.always_required_tests`), triggering the auto-promotion safety net (`testing-strategy.md § Auto-promotion safety nets`): QA promotes that run to `scoped` and records the promotion plus the remedy (add `@test-required` markers or `metadata.always_required_tests`) in `testing-N.md § Notes`.
+Zero markers under `test_mode: build-only` yields an empty Selected Tests list (apart from `metadata.always_required_tests`), triggering the auto-promotion safety net (`skills/worktask/references/testing-strategy.md § Auto-promotion safety nets`): QA promotes that run to `scoped` and records the promotion plus the remedy (add `@test-required` markers or `metadata.always_required_tests`) in `testing-N.md § Notes`.
 
 #### DV warning and DR surfacing
 
@@ -205,7 +205,7 @@ verdict. Selection is opt-in; its only permitted error is over-selection
 
 "Documented, not wired" means the syntax is correct and safe to write into a plan or report, but
 no corpflow parser emits it yet — those runs auto-promote to module-scope at DV (§ Auto-promotion
-when no handler; never `full` — `testing-strategy.md § Test-Execution Authority`).
+when no handler; never `full` — `skills/worktask/references/testing-strategy.md § Test-Execution Authority`).
 
 ### Apple identifier grammar — suite-terminal
 
@@ -240,7 +240,7 @@ corpflow stages.
 
 ### Auto-promotion when no handler
 
-An unwired platform (every row except Apple in § Identifier grammar by platform) with `test_mode ∈ {build-only, scoped}` triggers DV to auto-promote that run to module-scope (never `full` — DV holds no full-suite authority, `testing-strategy.md § Test-Execution Authority`) and log to `.context/logs/test-selection-warnings.md`:
+An unwired platform (every row except Apple in § Identifier grammar by platform) with `test_mode ∈ {build-only, scoped}` triggers DV to auto-promote that run to module-scope (never `full` — DV holds no full-suite authority, `skills/worktask/references/testing-strategy.md § Test-Execution Authority`) and log to `.context/logs/test-selection-warnings.md`:
 
 > No selective-test handler wired for platform `<platform>`. Auto-promoted to module-scope for this run (every test file in the touched module(s), via the platform's positional/filter syntax); selective execution will activate when a handler ships. Markers are still parsed and recorded for forward-compatibility.
 
@@ -254,8 +254,8 @@ The DV artifact's `§ Decisions` records `auto_promoted_mode: module-scope` so Q
 
 | Reader | What it does with markers/Selected Tests |
 |--------|------------------------------------------|
-| **DV** (`agents/developer.md` D2) | Parses markers; writes Selected Tests and warnings. Builds in every mode. Executes only `Executed Tests (DV)` = `Selected ∩ test files Added/Modified` (`git diff --diff-filter=AMR`) ∪ `metadata.always_required_tests`, under `scoped`/`full` only; empty set → smoke set with `auto_executed: smoke_set` (`testing-strategy.md § DV Executed vs Selected`). Under `build-only` it executes nothing apart from § Auto-promotion when no handler. |
-| **QA** (`agents/qa-engineer.md` Q1) | Reads `§ Selected Tests` from every DV artifact (`refs.dev[]`; `skills/worktask/references/handoff-protocol.md § Iterating the DV tasks`), the union of full lists, not DV's Executed subsets; runs it (build-only/scoped) or the full suite (full); copies WARN lines from the warning log into `testing-N.md § Notes`. |
+| **DV** (`agents/developer.md` D2) | Parses markers; writes Selected Tests and warnings. Builds in every mode. Executes only `Executed Tests (DV)` = `Selected ∩ test files Added/Modified` (`git diff --diff-filter=AMR`) ∪ `metadata.always_required_tests`, under `scoped`/`full` only; empty set → smoke set with `auto_executed: smoke_set` (`skills/worktask/references/testing-strategy.md § DV Executed vs Selected`). Under `build-only` it executes nothing apart from § Auto-promotion when no handler. |
+| **QA** (`agents/qa-engineer.md` Q1) | Reads `§ Selected Tests` from every DV artifact (`refs.dev[]`; `skills/worktask/references/contracts/artifact-map.md § Iterating the DV tasks`), the union of full lists, not DV's Executed subsets; runs it (build-only/scoped) or the full suite (full); copies WARN lines from the warning log into `testing-N.md § Notes`. |
 
 ### DR and PL
 

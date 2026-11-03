@@ -14,7 +14,7 @@ Model right-sizing, token discipline, per-stage tracking, budget gates. Per-stag
 
 ## Per-Effort Thinking-Budget Ceilings
 
-Effort (`low` ○, `medium` ◐, `high` ●, `xhigh` ⬣, `max` ⬛) maps to a thinking-token ceiling. Claude Code does not enforce these; they justify the effort tiers in `../shared/stage-codes.md` and let reviewers calibrate complexity against cost.
+Effort (`low` ○, `medium` ◐, `high` ●, `xhigh` ⬣, `max` ⬛) maps to a thinking-token ceiling. Claude Code does not enforce these; they justify the effort tiers in `../worktask/references/stage-codes.md` and let reviewers calibrate complexity against cost.
 
 | Effort | Thinking Budget | Use For |
 |--------|-----------------|---------|
@@ -30,7 +30,7 @@ Effort (`low` ○, `medium` ◐, `high` ●, `xhigh` ⬣, `max` ⬛) maps to a t
 
 ### 1. Model Right-Sizing
 
-Use the cheapest model that can do the task: tiers and mapping in `../shared/model-selection.md` (§ Cost Tiers, § Selection Criteria); a worktask stage's model and effort are its row in `../shared/stage-codes.md`. Moving procedural work (status checks, formatting, simple validation) off sonnet cuts the rate for those stages to 1/20 (1/4 on Haiku prompts over 100K); opus costs ~40x haiku, so reserve it for architecture-grade reasoning. Outside the matrix, pass `effort: medium` for cost-sensitive work, since non-Pro plans default to `high`.
+Use the cheapest model that can do the task: tiers and mapping in `../shared/model-selection.md` (§ Cost Tiers, § Selection Criteria); a worktask stage's model and effort are its row in `../worktask/references/stage-codes.md`. Moving procedural work (status checks, formatting, simple validation) off sonnet cuts the rate for those stages to 1/20 (1/4 on Haiku prompts over 100K); opus costs ~40x haiku, so reserve it for architecture-grade reasoning. Outside the matrix, pass `effort: medium` for cost-sensitive work, since non-Pro plans default to `high`.
 
 ### 2. Context Compression
 
@@ -69,7 +69,20 @@ Combine related patterns with `|` alternation — `Grep("dismissCompleted|comple
 
 ### 4c. Targeted Reads
 
-Above 200 lines, read a known location with `offset`/`limit` instead of the whole file; after a Grep hit at line N, `offset: max(1, N-10), limit: 30`.
+Read the ledger digest and current stage brief first. Read upstream handoff frontmatter next.
+Resolve the referenced sections required by the stage, then inspect relevant source files and tests.
+Expand exploration when unresolved requirements or findings justify it; record the reason.
+A missing reference blocks its dependent check until resolved; never treat missing content as an empty requirement.
+Above 200 lines, use a known location with `offset`/`limit` instead of reading the whole file.
+
+#### Source inventories and review coverage
+
+Use `skills/worktask/scripts/source-inventory.sh [root]` for ordinary source inventories.
+It excludes build products, generated capture tools, images, and archived logs.
+Pass `--include-artifacts` when investigating artifacts or ignored dependencies; it bypasses ignore rules while excluding Git metadata.
+Read an explicit source or evidence path whenever the inventory excludes an artifact required by the task.
+Code and security reviewers inspect the relevant implementation, dependencies, tests, and changed paths.
+Handoff summaries guide navigation; they cannot substitute for reviewing the code or finding defects outside the summary.
 
 ### 4d. Command Output Hygiene
 
@@ -87,7 +100,7 @@ Cost by size (PL0-sized): trivial ~1-4 stages · standard 9 stages · complex 9 
 
 ## Prompt Caching (1h TTL) & Handoff Protocol
 
-The handoff protocol's preamble layout, expected cache-read ratios and `cache-lint.sh` are in `skills/worktask/references/handoff-protocol.md#cache-prefix`. Its `state-merge.sh` SubagentStop hook ships default-on in `.claude-plugin/plugin.json`.
+The handoff protocol's preamble layout, expected cache-read ratios and `cache-lint.sh` are in `skills/worktask/references/contracts/prompt-layout.md#cache-prefix`. Its `state-merge.sh` SubagentStop hook ships default-on in `.claude-plugin/plugin.json`.
 
 ### Recommended `settings.json` stanza
 

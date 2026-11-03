@@ -15,9 +15,9 @@ RESET_CMD="git reset --hard origin/develop"
 GH_TOK="ghp_""Ab12Cd34Ef56Gh78Ij90Kl12Mn"
 SECRET_CMD="GITHUB_TOKEN=$GH_TOK gh api -X PUT /repos/o/r/pulls/412/merge --input /Users/alice/merge.json -f merge_method=squash"
 HEAD_KEYS='["tool", "dedupe_key", "command_head", "truncated"]'
-SKILL_MD="skills/worktask/SKILL.md"
+SKILL_MD="skills/worktask/references/orchestration.md"
 PROTOCOL_MD="skills/worktask/references/handoff-protocol.md"
-CONTRACTS_MD="skills/shared/stage-contracts.md"
+CONTRACTS_MD="skills/worktask/references/stage-contracts.md"
 
 setup() {
   WD="$(mk_tmpworkdir)"
@@ -69,7 +69,7 @@ _section() {
   awk -v start="$2" -v stop="$3" '
     f && $0 ~ stop { exit }
     index($0, start) == 1 { f = 1 }
-    f { print }' "$PLUGIN_ROOT/$1"
+    f { print }' "$(contract_source "$PLUGIN_ROOT/$1")"
 }
 
 # --- end to end ------------------------------------------------------------------
@@ -622,7 +622,7 @@ _section() {
 }
 
 @test "doc-contract b3: handoff-protocol defines the cross-stage blocked exception and cites it at both tables and both rules" {
-  local f="$PLUGIN_ROOT/$PROTOCOL_MD" line
+  local f="$(contract_source "$PLUGIN_ROOT/$PROTOCOL_MD")" line
   grep -qF 'Cross-stage blocked exception:' "$f" || fail "exception sentence missing"
   _section "$PROTOCOL_MD" '#### Stages PL–DR' '^#### Stages SR–ET' | grep -qiF 'cross-stage blocked exception' \
     || fail "PL–DR table does not cite the exception"
@@ -648,10 +648,10 @@ _section() {
 
 @test "doc-contract AC9: blocked_on is documented on every routing and schema surface" {
   local f
-  for f in skills/worktask/SKILL.md commands/worktask.md \
+  for f in skills/worktask/references/orchestration.md skills/worktask/references/workflow.md \
     skills/worktask/references/handoff-protocol.md skills/agent-coordination/SKILL.md \
-    skills/agent-coordination/references/hook-monitoring.md skills/shared/stage-contracts.md; do
-    grep -qw 'blocked_on' "$PLUGIN_ROOT/$f" || fail "$f does not mention blocked_on"
+    skills/agent-coordination/references/hook-monitoring.md skills/worktask/references/stage-contracts.md; do
+    grep -qw 'blocked_on' "$(contract_source "$PLUGIN_ROOT/$f")" || fail "$f does not mention blocked_on"
   done
 }
 
@@ -680,7 +680,7 @@ _section() {
 
 @test "doc-contract AC13: the megatask fallback never hand-writes a symlinked workspace.json" {
   local spec file start stop block
-  for spec in 'commands/worktask.md|##### Boundary permission prompt — only the user answers|^####' \
+  for spec in 'skills/worktask/references/workflow.md|##### Boundary permission prompt — only the user answers|^####' \
     "skills/worktask/references/step-7a-arms.md|## Step 7a — the megatask arm|^## "; do
     IFS='|' read -r file start stop <<< "$spec"
     block="$(_section "$file" "$start" "$stop")"
@@ -702,7 +702,7 @@ _section() {
     || fail "the permission_resumed audit-source row does not state the redacted shape: $line"
   ! grep -nE 'source: "(hook|orchestrator)"|classifier_reason, allow_rule, source' "$f" \
     || fail "agent-coordination still documents the unredacted row"
-  block="$(_section commands/worktask.md '##### Boundary permission prompt — only the user answers' '^####')"
+  block="$(_section skills/worktask/references/workflow.md '##### Boundary permission prompt — only the user answers' '^####')"
   grep -qF '`{tool, command_head, truncated}`' <<< "$block" \
     || fail "the megatask escalated[] shape is not the redacted one"
   ! grep -qF '{tool, command, allow_rule}' <<< "$block" || fail "the megatask escalated[] shape still names the command"

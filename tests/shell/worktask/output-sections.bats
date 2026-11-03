@@ -10,7 +10,7 @@
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
 SCRIPT="skills/worktask/scripts/output-sections.sh"
-PROTO="skills/worktask/references/handoff-protocol.md"
+PROTO="skills/worktask/references/contracts/artifact-anchors.md"
 
 setup() {
   WD="$(mk_tmpworkdir)"
@@ -87,7 +87,7 @@ gen() { run bash "$PLUGIN_ROOT/$SCRIPT" --root "$WD/repo" "$@"; }
     "$WD/repo/$PROTO" > "$WD/p" && cat "$WD/p" > "$WD/repo/$PROTO"
   gen --check
   assert_failure 1
-  assert_output --partial "handoff-protocol.md: table=required-sr-et: drift"
+  assert_output --partial "artifact-anchors.md: table=required-sr-et: drift"
 }
 
 @test "missing: an agent without a region fails --check; --write appends one at EOF" {

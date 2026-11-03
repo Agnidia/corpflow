@@ -6,10 +6,10 @@
 # anything passes vacuously, which is the defect it exists to prevent.
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
-LEDGER_DOC="skills/shared/state-ledger.md"
+LEDGER_DOC="skills/worktask/references/state-ledger.md"
 WRITER="skills/worktask/scripts/state-patch.sh"
 SCHEMA_DOC="skills/worktask/references/handoff-protocol.md"
-LOOP_DOC="skills/worktask/SKILL.md"
+LOOP_DOC="skills/worktask/references/orchestration.md"
 
 # --- extractors: one per surface, each returning a sorted newline-separated value list ----
 
@@ -18,7 +18,7 @@ enum_from_prose() {
   awk '/^## Status Values$/ { inside = 1; next }
        inside && /^## / { exit }
        inside && /^\| `/ { gsub(/^\| `/, ""); sub(/` \|.*$/, ""); print }' \
-    "$PLUGIN_ROOT/$LEDGER_DOC" | sort
+    "$(contract_source "$PLUGIN_ROOT/$LEDGER_DOC")" | sort
 }
 
 # The single `case` arm that closes the set on the write path (the sole decode).
@@ -29,12 +29,12 @@ enum_from_writer() {
 
 # Three `status:` enums live in this schema; only the task-ledger one starts at `pending`.
 enum_from_schema() {
-  grep -E 'status: \{ type: string, enum: \[pending' "$PLUGIN_ROOT/$SCHEMA_DOC" \
+  grep -E 'status: \{ type: string, enum: \[pending' "$(contract_source "$PLUGIN_ROOT/$SCHEMA_DOC")" \
     | sed 's/.*enum: \[//; s/\].*//' | tr ',' '\n' | tr -d ' ' | grep -v '^$' | sort
 }
 
 settled_from_loop() {
-  grep -E '^const SETTLED = new Set\(\[' "$PLUGIN_ROOT/$LOOP_DOC" \
+  grep -E '^const SETTLED = new Set\(\[' "$(contract_source "$PLUGIN_ROOT/$LOOP_DOC")" \
     | sed 's/.*Set(\[//; s/\]).*//' | tr ',' '\n' | tr -d ' "' | grep -v '^$' | sort
 }
 
@@ -43,7 +43,7 @@ terminal_from_prose() {
   awk '/^## Status Values$/ { inside = 1; next }
        inside && /^## / { exit }
        inside && /^\| `/ && tolower($0) ~ /terminal/ { gsub(/^\| `/, ""); sub(/` \|.*$/, ""); print }' \
-    "$PLUGIN_ROOT/$LEDGER_DOC" | sort
+    "$(contract_source "$PLUGIN_ROOT/$LEDGER_DOC")" | sort
 }
 
 # The loop's JS mirror of the verdict map, one `verdict:status` line per entry. Quotes are
@@ -51,7 +51,7 @@ terminal_from_prose() {
 verdict_map_from_loop() {
   awk '/^const VERDICT_STATUS = \{/ { inside = 1; next }
        inside && /^\};/ { exit }
-       inside { print }' "$PLUGIN_ROOT/$LOOP_DOC" \
+       inside { print }' "$(contract_source "$PLUGIN_ROOT/$LOOP_DOC")" \
     | tr ',' '\n' | tr -d ' "' | grep -v '^$' | sort
 }
 
@@ -99,7 +99,7 @@ verdict_map_from_writer() {
   local prose schema n
   prose="$(enum_from_prose)"
   schema="$(enum_from_schema)"
-  n="$(grep -cE 'status: \{ type: string, enum: \[pending' "$PLUGIN_ROOT/$SCHEMA_DOC")"
+  n="$(grep -cE 'status: \{ type: string, enum: \[pending' "$(contract_source "$PLUGIN_ROOT/$SCHEMA_DOC")")"
   [ "$n" -eq 1 ] || fail "expected exactly 1 task-status schema enum, found $n"
   n="$(printf '%s\n' "$schema" | grep -c .)"
   [ "$n" -ge 6 ] || fail "non-vacuity: only $n statuses extracted from $SCHEMA_DOC"
@@ -184,7 +184,7 @@ verdict_map_from_writer() {
 
 @test "R1d: one retry ceiling — the matrix, the prose and the escalation trigger agree on 3" {
   local coord="$PLUGIN_ROOT/skills/agent-coordination/SKILL.md"
-  local loop="$PLUGIN_ROOT/$LOOP_DOC" checked=0 row
+  local loop="$(contract_source "$PLUGIN_ROOT/$LOOP_DOC")" checked=0 row
   # Every retrying class in the matrix; a class capped below the trigger parks unescalated.
   while IFS= read -r row; do
     case "$row" in
@@ -204,17 +204,17 @@ verdict_map_from_writer() {
 @test "R1e: the escalation handoff resets retry_count alone and never escalation_counts" {
   local checked=0 f
   for f in skills/agent-coordination/SKILL.md agents/workflow-engineer.md; do
-    grep -q 'escalation_counts' "$PLUGIN_ROOT/$f" \
+    grep -q 'escalation_counts' "$(contract_source "$PLUGIN_ROOT/$f")" \
       || fail "$f does not mention escalation_counts"
-    grep -qi 'retry_count` alone\|retry_count\*\* alone\|`retry_count` alone' "$PLUGIN_ROOT/$f" \
-      || grep -q 'retry_count\*\* alone' "$PLUGIN_ROOT/$f" \
+    grep -qi 'retry_count` alone\|retry_count\*\* alone\|`retry_count` alone' "$(contract_source "$PLUGIN_ROOT/$f")" \
+      || grep -q 'retry_count\*\* alone' "$(contract_source "$PLUGIN_ROOT/$f")" \
       || fail "$f does not narrow the reset to retry_count alone"
-    grep -qi 'NOT reset\|not reset' "$PLUGIN_ROOT/$f" \
+    grep -qi 'NOT reset\|not reset' "$(contract_source "$PLUGIN_ROOT/$f")" \
       || fail "$f does not state that escalation_counts is NOT reset"
     checked=$((checked + 1))
   done
   [ "$checked" -eq 2 ] || fail "non-vacuity: only $checked reset surfaces checked"
-  grep -q '"escalation_counts"' "$PLUGIN_ROOT/$LEDGER_DOC" \
+  grep -q '"escalation_counts"' "$(contract_source "$PLUGIN_ROOT/$LEDGER_DOC")" \
     || fail "escalation_counts has no schema entry in $LEDGER_DOC"
 }
 
@@ -232,7 +232,7 @@ verdict_map_from_writer() {
   local map expected checked=0 cls col
   map="$(awk '/^const ESCALATE_TO = \{/ { inside = 1; next }
               inside && /^\};/ { exit }
-              inside { print }' "$PLUGIN_ROOT/skills/worktask/references/return-arms.md" \
+              inside { print }' "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/return-arms.md")" \
     | tr ',' '\n' | sed 's/^ *//; s/ *$//' | grep -v '^$' | sort)"
   [ "$(printf '%s\n' "$map" | grep -c .)" -ge 4 ] \
     || fail "non-vacuity: ESCALATE_TO extracted fewer than 4 entries"

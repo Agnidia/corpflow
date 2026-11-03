@@ -2,7 +2,7 @@
 
 Specification for `.context/decisions.jsonl`, the record of the user's answers to `AskUserQuestion`
 inside a worktask. One hook writes it, one read-only op verifies it, and a stage accepts a decision
-only through that op (`skills/shared/stage-contracts.md § A user decision is accepted only from the
+only through that op (`skills/worktask/references/stage-contracts.md § A user decision is accepted only from the
 ledger`). The ledger gives tamper evidence, not tamper proof, and uses no signed token. What it
 cannot stop is listed under § Security notes.
 
@@ -78,7 +78,7 @@ The hook reads scope from `state.json` only, never from free text. `worktask_id`
    equal `(question, options, item)`, sorted. `item` is `detail.item`, or `null`.
 2. **A sweep item.** `header` matches `^sw-[A-Z]{2}[0-9]+-[0-9]+$` and is an id in
    `facts.open_questions[]`. `task_ids` is the one task the id names, and `item` is the id.
-   `commands/worktask.md § Step C.4` sets that header.
+   `skills/worktask/references/workflow.md § Step C.4` sets that header.
 3. **Anything else** writes no row (`no_scope`). A permission or gate prompt can quote commands and
    secrets, and a row that covers no task could never authorise anything.
 

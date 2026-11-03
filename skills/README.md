@@ -57,22 +57,30 @@ scanning the table. They are expected to diverge, and a divergence is not drift 
 | [worktask-testing-strategy](worktask-testing-strategy/SKILL.md) | Test strategy planning guidance for PL and AR worktask stages | medium |
 | [writing-style](writing-style/SKILL.md) | ASD-STE100-derived prose standard (~80%) — short active sentences, one term per meaning, tables/diagrams over prose; wraps writing-style.md | low |
 
-## Shared Utilities
+## Worktask references and assets
 
-Files in `shared/` are referenced by skills/agents, not loaded directly — **except `milestone-helpers/`**, which ships its own `SKILL.md` (`corpflow:milestone-helpers`).
+Worktask contracts live in `worktask/references/`; stage, planning, and attachment templates live in `worktask/assets/templates/`.
 
 ### Worktask contracts
 
 | File | Purpose |
 |------|---------|
-| [stage-codes.md](shared/stage-codes.md) | Worktask stage codes |
-| [stage-contracts.md](shared/stage-contracts.md) | Per-stage Inputs→Outputs→Validation contracts |
-| [state-ledger.md](shared/state-ledger.md) | State ledger (tasks{}) reference |
-| [worktask-invocation.md](shared/worktask-invocation.md) | Invocation rule + execution model |
-| [worktask-stage-context.md](shared/worktask-stage-context.md) | Pipeline diagrams + one-line role per stage |
-| [milestone-helpers/](shared/milestone-helpers/) | Milestone helpers |
+| [stage-codes.md](worktask/references/stage-codes.md) | Worktask stage codes |
+| [stage-contracts.md](worktask/references/stage-contracts.md) | Per-stage Inputs→Outputs→Validation contracts |
+| [state-ledger.md](worktask/references/state-ledger.md) | State ledger (tasks{}) reference |
+| [worktask-stage-context.md](worktask/references/worktask-stage-context.md) | Pipeline diagrams + one-line role per stage |
+
+## Shared Utilities
+
+General guidance remains in `shared/`. The `milestone-helpers/` directory also provides the `corpflow:milestone-helpers` skill.
 
 ### Standards & analysis
+
+| File | Purpose |
+|------|---------|
+| [milestone-helpers/](shared/milestone-helpers/) | Milestone helpers |
+
+### General standards
 
 | File | Purpose |
 |------|---------|
@@ -89,7 +97,8 @@ Files in `shared/` are referenced by skills/agents, not loaded directly — **ex
 
 | File | Purpose |
 |------|---------|
-| [testing-strategy.md](shared/testing-strategy.md) | Testing canon, DV/QA boundary, test-selection gate |
+| [testing-strategy.md](shared/testing-strategy.md) | General testing practices and framework guidance |
+| [Worktask testing](worktask/references/testing-strategy.md) | Stage execution authority and test selection |
 | [test-selection-syntax.md](shared/test-selection-syntax.md) | Inline test-marker grammar for selective execution |
 | [compatible-plugins.md](shared/compatible-plugins.md) | Dev-plugin registry: platform → plugin/agent routing |
 | [platform-detection.md](shared/platform-detection.md) | Platform detection and long-tail routing |

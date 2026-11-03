@@ -8,8 +8,8 @@ load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
 LIB="skills/worktask/scripts/effort-ladder.sh"
 MODEL_SELECTION="skills/shared/model-selection.md"
-STATE_LEDGER="skills/shared/state-ledger.md"
-STAGE_CODES="skills/shared/stage-codes.md"
+STATE_LEDGER="skills/worktask/references/state-ledger.md"
+STAGE_CODES="skills/worktask/references/stage-codes.md"
 
 # Every assertion sources the library; this keeps the boilerplate in one place.
 ladder() { # <shell body>
@@ -373,16 +373,16 @@ EOF
   # NOT `paste -sd', '`: BSD paste cycles through the delimiter LIST, so a two-char
   # delimiter alternates ',' and ' ' and the join comes out malformed on macOS.
   want=$(printf '%s' "$EFFORT_ENUM" | sed 's/[a-z][a-z]*/"&"/g; s/ /, /g')
-  run grep -qF "\"enum\": [$want]" "$PLUGIN_ROOT/$STATE_LEDGER"
+  run grep -qF "\"enum\": [$want]" "$(contract_source "$PLUGIN_ROOT/$STATE_LEDGER")"
   assert_success
 }
 
 @test "effort is a required task.metadata field, not an optional dispatch flag" {
   run grep -qF '"required": ["stage", "agent", "model", "effort", "error_file"]' \
-    "$PLUGIN_ROOT/$STATE_LEDGER"
+    "$(contract_source "$PLUGIN_ROOT/$STATE_LEDGER")"
   assert_success
   # And it must be gone from the optional set it used to live in.
   run bash -c "awk '/^### Dispatch metadata \\(optional\\)/{f=1;next} /^###/{f=0} f' \
-    '$PLUGIN_ROOT/$STATE_LEDGER' | grep -c '\`effort\`'"
+    '$(contract_source "$PLUGIN_ROOT/$STATE_LEDGER")' | grep -c '\`effort\`'"
   assert_output "0"
 }

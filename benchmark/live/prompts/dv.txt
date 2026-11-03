@@ -42,6 +42,11 @@ result: in_progress
 
 - Tests: Swift Testing (@Test/#expect) suites for engine, models, router, and
   view-model; `swift test` must PASS headless.
+- Use Unicode case folding for player-name equality and leaderboard tie sorting.
+  Include regressions for `Σ` versus `ς`, and `Straße` versus `STRASSE`.
+- Supply a Makefile with `test` and `test-ios` targets. The iOS target must run real
+  simulator tests through a shared Xcode scheme with a test target, and explicitly
+  skip only when no iOS runtime exists. A service permission failure is not a skip.
 Use Swift 6 + SwiftPM + Apple SDKs ONLY. No third-party packages, no network.
 Write real, runnable source into the workdir. Record what you built in
 .context/development-0.md and STOP.

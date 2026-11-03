@@ -189,13 +189,13 @@ EOF
   # resolvable refs, since [1] carries only the canon block ----
   local req_in_line req_out_line
   req_in_line=$(grep -n -m1 -E '^## Required Inputs \(handoff-protocol\)$' \
-    "$proot/skills/shared/stage-contracts.md" | cut -d: -f1)
+    "$proot/skills/worktask/references/contracts/stage-inputs.md" | cut -d: -f1)
   req_out_line=$(grep -n -m1 -E '^## Required Outputs \(handoff-protocol\)$' \
-    "$proot/skills/shared/stage-contracts.md" | cut -d: -f1)
+    "$proot/skills/worktask/references/contracts/stage-outputs.md" | cut -d: -f1)
   check "refs: [5] carries the Required Inputs ref" \
-    has_line "ref: skills/shared/stage-contracts.md:${req_in_line}" "$sec5"
+    has_line "ref: skills/worktask/references/contracts/stage-inputs.md:${req_in_line}" "$sec5"
   check "refs: [5] carries the Required Outputs ref" \
-    has_line "ref: skills/shared/stage-contracts.md:${req_out_line}" "$sec5"
+    has_line "ref: skills/worktask/references/contracts/stage-outputs.md:${req_out_line}" "$sec5"
 
   # ---- refs: context_refs as a JSON-encoded string (state-ledger.md's preferred
   # shape) decodes; the ref is one only context_refs can produce ----
@@ -231,8 +231,7 @@ EOF
   check "refs: context_refs JSON-string shape decodes its ref" \
     has_line "ref: research-0.md#findings" "$out5"
 
-  # ---- refs: a plain-path context_refs entry (the
-  # consultant-return channel) is emitted only when the file exists ----
+  # Required consultant evidence must not disappear from a composed brief.
   local d6="$td/ac1c"
   mkdir -p "$d6/.context/logs"
   cp "$d1/.context/planning-0.md" "$d6/.context/planning-0.md"
@@ -260,11 +259,14 @@ EOF
 EOF
   local out6 rc6=0
   out6=$(bash "$SELF" DV0 --state "$d6/.context/state.json" --orch-root "$d6" 2>/dev/null) || rc6=$?
-  check "refs: plain-path context_refs fixture composes (exit 0)" [ "$rc6" -eq 0 ]
+  check "refs: a missing required plain path blocks composition (exit 1)" [ "$rc6" -eq 1 ]
+  check "refs: a blocked plain-path composition prints no partial brief" str_eq "$out6" ""
+  : > "$d6/.context/logs/consultant-return-DR0-y-a1.md"
+  rc6=0
+  out6=$(bash "$SELF" DV0 --state "$d6/.context/state.json" --orch-root "$d6" 2>/dev/null) || rc6=$?
+  check "refs: resolved plain-path references compose (exit 0)" [ "$rc6" -eq 0 ]
   check "refs: an existing plain-path context_refs entry is emitted" \
     has_line "ref: .context/logs/consultant-return-DR0-x-a1.md" "$out6"
-  check "refs: a missing plain-path context_refs entry is not emitted" \
-    not_grep "consultant-return-DR0-y-a1" "$out6"
 
   # ---- refs: a JSON-string context_refs that is not an array exits 2 ----
   local d10="$td/ac1d"
@@ -322,7 +324,7 @@ EOF
 EOF
   local out11 rc11=0 refs11
   out11=$(bash "$SELF" DV0 --state "$d11/.context/state.json" --orch-root "$d11" 2>/dev/null) || rc11=$?
-  refs11=$(extract_section "$out11" "task-description" | grep '^ref: ' | grep -v 'stage-contracts\|^ref: agents/' || true)
+  refs11=$(extract_section "$out11" "task-description" | grep '^ref: ' | grep -v 'skills/worktask/references/contracts/\|skills/worktask/assets/templates/\|^ref: agents/' || true)
   check "refs: dedup fixture composes (exit 0)" [ "$rc11" -eq 0 ]
   check "refs: no ref: line repeats in the brief" \
     str_eq "" "$(grep '^ref: ' <<< "$out11" | sort | uniq -d)"

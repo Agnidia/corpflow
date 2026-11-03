@@ -357,7 +357,7 @@ The branch is named once, at the start of the planning stage
 repeats. `facts.branch` on the run ledger records the planned name; finalization reads it from
 there rather than re-deriving it from `git`. The planned name may be refined at most once per
 run, after planning and before the plan is published, from the approved plan's `title:`: a
-ledger-only write with no git mutation (`commands/worktask.md § Step A.4b`).
+ledger-only write with no git mutation (`skills/worktask/references/workflow.md § Step A.4b`).
 
 ### Goal text becomes a public, durable branch name
 

@@ -13539,6 +13539,660 @@
           "without": []
         }
       }
+    },
+    {
+      "run_id": "live-codex-20261102T213202Z-5d14a20",
+      "timestamp_utc": "2026-11-02T21:32:09Z",
+      "mode": "live",
+      "git_sha": "5d14a20",
+      "budget_usd": 50.0,
+      "paths": {
+        "with": {
+          "tokens": {
+            "in": 576775,
+            "out": 114830,
+            "total": 691605,
+            "cache_read": 8372992,
+            "cache_creation": 0
+          },
+          "cost_usd": 2.76965582,
+          "wall_clock_s": 2555.9974,
+          "loc_produced": 1706,
+          "test_count": 25,
+          "coverage_pct": null,
+          "estimate_complexity_score": 0,
+          "stage_count": 10,
+          "pass_fail": "pass",
+          "app_path": "benchmark/workdirs/live-codex-20261102T213202Z-5d14a20/with",
+          "oracle": {
+            "built": true,
+            "cases_total": 42,
+            "cases_passed": 42,
+            "pass_rate": 1.0,
+            "tiers": {
+              "implied": {
+                "total": 9,
+                "passed": 9,
+                "pass_rate": 1.0
+              },
+              "specified": {
+                "total": 33,
+                "passed": 33,
+                "pass_rate": 1.0
+              }
+            },
+            "cases_digest": "sha256:8065259102d52025f62f1db5c5667d5f0fbc2fd5db461d72061a308eeb1fbf97"
+          }
+        },
+        "without": {
+          "tokens": {
+            "in": 368148,
+            "out": 73766,
+            "total": 441914,
+            "cache_read": 3456384,
+            "cache_creation": 0
+          },
+          "cost_usd": 1.5958681,
+          "wall_clock_s": 1609.6303,
+          "loc_produced": 1365,
+          "test_count": 23,
+          "coverage_pct": null,
+          "estimate_complexity_score": 0,
+          "stage_count": 10,
+          "pass_fail": "pass",
+          "app_path": "benchmark/workdirs/live-codex-20261102T213202Z-5d14a20/without",
+          "oracle": {
+            "built": true,
+            "cases_total": 42,
+            "cases_passed": 42,
+            "pass_rate": 1.0,
+            "tiers": {
+              "implied": {
+                "total": 9,
+                "passed": 9,
+                "pass_rate": 1.0
+              },
+              "specified": {
+                "total": 33,
+                "passed": 33,
+                "pass_rate": 1.0
+              }
+            },
+            "cases_digest": "sha256:8065259102d52025f62f1db5c5667d5f0fbc2fd5db461d72061a308eeb1fbf97"
+          }
+        }
+      },
+      "comparison": {
+        "loc_produced": {
+          "with": 1706,
+          "without": 1365,
+          "delta": 341
+        },
+        "test_count": {
+          "with": 25,
+          "without": 23,
+          "delta": 2
+        },
+        "coverage_pct": {
+          "with": null,
+          "without": null,
+          "delta": null
+        },
+        "wall_clock_s": {
+          "with": 2555.9974,
+          "without": 1609.6303,
+          "delta": 946.3671000000002
+        },
+        "estimate_complexity_score": {
+          "with": 0,
+          "without": 0,
+          "delta": 0
+        },
+        "stage_count": {
+          "with": 10,
+          "without": 10,
+          "delta": 0
+        },
+        "tokens_total": {
+          "with": 691605,
+          "without": 441914,
+          "delta": 249691
+        },
+        "cost_usd": {
+          "with": 2.76965582,
+          "without": 1.5958681,
+          "delta": 1.1737877200000002
+        }
+      },
+      "stages": [
+        {
+          "stage": "PL",
+          "fresh_in": 57070,
+          "cache_creation": 0,
+          "cache_read": 548864,
+          "out": 13838,
+          "cost_usd": 0.3074064,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 29
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "AR",
+          "fresh_in": 48579,
+          "cache_creation": 0,
+          "cache_read": 458368,
+          "out": 12649,
+          "cost_usd": 0.26948479999999997,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 15
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "TL",
+          "fresh_in": 30781,
+          "cache_creation": 0,
+          "cache_read": 105984,
+          "out": 1448,
+          "cost_usd": 0.043320199999999996,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 9
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "DV",
+          "fresh_in": 106092,
+          "cache_creation": 0,
+          "cache_read": 4961280,
+          "out": 60686,
+          "cost_usd": 1.315172,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 63
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "DR",
+          "fresh_in": 76599,
+          "cache_creation": 0,
+          "cache_read": 681344,
+          "out": 6427,
+          "cost_usd": 0.28560240000000003,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 73
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "SR",
+          "fresh_in": 75538,
+          "cache_creation": 0,
+          "cache_read": 709760,
+          "out": 10750,
+          "cost_usd": 0.329552,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 32
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "QA",
+          "fresh_in": 48056,
+          "cache_creation": 0,
+          "cache_read": 281216,
+          "out": 2563,
+          "cost_usd": 0.0749318,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 11
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "DC",
+          "fresh_in": 41201,
+          "cache_creation": 0,
+          "cache_read": 209792,
+          "out": 1790,
+          "cost_usd": 0.00711302,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 7
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "FN",
+          "fresh_in": 61820,
+          "cache_creation": 0,
+          "cache_read": 198528,
+          "out": 2244,
+          "cost_usd": 0.0829664,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 14
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "ST",
+          "fresh_in": 31039,
+          "cache_creation": 0,
+          "cache_read": 217856,
+          "out": 2435,
+          "cost_usd": 0.054106800000000004,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 12
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "PL",
+          "fresh_in": 20823,
+          "cache_creation": 0,
+          "cache_read": 56448,
+          "out": 6048,
+          "cost_usd": 0.1077708,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 7
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "AR",
+          "fresh_in": 9680,
+          "cache_creation": 0,
+          "cache_read": 112128,
+          "out": 8131,
+          "cost_usd": 0.1118828,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 7
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "TL",
+          "fresh_in": 19078,
+          "cache_creation": 0,
+          "cache_read": 38912,
+          "out": 874,
+          "cost_usd": 0.0253936,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 4
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "DV",
+          "fresh_in": 94061,
+          "cache_creation": 0,
+          "cache_read": 2292352,
+          "out": 45316,
+          "cost_usd": 0.8705172,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 54
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "DR",
+          "fresh_in": 52950,
+          "cache_creation": 0,
+          "cache_read": 277888,
+          "out": 3169,
+          "cost_usd": 0.1653788,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 17
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "SR",
+          "fresh_in": 48836,
+          "cache_creation": 0,
+          "cache_read": 339584,
+          "out": 5296,
+          "cost_usd": 0.1845904,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 20
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "QA",
+          "fresh_in": 53174,
+          "cache_creation": 0,
+          "cache_read": 135040,
+          "out": 1466,
+          "cost_usd": 0.067256,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 9
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "DC",
+          "fresh_in": 26778,
+          "cache_creation": 0,
+          "cache_read": 88960,
+          "out": 1409,
+          "cost_usd": 0.0042718999999999995,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 6
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "FN",
+          "fresh_in": 23388,
+          "cache_creation": 0,
+          "cache_read": 58240,
+          "out": 1312,
+          "cost_usd": 0.03286,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 4
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "ST",
+          "fresh_in": 19380,
+          "cache_creation": 0,
+          "cache_read": 56832,
+          "out": 745,
+          "cost_usd": 0.0259466,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 4
+          },
+          "arm": "without"
+        }
+      ],
+      "era": {
+        "harness": "python-3",
+        "provider": "codex",
+        "source_digest": "fed0235dcf56d385fae28759d764aca5297a32afe36a4f4c787b2e5fee9958e8",
+        "pricing": {
+          "id": "openai-standard-short-2026-11-02",
+          "source": "https://developers.openai.com/api/docs/pricing",
+          "verified_at": "2026-11-02",
+          "basis": "API-equivalent USD, standard tier, implicit caching, context limited to 200000 tokens",
+          "per_million": {
+            "gpt-6.1-sol": {
+              "input": 2.0,
+              "cached_input": 0.1,
+              "output": 10.0
+            },
+            "gpt-6.1-terra": {
+              "input": 1.0,
+              "cached_input": 0.05,
+              "output": 5.0
+            },
+            "gpt-6-luna": {
+              "input": 0.1,
+              "cached_input": 0.01,
+              "output": 0.5
+            },
+            "gpt-6-astra": {
+              "input": 10.0,
+              "cached_input": 1.0,
+              "output": 50.0
+            }
+          }
+        },
+        "prompt_contract": "scripted-cli-v4",
+        "model_pins": {
+          "PL": "gpt-6.1-sol",
+          "AR": "gpt-6.1-sol",
+          "TL": "gpt-6.1-terra",
+          "DV": "gpt-6.1-sol",
+          "DR": "gpt-6.1-sol",
+          "SR": "gpt-6.1-sol",
+          "QA": "gpt-6.1-terra",
+          "DC": "gpt-6-luna",
+          "FN": "gpt-6.1-terra",
+          "ST": "gpt-6.1-terra"
+        },
+        "cli_version": "codex-cli 0.166.0",
+        "plugin_version": "4.1.4",
+        "efforts": {
+          "PL": "high",
+          "AR": "high",
+          "TL": "medium",
+          "DV": "high",
+          "DR": "high",
+          "SR": "xhigh",
+          "QA": "medium",
+          "DC": "low",
+          "FN": "medium",
+          "ST": "low"
+        },
+        "authentication": "chatgpt",
+        "plugin_snapshot_digest": "971200b38c1db61207a308c5e7bcf3a13ff2a2a1f8e7c954b491330bf315afb6",
+        "plugin_loading": "isolated-skills-and-canonical-stage-role",
+        "context_window": 200000,
+        "nested_agents": "disabled-in-both-arms",
+        "transport_retries": "CLI defaults; emitted errors stop accounting",
+        "runtime_isolation": {
+          "with": {
+            "skill_count": 49,
+            "canonical_role": true,
+            "tools": [
+              "functions",
+              "clock"
+            ],
+            "restrictions_verified": true
+          },
+          "without": {
+            "skill_count": 0,
+            "canonical_role": false,
+            "tools": [
+              "functions",
+              "clock"
+            ],
+            "restrictions_verified": true
+          }
+        },
+        "workload_digest": "440e193b1cd6838216d6d209617b9e45e95c3c6e1cb2c2619011fdd81c329577",
+        "accounting": {
+          "without": {
+            "allowance_usd": 25.0,
+            "overshoot_usd": 0.0,
+            "stop_reason": null,
+            "attempts": [
+              {
+                "stage": "PL",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.1077708
+              },
+              {
+                "stage": "AR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.1118828
+              },
+              {
+                "stage": "TL",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.0253936
+              },
+              {
+                "stage": "DV",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.8705172
+              },
+              {
+                "stage": "DR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.1653788
+              },
+              {
+                "stage": "SR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.1845904
+              },
+              {
+                "stage": "QA",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.067256
+              },
+              {
+                "stage": "DC",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.0042718999999999995
+              },
+              {
+                "stage": "FN",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.03286
+              },
+              {
+                "stage": "ST",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.0259466
+              }
+            ],
+            "reliable": true,
+            "incomplete_stages": []
+          },
+          "with": {
+            "allowance_usd": 25.0,
+            "overshoot_usd": 0.0,
+            "stop_reason": null,
+            "attempts": [
+              {
+                "stage": "PL",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.3074064
+              },
+              {
+                "stage": "AR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.26948479999999997
+              },
+              {
+                "stage": "TL",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.043320199999999996
+              },
+              {
+                "stage": "DV",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 1.315172
+              },
+              {
+                "stage": "DR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.28560240000000003
+              },
+              {
+                "stage": "SR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.329552
+              },
+              {
+                "stage": "QA",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.0749318
+              },
+              {
+                "stage": "DC",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.00711302
+              },
+              {
+                "stage": "FN",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.0829664
+              },
+              {
+                "stage": "ST",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.054106800000000004
+              }
+            ],
+            "reliable": true,
+            "incomplete_stages": []
+          }
+        }
+      }
     }
   ]
 }

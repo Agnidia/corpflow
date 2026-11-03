@@ -6,16 +6,16 @@
 # grep -E without \b: BSD grep on macOS treats \b in -E as a literal, which makes a check vacuous.
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
-CONTRACTS="skills/shared/stage-contracts.md"
+CONTRACTS="skills/worktask/references/stage-contracts.md"
 PM="agents/project-manager.md"
 ST="agents/stakeholder.md"
 DEV="agents/developer.md"
-CMD="commands/worktask.md"
-SKILL="skills/worktask/SKILL.md"
+CMD="skills/worktask/references/workflow.md"
+SKILL="skills/worktask/references/orchestration.md"
 MEGA="skills/megatask/SKILL.md"
 COORD="skills/agent-coordination/SKILL.md"
 ACTIONS="skills/agent-coordination/references/audit-actions.md"
-LEDGER_DOC="skills/shared/state-ledger.md"
+LEDGER_DOC="skills/worktask/references/state-ledger.md"
 HANDOFF="skills/worktask/references/handoff-protocol.md"
 
 # section <file> <exact heading line> — the heading through the next heading of the same or a
@@ -24,7 +24,7 @@ section() {
   awk -v h="$2" '
     $0 == h { on = 1; split(h, a, " "); lvl = length(a[1]); print; next }
     on && /^#+ / { split($0, b, " "); if (length(b[1]) <= lvl) exit }
-    on { print }' "$PLUGIN_ROOT/$1"
+    on { print }' "$(contract_source "$PLUGIN_ROOT/$1")"
 }
 
 # --- REQ-1: no question waits for a bypassed FN gate -------------------------
@@ -50,7 +50,7 @@ section() {
   for f in "$PM" "$ST"; do
     run section "$f" '#### Under fn_gate: "bypass"'
     assert_output --partial 'open_questions: []'
-    assert_output --partial 'stage-contracts.md § Under fn_gate: "bypass"'
+    assert_output --partial 'skills/worktask/references/contracts/sweep-obligations.md § Under fn_gate: "bypass"'
   done
 }
 
@@ -74,9 +74,9 @@ section() {
 # --- REQ-3: the resolver tier through an allow-listed CLI --------------------
 
 @test "REQ-3: the command grants the CLI, not the library, and step 1 runs it" {
-  run grep -c -F 'scripts/effort-ladder-cli.sh *)' "$PLUGIN_ROOT/$CMD"
+  run grep -c -F 'scripts/effort-ladder-cli.sh *)' "$PLUGIN_ROOT/skills/worktask/SKILL.md"
   assert_output "1"
-  run grep -c -F 'scripts/effort-ladder.sh *)' "$PLUGIN_ROOT/$CMD"
+  run grep -c -F 'scripts/effort-ladder.sh *)' "$PLUGIN_ROOT/skills/worktask/SKILL.md"
   assert_output "0"
   run section "$CMD" "##### Step C.0a — the resolver dispatch"
   assert_output --partial 'effort-ladder-cli.sh for-resolver "<effort>" "<model>"'
@@ -121,7 +121,7 @@ section() {
   for arm in "liveness branch — alive and responsive" "parked or gone" \
              "liveness branch — parked, awaiting input" "broken hook configuration"; do
     assert_output --partial "§ Live-agent rows — $arm"
-    grep -q -F "### Live-agent rows — $arm" "$PLUGIN_ROOT/skills/worktask/references/resume.md" \
+    grep -q -F "### Live-agent rows — $arm" "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/resume.md")" \
       || fail "resume.md has no arm named: $arm"
   done
   [ "$(printf '%s\n' "$output" | grep -c -F 'run the guard again')" -ge 3 ]
@@ -159,7 +159,7 @@ section() {
 @test "REQ-5: the ci key has one home, a schema line and both readers" {
   run section "$LEDGER_DOC" "### CI field"
   assert_output --partial 'Only the literal `"disabled"` turns CI off'
-  run grep -c -F 'ci: { type: string, enum: [enabled, disabled]' "$PLUGIN_ROOT/$HANDOFF"
+  run grep -c -F 'ci: { type: string, enum: [enabled, disabled]' "$(contract_source "$PLUGIN_ROOT/$HANDOFF")"
   assert_output "1"
   run grep -c -F 'skipped when `metadata.ci` is `"disabled"`' "$PLUGIN_ROOT/$COORD"
   assert_output "1"
@@ -190,7 +190,7 @@ section() {
 @test "REQ-6: every brief gets a PORTABILITY line and no template cds into a bare variable" {
   run section "$SKILL" "##### Step 4.7 — portability banner"
   assert_output --partial "PORTABILITY: the shell can be zsh on macOS"
-  run grep -rn -E 'cd \$[A-Za-z_{]' "$PLUGIN_ROOT/skills/worktask" "$PLUGIN_ROOT/$CMD"
+  run grep -rn -E 'cd \$[A-Za-z_{]' "$PLUGIN_ROOT/skills/worktask" "$(contract_source "$PLUGIN_ROOT/$CMD")"
   assert_failure 1
 }
 

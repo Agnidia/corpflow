@@ -92,7 +92,7 @@ def _own_digest(record: dict) -> Optional[str]:
 # loads nothing; ``config_leaks`` is keyed by the arm that was scanned), so demanding a
 # match would refuse every honest pair.
 _ARM_SCOPED_ERA_KEYS = frozenset(
-    {"plugin_path", "plugins_with", "plugins_without", "config_leaks"})
+    {"plugin_path", "plugins_with", "plugins_without", "config_leaks", "accounting"})
 
 
 def _join_era(with_era, without_era):
@@ -103,7 +103,7 @@ def _join_era(with_era, without_era):
     for key in sorted(_ARM_SCOPED_ERA_KEYS):
         if key not in joined and key in without_era:
             joined[key] = without_era[key]
-        elif (key == "config_leaks" and isinstance(joined.get(key), dict)
+        elif (key in ("config_leaks", "accounting") and isinstance(joined.get(key), dict)
               and isinstance(without_era.get(key), dict)):
             # Each single-arm record carries only its own arm's entry.
             joined[key] = {**without_era[key], **joined[key]}

@@ -303,7 +303,7 @@ corpflow_active_stage() {
 
 # Echoes "<model_requested> <task_id>" for the pinned stage, or empty.
 #
-# Reads .facts.dispatched_agents[] (schema: handoff-protocol.md § facts —
+# Reads .facts.dispatched_agents[] (schema: skills/worktask/references/contracts/ledger-facts.md § facts —
 # dispatched_agents). This is the gate's one non-guessed input, which is why the
 # whole decision keys on it. Match order: exactly one launched row for the agent
 # id, else exactly one launched row for the stage, else empty — ambiguous is

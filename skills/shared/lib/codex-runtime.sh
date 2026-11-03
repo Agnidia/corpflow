@@ -13,7 +13,8 @@ _CORPFLOW_CODEX_RUNTIME_LIB=1
 corpflow_codex_model() {
   case "${1:-}" in
     haiku) printf '%s' 'gpt-6-luna' ;;
-    sonnet|opus) printf '%s' 'gpt-6-sol' ;;
+    sonnet) printf '%s' 'gpt-6.1-terra' ;;
+    opus) printf '%s' 'gpt-6.1-sol' ;;
     fable) printf '%s' 'gpt-6-astra' ;;
     *) return 2 ;;
   esac

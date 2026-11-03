@@ -45,7 +45,7 @@ CORPFLOW.md stage contract.
 ## Models
 
 Keep only the rows you override; delete the rest. Same lifecycle as `## Routing`: rows here win
-over the built-in default matrix (`corpflow skills/shared/stage-codes.md § Agent Model Matrix`),
+over the built-in default matrix (`corpflow skills/worktask/references/stage-codes.md § Agent Model Matrix`),
 row by row, resolved ONCE at worktask init into `state.models` — edits mid-worktask take effect
 on the next worktask. This heading belongs to the **project-root** or **user-scope** kind of
 this file only; the plugin-root CORPFLOW.md stage contract (`templates/CORPFLOW.md`) must NOT

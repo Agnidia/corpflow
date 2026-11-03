@@ -8,7 +8,7 @@
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
 MATRIX_LIB="skills/worktask/scripts/model-matrix-lib.sh"
-STAGE_CODES="skills/shared/stage-codes.md"
+STAGE_CODES="skills/worktask/references/stage-codes.md"
 
 # parity_report <agents_dir> [doc] -> one line per outcome on stdout:
 #   "ok <agent>"              — frontmatter effort == matrix effort

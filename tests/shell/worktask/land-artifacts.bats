@@ -42,8 +42,8 @@
 #   hooks/dv-comment-density-gate.sh
 #   agents/technical-lead.md
 #   agents/project-manager.md
-#   skills/worktask/SKILL.md
-#   skills/shared/state-ledger.md
+#   skills/worktask/references/orchestration.md
+#   skills/worktask/references/state-ledger.md
 #   skills/worktask/references/handoff-protocol.md
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 bats_require_minimum_version 1.5.0
@@ -863,8 +863,8 @@ assert_refused() {
 @test "contract: the exclusion expression is byte-identical in every transport" {
   local f
   for f in skills/worktask/scripts/land-artifacts.sh hooks/dv-comment-density-gate.sh \
-           agents/technical-lead.md agents/project-manager.md skills/shared/state-ledger.md; do
-    run grep -cF -- "$D8_JQ" "$PLUGIN_ROOT/$f"
+           agents/technical-lead.md agents/project-manager.md skills/worktask/references/state-ledger.md; do
+    run grep -cF -- "$D8_JQ" "$(contract_source "$PLUGIN_ROOT/$f")"
     assert_success
     [ "$output" -ge 1 ]
   done
@@ -884,8 +884,8 @@ assert_refused() {
 @test "contract: fn-stream-merge.sh and blocked-on-dispatch.sh name the strict per-tree landed transport" {
   local f
   for f in skills/worktask/scripts/fn-stream-merge.sh skills/worktask/scripts/blocked-on-dispatch.sh; do
-    grep -q -- '--list-landed' "$PLUGIN_ROOT/$f"
-    grep -q -- '--strict' "$PLUGIN_ROOT/$f"
+    grep -q -- '--list-landed' "$(contract_source "$PLUGIN_ROOT/$f")"
+    grep -q -- '--strict' "$(contract_source "$PLUGIN_ROOT/$f")"
   done
   run grep -F -- '.metadata.landed_paths // [] | .[] | strings]' \
     "$PLUGIN_ROOT/skills/worktask/scripts/fn-stream-merge.sh"
@@ -1019,10 +1019,10 @@ assert_refused() {
 @test "contract: DR, FN and SKILL.md name the landed-set exclusion" {
   grep -qE -- "landed_paths|--list-landed" "$PLUGIN_ROOT/agents/technical-lead.md"
   grep -qE -- "landed_paths|--list-landed" "$PLUGIN_ROOT/agents/project-manager.md"
-  grep -qE -- "landed_paths|--list-landed" "$PLUGIN_ROOT/skills/worktask/SKILL.md"
+  grep -qE -- "landed_paths|--list-landed" "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/orchestration.md")"
 }
 
 @test "contract: handoff-protocol.md documents the ledger-task fan-out land-artifacts.sh resolves through" {
-  [ -e "$PLUGIN_ROOT/skills/worktask/references/handoff-protocol.md" ]
-  grep -q "workspace_path" "$PLUGIN_ROOT/skills/worktask/references/handoff-protocol.md"
+  [ -e "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/handoff-protocol.md")" ]
+  grep -q "workspace_path" "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/handoff-protocol.md")"
 }

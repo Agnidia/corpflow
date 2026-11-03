@@ -10,9 +10,9 @@ related:
   - references/git-integration.md
   - ../shared/milestone-helpers/SKILL.md
   - ../../hooks/megatask-monitor.sh
-  - ../../commands/worktask.md
-  - ../shared/stage-codes.md
-  - ../shared/state-ledger.md
+  - ../worktask/references/workflow.md
+  - ../worktask/references/stage-codes.md
+  - ../worktask/references/state-ledger.md
 scripts:
   - scripts/build-orchestrator.sh
   - scripts/init-worktree.sh
@@ -32,7 +32,7 @@ priority order**, each isolated in its own git worktree. One `/worktask` per iss
 runs stages itself.
 
 > **Separation of concerns.** `/worktask` runs ONE issue's staged pipeline (PL→…→ST) and is
-> milestone-agnostic. All milestone/array/DAG/track logic lives here — not in `worktask.md`.
+> milestone-agnostic. All milestone/array/DAG/track logic lives here — not in the worktask skill.
 
 ## Canonical Scripts
 
@@ -186,7 +186,7 @@ relevant directories — less per-worktree disk, faster init:
 A batch cannot stop for one issue's approvals, so every per-issue `PL0` is stamped
 `plan_gate: "bypass"`, `fn_gate: "bypass"` (both default `"checkpoint"`) and `decision_gate: "auto"`
 (default `"user"`) — that issue's `open_questions[]` route through the Fable decision pass
-(`commands/worktask.md § Step A.4`). The single human checkpoint is megatask's own **R1 batch
+(`skills/worktask/references/workflow.md § Step A.4`). The single human checkpoint is megatask's own **R1 batch
 confirmation**, before any worktree exists; per-issue changes are reviewable as per-issue PRs.
 
 #### Parking an escalate-class question
@@ -202,7 +202,7 @@ track and dependents stay `blocked`. Mechanics:
 The same path covers non-planning stages: an escalate-class closing-sweep item parks the issue
 identically, with the audit subject set to the boundary that surfaced it — `FN<N>` for a batched
 item, the emitting stage's own `<CODE><N>` for one marked `blocks_next_stage`
-(`skills/shared/stage-contracts.md § Closing Elicitation Sweep`).
+(`skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`).
 
 > When the megatask session itself runs headless (`-p`), set `MCP_CONNECTION_NONBLOCKING=true` to skip the MCP connection wait;
 > with `--mcp-config`, server connections are bounded at 5s rather than blocking on the slowest.
@@ -242,7 +242,7 @@ item, the emitting stage's own `<CODE><N>` for one marked `blocks_next_stage`
 
 #### One formula, two callers
 
-> The level table above is canonical; `skills/worktask/SKILL.md § Validation check 11` applies it per-stage for standalone worktasks, differing only in `orchestrator_offset` (1 here, 0 standalone). The same chain must project **3** standalone and **4** under `/megatask` — editing one column without the other is how the two drift. An unanticipated hop, which neither projection can see, is caught afterwards by `agent-coordination § Depth-refusal self-report`.
+> The level table above is canonical; `skills/worktask/references/stage-validation.md § Validation check 11` applies it per-stage for standalone worktasks, differing only in `orchestrator_offset` (1 here, 0 standalone). The same chain must project **3** standalone and **4** under `/megatask` — editing one column without the other is how the two drift. An unanticipated hop, which neither projection can see, is caught afterwards by `agent-coordination § Depth-refusal self-report`.
 
 ## Status Transitions
 
@@ -279,7 +279,7 @@ while a live child of that issue's worktask runs (§ Track hold before reassignm
 
 #### Track hold before reassignment
 
-Before reassigning a freed track, run the live check of `../worktask/SKILL.md § Hand-back guard`
+Before reassigning a freed track, run the live check of `../worktask/references/orchestration.md § Hand-back guard`
 on that issue's `<worktree>/.context/state.json`. Every row writes `handback_guard` with
 `point: track_reassign`, except `clear`:
 
@@ -323,14 +323,14 @@ Every track uses the same plain `<STAGE>0` ledger keys (`PL0`, `AR0`, `DV0`, `DR
 namespace is the worktree, not the key: each track has its own `.context/state.json` under its own
 worktree, so two tracks both writing `PL0` cannot collide. Track-offset ids would break every
 hardcoded `PL0`/`AR0`/`FN0` reader and the `PL is always PL0 only` rule in
-`../shared/state-ledger.md`.
+`../worktask/references/state-ledger.md`.
 
 ### Seeding a track's PL
 
 `/worktask` Step 3a seeds the per-issue ledger with `seed-state.sh`
-(`commands/worktask.md § Steps 3–3a`); it already holds `tasks.PL0`, so this row is a metadata merge.
+(`skills/worktask/references/workflow.md § Steps 3–3a`); it already holds `tasks.PL0`, so this row is a metadata merge.
 megatask passes the stamp in the per-issue prompt, and the per-issue run's Step 4 overlays it in
-its own `--task-meta PL0` call (`commands/worktask.md § Step 4 — the /megatask stamp`), from
+its own `--task-meta PL0` call (`skills/worktask/references/launch-planning.md § Step 4 — the /megatask stamp`), from
 `$WT`, the absolute `worktree_path=` that `init-worktree.sh` printed.
 
 #### Seeding a track's PL — the stamp

@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Contract tests for skills/worktask/scripts/refine-branch-target.sh — the one-shot
 # refinement of the PLANNED branch target from the approved plan's own `title:`
-# (commands/worktask.md § Step A.4b). Ledger-only: no git mutation, ever.
+# (skills/worktask/references/workflow.md § Step A.4b). Ledger-only: no git mutation, ever.
 # Canonical gate order, closed reason set and row schema: .context/architecture-0.md
 # § schemas / skills/shared/git-conventions.md § Once-only rule.
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"

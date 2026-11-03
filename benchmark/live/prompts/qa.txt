@@ -9,6 +9,9 @@ behavior — delegate missing edge-case tests to test-generator. Verify the
 animations/transitions are driven by testable state. Run the iOS Simulator
 slice via `make test-ios` (SKIPs cleanly when no runtime). Report pass/fail and
 the test count.
+If the provider declares native runtime checks host-only, report the iOS slice
+and GUI evidence as pending trusted-host validation. Do not retry denied native
+services, disable the sandbox, or present fallback diagrams as app screenshots.
 
 OUTPUT BUDGET (hard). Report RESULTS, not process — no test-by-test narration,
 no reproducing test source or command output, no restating what each suite

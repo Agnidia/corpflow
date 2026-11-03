@@ -6,7 +6,7 @@ Each group's `actions:` line is the registry: `tests/shell/skills/agent-coordina
 
 ## Orchestrator — stage loop
 
-Writers: `skills/worktask/SKILL.md` Steps 4–7 and § Hand-back guard, `commands/worktask.md`, `skills/megatask/SKILL.md` (track hold), `brief-compose.sh` (`gate_remediation_injected`).
+Writers: `skills/worktask/references/orchestration.md` Steps 4–7 and § Hand-back guard, `skills/worktask/references/workflow.md`, `skills/megatask/SKILL.md` (track hold), `brief-compose.sh` (`gate_remediation_injected`).
 
 actions: `worktask_init`, `stage_transition`, `approval_received`, `resume`, `stage_replay`, `permission_mode_pinned`, `dispatch_depth_projected`, `stage_returned_incomplete`, `reattach_send_result`, `gate_remediation_injected`, `dv_checkpoint_resume`, `dv_worktree_enforced`, `dv_test_scope_enforced`, `stage_test_ban_enforced`, `brief_compose_failed`, `model_resolution_constrained`, `artifact_path_resolved`, `routing_override`, `routing_override_partial`, `effort_clamped`, `resolver_skipped`, `workspace_path_unstamped`, `worktree_isolation_waived`, `handback_guard`, `consult_divergence`
 
@@ -18,7 +18,7 @@ actions: `blocked_on`, `mailbox_ingest`, `escalation_parked`, `permission_denied
 
 ## Orchestrator — plan gate and sweeps
 
-Writers: `commands/worktask.md` Steps A–C, `autonomy-preflight.sh`, `publish-pl-issue.sh`, `refine-branch-target.sh`.
+Writers: `skills/worktask/references/workflow.md` Steps A–C, `autonomy-preflight.sh`, `publish-pl-issue.sh`, `refine-branch-target.sh`.
 
 actions: `autonomy_preflight`, `autonomy_preflight_record_failed`, `preflight_issue_candidates`, `auto_decision_dispatched`, `auto_decision_resolved`, `plan_revision_dispatched`, `approval_rejected`, `github_issue_created`, `branch_convention_check`, `branch_slug_truncated`, `branch_target_refined`, `sweep_check`, `sweep_recorded`, `sweep_resolved`, `sweep_escalation_unprompted`
 

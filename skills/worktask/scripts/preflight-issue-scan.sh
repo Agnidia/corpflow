@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # @description preflight-issue-scan.sh — ADVISORY scan for open GitHub issues that
 #   plausibly already cover the request, run at `/worktask` entry BEFORE `.context/`
-#   is created (`commands/worktask.md § Step 2a`).
+#   is created (`skills/worktask/references/workflow.md § Step 2a`).
 #
 #   `skills/gh-issue-dedup` binds one issue per `.context/` via the anchor or an
 #   exact-title search — both only reachable once a `.context/` exists, so they

@@ -47,7 +47,7 @@ case "${1:-}" in
     ;;
 esac
 
-# Canonical artifact basenames (mirrors handoff-protocol.md#stage-artifact-map).
+# Canonical artifact basenames (mirrors skills/worktask/references/contracts/artifact-map.md#stage-artifact-map).
 #
 # DV also matches the per-stream development-N-<stream>.md: under handoff-protocol.md
 # § DV fan-out — ledger tasks each stream file IS its row's DV handoff, read directly by

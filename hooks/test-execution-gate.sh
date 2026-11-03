@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-execution-gate — PreToolUse gate for skills/shared/testing-strategy.md
+# test-execution-gate — PreToolUse gate for skills/worktask/references/testing-strategy.md
 # § Test-Execution Authority: only DV (scoped) and QA (scoped + full) may run
 # tests, and an already-recorded run is denied while the tree is unchanged.
 #
@@ -1405,7 +1405,7 @@ dedupe_decide() {
   # run, not to find a way around the gate. Naming its EVIDENCE is what makes the citation
   # checkable — a denial that cannot say what the run it protects produced is the symptom that
   # cost an hour of diagnosis. Remediation: references/test-execution-denials.md.
-  _reason=$(deny_reason "This exact test invocation already ran during run_index $_n (stage: $_p_stage, at $_p_ts, evidence: $_p_ev) against a byte-identical tree, so it can only reproduce the result already on record (skills/shared/testing-strategy.md § Test-Execution Authority).$(controls_in_force "$_ctx" "$_stage" dedupe)" dedupe)
+  _reason=$(deny_reason "This exact test invocation already ran during run_index $_n (stage: $_p_stage, at $_p_ts, evidence: $_p_ev) against a byte-identical tree, so it can only reproduce the result already on record (skills/worktask/references/testing-strategy.md § Test-Execution Authority).$(controls_in_force "$_ctx" "$_stage" dedupe)" dedupe)
   emit_deny "$_reason" || return 0
 
   write_audit_row "$_ctx" "test_execution_deduped" \
@@ -1820,9 +1820,9 @@ run_gate() {
   # right now, plus the remediation section for its class; the constraints on that wording live
   # with it in references/test-execution-denials.md.
   if [ -n "$_settled" ]; then
-    _reason=$(deny_reason "No stage is in progress — this worktask is finished, or the loop is between stages, so nobody holds test-execution authority (skills/shared/testing-strategy.md § Test-Execution Authority).$(controls_in_force "$_ctx" "$_stage" settled)" settled)
+    _reason=$(deny_reason "No stage is in progress — this worktask is finished, or the loop is between stages, so nobody holds test-execution authority (skills/worktask/references/testing-strategy.md § Test-Execution Authority).$(controls_in_force "$_ctx" "$_stage" settled)" settled)
   else
-  _reason=$(deny_reason "Stage '$_stage' has no test-execution authority for a ${_class} (skills/shared/testing-strategy.md § Test-Execution Authority); the run's resolved test mode is '$(resolved_test_mode "$_ctx")', which is a SEPARATE mechanism — this refusal is the authority check, not the mode.$(controls_in_force "$_ctx" "$_stage" authority)" authority)
+  _reason=$(deny_reason "Stage '$_stage' has no test-execution authority for a ${_class} (skills/worktask/references/testing-strategy.md § Test-Execution Authority); the run's resolved test mode is '$(resolved_test_mode "$_ctx")', which is a SEPARATE mechanism — this refusal is the authority check, not the mode.$(controls_in_force "$_ctx" "$_stage" authority)" authority)
   fi
   emit_deny "$_reason" || return 0
 

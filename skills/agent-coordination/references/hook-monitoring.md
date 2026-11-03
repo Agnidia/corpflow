@@ -5,7 +5,7 @@ Claude Code hook events for monitoring agent lifecycle within worktasks.
 ## Subagent Lifecycle Hooks
 
 | Hook Event | Fires When | Matcher | Payload Fields |
-|------------|------------|---------|----------------|
+| --- | --- | --- | --- |
 | `SubagentStart` | Stage agent spawned | Agent type name (e.g., `corpflow:developer`) | `agent_id`, `agent_type` |
 | `SubagentStop` | Stage agent completes | Agent type name | `agent_id`, `agent_type` |
 | `PermissionDenied` | Auto-mode classifier denies a tool call | — | `tool_name`, `tool_input`, `tool_use_id`, `reason` |
@@ -27,7 +27,7 @@ Claude Code's own internal agents (prompt suggestions, `/btw`) also fire `Subage
 ### Later lifecycle events
 
 | Hook Event | Fires When | Matcher | Payload Fields |
-|------------|------------|---------|----------------|
+| --- | --- | --- | --- |
 | `MessageDisplay` | A message is displayed to the user | — | `message`, `role` (`user`/`assistant`), `display_type` |
 | `SessionStart` | Session begins | — | `session_id`, `session_title`, `reloadSkills` (bool), `source` (session origin — a forked session reports `"fork"`, not `"resume"`) |
 | `Notification` | Background agent needs input or finishes; also permission prompts (incl. Claude Desktop / VS Code). `idle_prompt` does not fire while background agents still run | — | reason ∈ `agent_needs_input` / `agent_completed` |
@@ -37,7 +37,7 @@ Claude Code's own internal agents (prompt suggestions, `/btw`) also fire `Subage
 #### Later lifecycle events — instruction loading
 
 | Hook Event | Fires When | Matcher | Payload Fields |
-|------------|------------|---------|----------------|
+| --- | --- | --- | --- |
 | `InstructionsLoaded` | A rule or nested CLAUDE.md loads, including on Write/Edit inside its scope and on a single-file Bash `cat`/`head`/`tail`/`sed -n`/`grep` view (2.1.293) | — | `agent_id`, `agent_type` when a subagent's file access loaded it; effort for rules and nested CLAUDE.md loaded on file access |
 
 ### Notification as resume wake-up
@@ -53,7 +53,7 @@ The Agent tool has no `resume` parameter; use `SendMessage` to reach running age
 
 #### SessionStart — resume hooks and rendering
 
-- Resume hooks also receive the session's staleness and an estimated re-cache cost (field names unconfirmed), which lets the resume loop weigh reattach against re-dispatch — policy: `skills/worktask/references/resume.md § Step 0 notes — reattach vs re-dispatch — cost estimation`.
+- Resume hooks also receive the session's staleness and an estimated re-cache cost (field names unconfirmed), which lets the resume loop weigh reattach against re-dispatch — policy: `skills/worktask/references/recovery-procedure.md § Step 0 notes — reattach vs re-dispatch — cost estimation`.
 - `--continue`/`--resume` render the conversation without waiting for `SessionStart` hooks, so resume context a hook injects can arrive after the conversation is on screen. Never assume a SessionStart hook has finished before a resumed session is shown.
 
 #### SessionStart — form & grant floor
@@ -114,7 +114,7 @@ The row's `metadata.escalation` holds `invoker` (`gate`), `action` (`escalated|n
 Every worktask gate — hook-enforced or orchestrator-mediated — returns structured remediation that flows into the next attempt's context:
 
 | Surface | Mechanism | Reference user |
-|---------|-----------|----------------|
+| --- | --- | --- |
 | Hook gate | `hookSpecificOutput.additionalContext` alongside `decision:block` | `hooks/dv-screenshot-gate.sh` (block path) |
 | Orchestrator gate | `blockers[]` / `blocking_defects[]` into the re-dispatched prompt's [6], one flattened line each | `brief-compose.sh`, fed by the `SKILL.md` DR→DV / QA→DV loop-back (`gate_remediation_injected` row) |
 
@@ -143,7 +143,7 @@ Metadata only: the `dedupe_key` shape is unchanged.
 
 - `tool_decision` events carry `tool_parameters`, so dashboards can tell a `Bash git push` decision from a `Bash ls`.
 - `OTEL_RESOURCE_ATTRIBUTES` values surface as metric-datapoint labels, not only span attributes: tag `worktask_id` / `stage` there to slice dashboards per stage without parsing spans.
-- `claude_code.lines_of_code.count` carries a `model` attribute — per-model LoC attribution pairs with the tier split in `skills/shared/stage-codes.md`.
+- `claude_code.lines_of_code.count` carries a `model` attribute — per-model LoC attribution pairs with the tier split in `skills/worktask/references/stage-codes.md`.
 - `OTEL_METRICS_INCLUDE_REPOSITORY` tags metrics and events with `vcs.*` repository attributes, so a collector shared across repositories slices per repo.
 - Project and local settings ignore the variables that turn on export, set its endpoint or capture content, so a committed `<repo>/.claude/settings.json` cannot start a per-stage dashboard on its own.
 
@@ -217,7 +217,7 @@ Hyphenated matchers exact-match rather than substring-match, so a matcher meant 
 ### PermissionDenied decision
 
 - The `PermissionDenied` hook fires after an auto-mode classifier denial. Its one decision output is `hookSpecificOutput.retry`, and corpflow never returns `retry: true`: `hooks/permission-denied.sh` leaves the denial standing, appends one redacted `permission_denied` audit row (`tool`, `dedupe_key` and a masked, path-scrubbed `command_head`; never the command, reason or allow rule) and prints nothing.
-- The stage returns `verdict: blocked` with a permission `blocked_on`, which holds the full detail; the orchestrator parks the task, asks the user, and resumes only the denied step (`skills/worktask/SKILL.md § Step 6.5a4`). The user grants in Claude Code's own permission UI or runs `! <command>` from the `cwd:` directory the question shows; corpflow writes no allow rule.
+- The stage returns `verdict: blocked` with a permission `blocked_on`, which holds the full detail; the orchestrator parks the task, asks the user, and resumes only the denied step (`skills/worktask/references/completion-merge.md § Step 6.5a4`). The user grants in Claude Code's own permission UI or runs `! <command>` from the `cwd:` directory the question shows; corpflow writes no allow rule.
 
 ### PostToolUse behaviors
 
@@ -250,7 +250,7 @@ Hook payloads include `effort.level` (`low|medium|high|xhigh|max`), so audit/cos
 #### Deleted cwd & broken-hook parks
 
 - After the session's working directory is deleted, hooks run from the project root or home directory. A hook must not assume its cwd still exists — resolve paths from an explicit root, as `hooks/model-switch-lib.sh` and `hooks/state-merge.sh` do.
-- A background session parked because a `PermissionRequest`/`PreToolUse` hook printed an invalid answer shows a `claude agents` row naming the hook and the schema error. Read it as an operator-owned park, not a stage to re-dispatch (`skills/worktask/references/resume.md § Live-agent rows — broken hook configuration`).
+- A background session parked because a `PermissionRequest`/`PreToolUse` hook printed an invalid answer shows a `claude agents` row naming the hook and the schema error. Read it as an operator-owned park, not a stage to re-dispatch (`skills/worktask/references/recovery-state.md § Live-agent rows — broken hook configuration`).
 
 #### Config-error hints & main-thread agents
 
@@ -267,7 +267,7 @@ Hook JSON output accepts `terminalSequence` — `{"hookSpecificOutput": {"termin
 `PreModelSwitch` can block, confirm, or annotate a model switch; `PostModelSwitch` observes one that already applied. corpflow uses the pair to keep a stage on the tier it was dispatched with: `hooks/model-switch-gate.sh` refuses a mid-worktask re-tier away from `metadata.model`, and `hooks/model-switch-audit.sh` records `model_switched` so cost is attributed to the model that actually ran.
 
 | Registered hook | Event | Decision |
-|---|---|---|
+| --- | --- | --- |
 | `hooks/model-switch-gate.sh` | `PreModelSwitch` | `block` on an unexplained family change, `confirm` on an explicit user switch, `annotate` on a fallback or an unreadable payload, silent otherwise |
 | `hooks/model-switch-audit.sh` | `PostModelSwitch` | none — appends one `model_switched` row, gated on an existing ledger |
 
@@ -277,7 +277,7 @@ The official hooks reference documents `to_model`, `from_model`, and `source` (`
 
 #### Why this gate fails open
 
-The gate's pin is not guessed: it reads `.facts.dispatched_agents[].model_requested` (`skills/worktask/references/handoff-protocol.md § facts — dispatched_agents`). A block is reachable only once the destination coalesce matches a real field, so a wrong guess degrades to annotate-or-silent rather than a spurious block. A gate that failed closed on a malformed payload would wedge every session that switches models.
+The gate's pin is not guessed: it reads `.facts.dispatched_agents[].model_requested` (`skills/worktask/references/contracts/ledger-facts.md § facts — dispatched_agents`). A block is reachable only once the destination coalesce matches a real field, so a wrong guess degrades to annotate-or-silent rather than a spurious block. A gate that failed closed on a malformed payload would wedge every session that switches models.
 
 One closed path sits outside the gate: a plugin hook that fails to load refuses the model switch with the cause named, and each later switch re-checks — so a broken `model-switch-gate.sh` load refuses switches only until the fault is fixed.
 
@@ -286,7 +286,7 @@ One closed path sits outside the gate: a plugin hook that fails to load refuses 
 With agent teams enabled (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), two more events support event-driven orchestration in megatask mode, where the lead reacts to teammate progress:
 
 | Hook Event | Fires When | Payload Fields | Use Case |
-|------------|------------|----------------|----------|
+| --- | --- | --- | --- |
 | `TeammateIdle` | Teammate finishes work and becomes idle; never from the teammate's own subagents or forks | `agent_id`, `agent_type`; the notification carries the teammate's final answer | Read the lane's result directly; assign next task |
 | `TaskCompleted` | A task in the shared task list is completed | `agent_id`, `agent_type` | Trigger dependent stages, update orchestrator |
 
@@ -299,7 +299,7 @@ Background tasks a teammate launches survive the teammate finishing its turn: `T
 ## Agent Teams vs Subagents
 
 | Aspect | Subagents (Agent tool) | Agent Teams (`Agent(name: …)`) |
-|--------|----------------------|------------------------|
+| --- | --- | --- |
 | Context | Own window, results return to caller | Fully independent sessions |
 | Communication | Report back to parent only | Direct inter-teammate messaging |
 | Coordination | Task dependencies (blockedBy) | Shared task list + messaging |
@@ -311,7 +311,7 @@ Background tasks a teammate launches survive the teammate finishing its turn: `T
 ### When to Use Each
 
 | Worktask Pattern | Subagents | Agent Teams |
-|-----------------|-----------|-------------|
+| --- | --- | --- |
 | Standard 9/11-stage | Default | Not recommended |
 | Cross-plugin handoff (DV→apple-developer) | Default | Not applicable |
 | Megatask sequential issues | Default (orchestrator) | Not recommended |
@@ -331,7 +331,7 @@ Background tasks a teammate launches survive the teammate finishing its turn: `T
 MCP servers can request structured input mid-task via interactive forms or browser URLs, which may pause agent execution (Xcode build, Figma, Chrome). Elicitation hooks let worktask agents intercept these.
 
 | Hook Event | Fires When | Use Case |
-|------------|------------|----------|
+| --- | --- | --- |
 | `Elicitation` | MCP server requests user input | Pre-fill defaults, validate requests, log elicitations |
 | `ElicitationResult` | User responds to elicitation | Audit responses, transform data, route to agents |
 
@@ -345,6 +345,8 @@ The plugin pins this behavior on its test-execution and decision-protection PreT
 Advisory artifact checks and observational hooks retain their existing behavior.
 `onFailure` has no effect on Stop, SubagentStop, TaskCompleted, TeammateIdle, or asynchronous command hooks.
 Keep the stage-boundary harness as the enforcement mechanism when a completion hook cannot run.
+
+### Payload validation and concurrency
 
 Async multiline JSON and SessionStart environment propagation are fixed in 2.1.295. SessionEnd while
 background commands run and plugin worktree hooks under `--worktree` are fixed in 2.1.300; `--tmux` remains excluded.

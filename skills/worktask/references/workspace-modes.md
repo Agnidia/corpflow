@@ -1,6 +1,6 @@
 # Workspace Modes — detection & isolation rules
 
-Read when running in megatask/worktree mode, inside a Conductor workspace clone, or on any cwd↔workspace_path mismatch (from `skills/worktask/SKILL.md § Workspace Mode` stub). In a megatask run (`/megatask N`), each ticket executes in an isolated workspace.
+Read when running in megatask/worktree mode, inside a Conductor workspace clone, or on any cwd↔workspace_path mismatch (from `skills/worktask/references/workspace-scheduling.md § Workspace Mode` stub). In a megatask run (`/megatask N`), each ticket executes in an isolated workspace.
 
 ## Workspace Detection
 
@@ -18,7 +18,7 @@ const contextPath = isolation === 'worktree' ? `${workspacePath}/.context` : '.c
 ## Path Resolution
 
 | Mode | Base Path | Git Operations | Source Isolation |
-|------|-----------|----------------|------------------|
+| --- | --- | --- | --- |
 | Standard | `.context/` (main checkout) | Main working directory | None (orchestrator/non-isolated stages) |
 | Worktree | `.worktrees/milestone-{N}/{issue#}/.context/` | Dedicated worktree | Full (git + artifacts) |
 
@@ -89,9 +89,9 @@ A linked worktree is the shape every worktree-based host provisions, detected as
 
 #### Host mapping — where the target lands
 
-The orchestrator stamps the target into `facts.branch` (`commands/worktask.md § Step 3c — which of the two names gets stamped`) and FN's `git push -u origin HEAD:refs/heads/<facts.branch>` gives the PR a conventional head (`agents/project-manager.md § Final FN steps`).
+The orchestrator stamps the target into `facts.branch` (`skills/worktask/references/launch-planning.md § Step 3c — which of the two names gets stamped`) and FN's `git push -u origin HEAD:refs/heads/<facts.branch>` gives the PR a conventional head (`agents/project-manager.md § Final FN steps`).
 
-On the default worktree path the two names agree, leaving no divergence to reconcile. Divergence is expected on the opt-out path and on the `upstream_tracked`, `target_exists` and `jq_unavailable` arms, where `fn-preflight.sh branch-divergence` observes and classes it (`expected` vs `third_party`, only the latter surfaced at the FN gate) — semantics in `handoff-protocol.md § Field notes — branch, divergence from the local branch name`.
+On the default worktree path the two names agree, leaving no divergence to reconcile. Divergence is expected on the opt-out path and on the `upstream_tracked`, `target_exists` and `jq_unavailable` arms, where `fn-preflight.sh branch-divergence` observes and classes it (`expected` vs `third_party`, only the latter surfaced at the FN gate) — semantics in `skills/worktask/references/contracts/ledger-field-notes.md § Field notes — branch, divergence from the local branch name`.
 
 ## Task ID Namespacing
 
@@ -109,7 +109,7 @@ All DV operations use the worktree path prefix — isolation is always active. `
 
 ##### The tree is pinned at dispatch
 
-Each DV ledger row's tree is fixed before `Agent()`: the row's agent enters exactly `tasks.DV<k>.metadata.workspace_path`. The orchestrator serializes shared-tree streams when `WORKSPACE_ROOT` pins its session, or re-pins concurrent streams to separate trees otherwise (rule: `handoff-protocol.md § Pinning a row's tree`). A linked worktree alone does not signal a pinned session. Agent frontmatter `isolation`, the Agent tool's `isolation: "worktree"`, and glob conventions cannot select the assigned tree. They can hand the stage a different tree, which `dv-tree-preflight.sh --assigned` (`agents/developer.md § D0.0a`) blocks.
+Each DV ledger row's tree is fixed before `Agent()`: the row's agent enters exactly `tasks.DV<k>.metadata.workspace_path`. The orchestrator serializes shared-tree streams when `WORKSPACE_ROOT` pins its session, or re-pins concurrent streams to separate trees otherwise (rule: `skills/worktask/references/contracts/artifact-map.md § Pinning a row's tree`). A linked worktree alone does not signal a pinned session. Agent frontmatter `isolation`, the Agent tool's `isolation: "worktree"`, and glob conventions cannot select the assigned tree. They can hand the stage a different tree, which `dv-tree-preflight.sh --assigned` (`agents/developer.md § D0.0a`) blocks.
 
 ##### Absolute-path mode when EnterWorktree is refused
 
@@ -129,7 +129,19 @@ When the merge target is not the worktask default (e.g. `origin/release/v2` inst
 
 ##### Base-ref resolution order
 
-PL0 also mirrors the detected branch to `state.json .metadata.base_ref` unconditionally, because shell helpers cannot read Task-System metadata. Every reader — DV, `fn-preflight.sh continuity`, `branch-name.sh` (via `branch-lib.sh resolve_base_ref`) — resolves through one order, highest first: `$FN_BASE_REF`, `state.json tasks.<ID>.metadata.base_ref` (rank 2a, the row a caller names via `BASE_REF_TASK_ID`), `state.json .metadata.base_ref` (rank 2b, the rank a host-declared target branch enters at), `workspace.json .git.base_branch`, `git symbolic-ref refs/remotes/origin/HEAD`, then unresolved. Ahead of them sits rank 0, the `fork_base()` fork point — opt-in evidence: it supplies a value only when those ranks are empty and the caller passed `--with-fork-point` (only `fn-preflight base-sanity` does); otherwise it reconciles through a PL0 sweep item instead of overriding. No hardcoded literal ends that chain; an unresolved base is reported and the caller degrades non-blocking. Canonical: `handoff-protocol.md § metadata.base_ref`.
+PL0 always mirrors the base to `state.json .metadata.base_ref` for shell readers.
+DV, `fn-preflight.sh continuity`, and `branch-name.sh` through `resolve_base_ref` use this precedence:
+
+1. `$FN_BASE_REF`.
+2. `tasks.<ID>.metadata.base_ref`, selected by `BASE_REF_TASK_ID` (2a).
+3. Ledger `.metadata.base_ref`, including host targets (2b).
+4. `workspace.json .git.base_branch`.
+5. `git symbolic-ref refs/remotes/origin/HEAD`.
+6. Unresolved: report and degrade without blocking; never use a hardcoded fallback.
+
+Rank 0 (`fork_base()`) supplies evidence only when all ranks are empty and `--with-fork-point` was passed.
+Only `fn-preflight base-sanity` opts in. Otherwise reconcile through a PL0 sweep item without overriding.
+Canonical: `skills/worktask/references/contracts/ledger-root.md § metadata.base_ref`.
 
 ##### Background & shared-checkout rules
 

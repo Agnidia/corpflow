@@ -6,7 +6,7 @@ related:
   - ../worktask/scripts/publish-pl-issue.sh
   - ../worktask/scripts/preflight-issue-scan.sh
   - ../worktask/SKILL.md
-  - ../shared/state-ledger.md
+  - ../worktask/references/state-ledger.md
   - ../task-folder-organization/SKILL.md
 ---
 
@@ -16,7 +16,7 @@ Each `.context/` is tracked by one GitHub issue for its whole life. The first wo
 it; every later run in the same `.context/` comments on it with a plan summary, so a feature's
 planning history stays on one thread.
 
-`state.json:metadata.github_issue_url` can't carry this binding: `commands/worktask.md` re-seeds
+`state.json:metadata.github_issue_url` can't carry this binding: `skills/worktask/references/workflow.md` re-seeds
 `state.json` without `metadata` on every fresh `/worktask`, so the URL only survives a resume of
 the same run.
 
@@ -43,7 +43,7 @@ each later run's follow-up comment.
 
 The anchor exists only once a `.context/` does, so it protects re-runs, not the first run of work
 already filed under different wording. `/worktask` covers that at entry with
-`skills/worktask/scripts/preflight-issue-scan.sh` (`commands/worktask.md § Step 2a`): before
+`skills/worktask/scripts/preflight-issue-scan.sh` (`skills/worktask/references/workflow.md § Step 2a`): before
 `.context/` is created it scores keyword overlap against open-issue titles and offers candidates
 to the user, who may bind the new context to one.
 

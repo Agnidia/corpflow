@@ -65,8 +65,7 @@
         "./commands/sprint.md",
         "./commands/tech-code-review.md",
         "./commands/test-coverage.md",
-        "./commands/test-plan.md",
-        "./commands/worktask.md"
+        "./commands/test-plan.md"
       ],
       "agents": [
         "./agents/designer.md",

@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Single-sourcing contract for the Test-Execution Authority policy
-# (skills/shared/testing-strategy.md § Test-Execution Authority):
+# (skills/worktask/references/testing-strategy.md § Test-Execution Authority):
 #   - the canonical runner enumeration and hooks/test-execution-gate.sh's
 #     RUNNERS list agree (parity, not literal-text identity)
 #   - every non-DV/QA stage agent carries the pointer exactly once, never a
@@ -9,7 +9,7 @@
 #     one line
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
-TESTING_STRATEGY="$PLUGIN_ROOT/skills/shared/testing-strategy.md"
+TESTING_STRATEGY="$PLUGIN_ROOT/skills/worktask/references/testing-strategy.md"
 GATE_HOOK="$PLUGIN_ROOT/hooks/test-execution-gate.sh"
 
 # Canonical runner tokens as spelled in the hook's RUNNERS variable — each
@@ -35,7 +35,9 @@ ALLOWLIST_PATTERNS=(
   "commands/"                       # allowed-tools frontmatter on any command
   "skills/logging-conventions/SKILL.md"
   "skills/shared/test-selection-syntax.md"
-  "skills/shared/testing-strategy.md"   # the canonical section itself
+  "skills/shared/testing-strategy.md"  # general framework and strict-runner reference
+  "skills/cross-plugin-handoff/templates/CORPFLOW.md"  # handoff test-evidence vocabulary
+  "skills/worktask/references/testing-strategy.md"   # the canonical section itself
   "hooks/test-execution-gate.sh"        # the RUNNERS parity counterpart
   "tests/"
 )

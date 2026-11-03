@@ -5,7 +5,7 @@
 #   - an absolute path outside every allowed root fails closed: exit 1, empty stdout,
 #     one "brief-compose: <reason>: <token>" stderr line
 #   - an unknown or malformed task id is a usage-class failure: exit 2, no stdout
-#   - the orchestrator loop wires brief-compose.sh into SKILL.md and commands/worktask.md
+#   - the orchestrator loop wires brief-compose.sh into SKILL.md and skills/worktask/references/workflow.md
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 bats_require_minimum_version 1.5.0
 
@@ -79,11 +79,11 @@ EOF
   assert_output ""
 }
 
-@test "wiring: the orchestrator loop wires brief-compose.sh into SKILL.md and commands/worktask.md" {
+@test "wiring: the orchestrator loop wires brief-compose.sh into SKILL.md and skills/worktask/references/workflow.md" {
   cd "$PLUGIN_ROOT"
-  run grep -q 'brief-compose\.sh' skills/worktask/SKILL.md
+  run grep -q 'brief-compose\.sh' skills/worktask/references/prompt-dispatch.md
   assert_success
-  run grep -q 'brief-compose\.sh' commands/worktask.md
+  run grep -q 'brief-compose\.sh' skills/worktask/references/stage-entry.md
   assert_success
 }
 
@@ -218,4 +218,39 @@ EOF2
   grep -qxF '  1. AC-3 fails: x' <<< "$output" || fail "$output"
   [[ "$stderr" =~ ^brief-compose:\ warn:\ gate_remediation_injected\ audit\ row\ not\ recorded\ \(state-patch\ exit\ [1-9][0-9]*\)$ ]] \
     || fail "stderr: $stderr"
+}
+
+@test "stage catalogue: the actual local role and task skills reach production composition" {
+  mk_gate_state - - '$corpflow:design-review'
+  jq '.tasks.DV0.metadata.agent = "corpflow:workflow-engineer"
+      | .tasks.DV0.metadata.context_refs = ["skills/security-review-process/references/threat-model.md"]' \
+    "$WD/.context/state.json" > "$WD/role.json"
+  mv "$WD/role.json" "$WD/.context/state.json"
+  compose_dv0
+  assert_success
+  assert_output --partial 'ref: agents/workflow-engineer.md'
+  assert_output --partial '- design-review:'
+  assert_output --partial '- security-review-process:'
+  assert_output --partial '- self-improvement:'
+}
+
+@test "stage catalogue: a missing local role fails before printing partial instructions" {
+  mk_gate_state - -
+  jq '.tasks.DV0.metadata.agent = "corpflow:missing-role"' "$WD/.context/state.json" > "$WD/role.json"
+  mv "$WD/role.json" "$WD/.context/state.json"
+  compose_dv0
+  assert_failure 2
+  assert_output ""
+  [[ "$stderr" == *"local agent role missing"* ]]
+}
+
+@test "stage catalogue: a missing required skill reference blocks the stage" {
+  mk_gate_state - -
+  jq '.tasks.DV0.metadata.context_refs = ["skills/absent-required/SKILL.md"]' \
+    "$WD/.context/state.json" > "$WD/role.json"
+  mv "$WD/role.json" "$WD/.context/state.json"
+  compose_dv0
+  assert_failure 2
+  assert_output ""
+  [[ "$stderr" == *"instruction catalogue could not be resolved"* ]]
 }

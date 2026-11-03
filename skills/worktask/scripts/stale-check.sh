@@ -98,7 +98,7 @@ elif ! command -v claude >/dev/null 2>&1; then
   AGENTS_STATUS="unavailable"
 else
   # `--all` also lists completed background sessions, so a genuinely absent row
-  # means gone rather than merely finished (resume.md § Resume Procedure step 0).
+  # means gone rather than merely finished (skills/worktask/references/recovery-procedure.md § Resume Procedure step 0).
   if ! AGENTS_RAW="$(claude agents --json --all 2>/dev/null)"; then
     AGENTS_STATUS="error"
   fi

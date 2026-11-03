@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # @description refine-branch-target.sh — re-derive the PLANNED remote branch name from
 #   the approved plan's own `title:`, at most once per run, after planning completes and
-#   before the plan is published (`commands/worktask.md § Step A.4b`).
+#   before the plan is published (`skills/worktask/references/workflow.md § Step A.4b`).
 #
 #   Ledger-only: it writes `facts.branch` and NOTHING else. It performs no git mutation,
 #   never runs branch-name.sh in rename mode, and leaves the local branch byte-identical.
@@ -24,7 +24,7 @@
 # @arg --plan <path>      Plan file (default: state.json `.plan_file`). Both documented
 #                         shapes are accepted — value as given, then its basename against
 #                         the directory holding state.json (`skills/worktask/references/
-#                         handoff-protocol.md § plan_file shape boundary`).
+#                         skills/worktask/references/contracts/ledger-root.md § plan_file shape boundary`).
 # @arg --state <path>     state.json path (default: .context/state.json).
 # @arg --context <dir>    .context dir (default: .context).
 # @arg -h | --help        Show this header.

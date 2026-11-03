@@ -1,6 +1,6 @@
 # PL Issue Publish — reference
 
-Runtime semantics of `scripts/publish-pl-issue.sh`, which the orchestrator runs between PL0 completion and stage-loop entry (`skills/worktask/SKILL.md § PL Issue Publish`). Read when interpreting its audit rows or changing what it publishes.
+Runtime semantics of `scripts/publish-pl-issue.sh`, which the orchestrator runs between PL0 completion and stage-loop entry (`skills/worktask/references/completion-handoff.md § PL Issue Publish`). Read when interpreting its audit rows or changing what it publishes.
 
 ## Outcome & audit vocabulary
 

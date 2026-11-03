@@ -20,15 +20,17 @@ Receivers refuse relayed permission requests, and auto mode blocks them outright
 
 ### Delivery is reported, so check it
 
-A send can come back `refused`, `dropped` (full or rate-limited inbox), `oversized`, `burst_limited`, `queued` or `held` (waiting for a person's approval at the recipient), and `SendMessage`/`ListAgents` say when the session list was too long to enumerate fully — a "peer is gone" conclusion drawn then is unconfirmed, not established. `queued` means the target is an offline Remote Control session on another machine and delivery waits for it to reconnect: never re-send, or the message arrives twice. `held` has the same rule: approval at the named session releases the copy it holds. A subagent or teammate that receives a message mid-run keeps its earlier thinking and prompt cache on resume (2.1.290). Branch on the result per `skills/worktask/references/resume.md § Reattach rows — the SendMessage has a result too`.
+A send can come back `refused`, `dropped` (full or rate-limited inbox), `oversized`, `burst_limited`, `queued` or `held` (waiting for a person's approval at the recipient), and `SendMessage`/`ListAgents` say when the session list was too long to enumerate fully — a "peer is gone" conclusion drawn then is unconfirmed, not established. `queued` means the target is an offline Remote Control session on another machine and delivery waits for it to reconnect: never re-send, or the message arrives twice. `held` has the same rule: approval at the named session releases the copy it holds. A subagent or teammate that receives a message mid-run keeps its earlier thinking and prompt cache on resume (2.1.290). Branch on the result per `skills/worktask/references/recovery-liveness.md § Reattach rows — the SendMessage has a result too`.
 
 ### notify_when_idle, availability & preview collapse
 
-`notify_when_idle` on a cross-session `SendMessage` asks a peer for one notice when it next goes idle — opt-in, one-shot, no polling, same-machine peers only (macOS and Linux). Prefer it over a `claude agents --json` poll whenever exactly one peer is awaited.
+When awaiting one same-machine peer, prefer `SendMessage` with `notify_when_idle` over discovery polling.
+It requests one idle notice, opt-in, on macOS/Linux.
+Messaging supports every provider and host, including Bedrock/Vertex/Foundry, disabled telemetry, Windows, and rootless containers.
+Never gate handoffs, dispatch flags, or reattach paths on provider or OS.
 
-Cross-session messaging works on every provider and host (Bedrock/Vertex/Foundry, telemetry disabled, Windows, rootless containers), so never gate a handoff, a dispatch flag or a reattach path on provider or OS.
-
-Peer messages collapse to one line — `Message from @<sender>: <first line>` — so a relayed handoff or escalation carries its verdict in the first line. Delivery notices no longer merge two sessions with similar names into one recipient, and an expiry notice no longer blames the desktop app when a terminal session let the message lapse (2.1.292).
+Put a handoff's verdict first: peer previews show `Message from @<sender>: <first line>`.
+Delivery notices distinguish similar session names; expiry notices identify the terminal session responsible (2.1.292).
 
 A `/rename` name stays the peer-visible address after a VS Code reload or a non-interactive `--resume` (2.1.309).
 Ctrl+O lists messages still waiting for delivery, marked as waiting (2.1.309). ↑ no longer recalls a waiting message for a duplicate send (2.1.311).

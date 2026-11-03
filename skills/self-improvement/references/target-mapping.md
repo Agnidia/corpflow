@@ -108,6 +108,6 @@ Source 4 resolves for that reason.
 
 ## Cross References
 
-- `skills/shared/stage-contracts.md` — stage → artifact producer mapping (rows 2–12)
-- `skills/shared/state-ledger.md § Metadata Fields` — `agent`, `embedded_commands` schema
+- `skills/worktask/references/stage-contracts.md` — stage → artifact producer mapping (rows 2–12)
+- `skills/worktask/references/contracts/ledger-operations.md § Metadata Fields` — `agent`, `embedded_commands` schema
 - `SKILL.md § Step 1` / `§ Step 4` — invocation of these rules in the pipeline

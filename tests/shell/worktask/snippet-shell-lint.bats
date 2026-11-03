@@ -10,7 +10,7 @@
 #   - the section ends at the next heading of the same or higher level, outside fences
 #   - exit 2 on a missing heading, an unreadable file or a bad flag
 #   - default run (ENFORCEMENT): the four seed-path sections are clean —
-#     commands/worktask.md, skills/worktask/references/initialization-patterns.md,
+#     skills/worktask/references/workflow.md, skills/worktask/references/initialization-patterns.md,
 #     skills/worktask/references/handoff-protocol.md, skills/megatask/SKILL.md
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
@@ -100,9 +100,9 @@ setup() {
   cd "$WD"
   run bash "$PLUGIN_ROOT/$SCRIPT"
   assert_success
-  assert_output --partial "commands/worktask.md::## Phase 1: Planning: ok"
-  assert_output --partial "skills/worktask/references/initialization-patterns.md::## PL0 state.json Initialization: ok"
-  assert_output --partial "skills/worktask/references/handoff-protocol.md::### PL0 seed (initial state): ok"
+  assert_output --partial "skills/worktask/references/launch-preflight.md::## Phase 1: Planning: ok"
+  assert_output --partial "skills/worktask/references/initialization-ledger.md::## PL0 state.json Initialization: ok"
+  assert_output --partial "skills/worktask/references/contracts/ledger-seed.md::### PL0 seed (initial state): ok"
   assert_output --partial "skills/megatask/SKILL.md::### Seeding a track's PL: ok"
 }
 

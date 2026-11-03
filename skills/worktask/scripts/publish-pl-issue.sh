@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # publish-pl-issue.sh — auto-publish a sanitised GitHub issue after PL approval.
 #
-# Invoked by the orchestrator after PL0 (skills/worktask/SKILL.md § PL Issue Publish). NEVER blocks the
+# Invoked by the orchestrator after PL0 (skills/worktask/references/completion-handoff.md § PL Issue Publish). NEVER blocks the
 # worktask: operational outcomes are audit.jsonl rows (result + reason) and exit 0; only a
 # catastrophe (jq missing, audit dir unwritable, state corrupt) exits 1, and --self-test
 # failure exits 2. An unreachable sibling folds into those two: publish-pl-issue-lib.sh
@@ -14,7 +14,7 @@
 #     comment and milestone-mode: skills/gh-issue-dedup. Env: GH_ISSUE_ANCHOR (anchor path),
 #     GH_ISSUE_SEARCH=0 (disable the title search).
 #   - plan_file shape boundary (path in state.json, bare basename in task metadata; readers
-#     MUST accept either): handoff-protocol.md § plan_file shape boundary. The PLAN_FILE block below
+#     MUST accept either): skills/worktask/references/contracts/ledger-root.md § plan_file shape boundary. The PLAN_FILE block below
 #     tries the value as given, then its basename against the state directory, and names both
 #     candidates on the fatal path.
 #   - {{asset:<basename>}} placeholder grammar and the .context/designs/-only lookup:
@@ -93,7 +93,7 @@ STRICT="${STRICT:-0}"
 LOG_DIR="${WORKSPACE_ROOT:-${CLAUDE_PROJECT_DIR:-.}}/.context/logs"
 AUDIT_FILE="$LOG_DIR/audit.jsonl"
 # Run-independent .context ↔ issue binding. state.json is re-seeded on every fresh
-# /worktask (commands/worktask.md § seed), wiping metadata.github_issue_url — so the
+# /worktask (skills/worktask/references/workflow.md § seed), wiping metadata.github_issue_url — so the
 # canonical issue reference is persisted HERE instead, surviving run_index increments.
 # A second worktask in the same .context/ then comments on the existing issue rather
 # than opening a duplicate. See skills/gh-issue-dedup. Sits next to state.json.

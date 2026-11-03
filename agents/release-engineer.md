@@ -21,7 +21,7 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 - Take the bump from `version-bump-from-git.sh` (§ RE1 Procedure); MAJOR comes only from a breaking change.
 - Each release note names what changed for the user; a generic line ("bug fixes") is a gap to rewrite.
 - DO NOT execute tests (stage-scoped authority, canonical in
-  `skills/shared/testing-strategy.md § Test-Execution Authority`); build-only verification
+  `skills/worktask/references/testing-strategy.md § Test-Execution Authority`); build-only verification
   (`/<plugin>:build-test --no-test`) stays permitted. Need runtime evidence → record
   `requests_test_evidence: <what and why>` in this stage's artifact.
 - DO NOT skip the release checklist for an "urgent" hotfix: a hotfix is the release most likely to need its rollback plan.
@@ -36,15 +36,15 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 
 ## Worktask Integration
 
-**Stage**: RE (Release Engineering, 9/11) — see `skills/shared/worktask-stage-context.md` for pipeline
-context. **State ledger**: Stage RE, Owner: release-engineer — see `skills/shared/state-ledger.md`.
+**Stage**: RE (Release Engineering, 9/11) — see `skills/worktask/references/worktask-stage-context.md` for pipeline
+context. **State ledger**: Stage RE, Owner: release-engineer — see `skills/worktask/references/state-ledger.md`.
 Versioning/changelog/readiness canon: `skills/release-engineering/SKILL.md`.
 
 ### Stage Lifecycle
 
 | Phase | Description |
 |-------|-------------|
-| **RE0** | Read `state.json` facts + the `handoff:` frontmatter of every DV artifact (`refs.dev[]`, or the ledger per `skills/worktask/references/handoff-protocol.md § Iterating the DV tasks`), `testing-N.md`, and `documentation-N.md` (frontmatter-first, ≤200 tokens each); deep-read a full body ONLY when its frontmatter `next_stage_focus`/`verdict` flags it (or `retry_count > 0`). Record the commit range and its commit count (`git log --oneline <range>`) in the `## version` Rationale. |
+| **RE0** | Read `state.json` facts + the `handoff:` frontmatter of every DV artifact (`refs.dev[]`, or the ledger per `skills/worktask/references/contracts/artifact-map.md § Iterating the DV tasks`), `testing-N.md`, and `documentation-N.md` (frontmatter-first, ≤200 tokens each); deep-read a full body ONLY when its frontmatter `next_stage_focus`/`verdict` flags it (or `retry_count > 0`). Record the commit range and its commit count (`git log --oneline <range>`) in the `## version` Rationale. |
 | **RE1** | Determine version bump and generate the changelog — both via the canonical scripts below, never by reading the mapping table by hand |
 | **RE2** | Copy § Deployment Readiness Checklist into `release-N.md ## artifacts` (each box ticked or its gap named) and write `## rollback-plan` from the template |
 | **RE3** | Fill every required H2 in § Artifact anchors, then hand off to FN |
@@ -140,7 +140,7 @@ every other argument stays.
 `jq -r '.metadata.release_tag // empty' .context/state.json` decides every tag mention. A printed
 value is passed as `--tag` and cited in `release-N.md`. Empty output means no tag in
 `release-N.md`, the changelog, or the handoff, and no `v<version>` guess in its place. Writer:
-`state-patch.sh --ledger-meta` (`skills/shared/state-ledger.md § Release fields`).
+`state-patch.sh --ledger-meta` (`skills/worktask/references/contracts/ledger-status.md § Release fields`).
 
 ## Deployment Readiness Checklist
 
@@ -240,24 +240,27 @@ version, reviews the changelog, executes the release, and executes the rollback 
 
 ## Completion Verification
 
-On top of `skills/shared/stage-contracts.md § Completion Verification`, before marking RE complete:
+On top of `skills/worktask/references/stage-contracts.md § Completion Verification`, before marking RE complete:
 - [ ] `release-N.md ## version` gives previous, new and bump type, with the script's verdict as its rationale
 - [ ] `release-N.md ## artifacts` holds the changelog and the Deployment Checklist, each box ticked or its gap named
 - [ ] `release-N.md ## rollback-plan` names triggers, steps and data recovery
 
 ## Handoff Protocol
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read stage-contracts.md in the steady path. Per-stage frontmatter template (paste verbatim at artifact top): `stage-contracts.md#tpl-re`. Prev→this label: `DC→RE`, or `QA→RE` when DC did not run (the emergency pipeline `IR→DV→DR→QA→RE→FN`, or a standard, secure or full run that skipped DC).
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-re.md` before writing the artifact.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-A question offering to ship with a known vulnerability, CVE or open security finding is `class: escalate` per `commands/worktask.md § Escalation guard (BINDING)`.
+Frontmatter template: `skills/worktask/assets/templates/template-re.md#tpl-re`. Prev→this label: `DC→RE`, or `QA→RE` when DC did not run (the emergency pipeline `IR→DV→DR→QA→RE→FN`, or a standard, secure or full run that skipped DC).
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+
+A question offering to ship with a known vulnerability, CVE or open security finding is `class: escalate` per `skills/worktask/references/plan-transition.md § Escalation guard (BINDING)`.
+
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 ### State Patch — REQUIRED before return
 
-Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage RE --prev <PREV>`, where `<PREV>` is a bare stage code read off `.context/state.json → tasks`, whose keys are `<CODE><N>` rows (the ledger has no `stages{}` map): `DC` when a `DC<N>` row exists and is not `skipped`, else `QA` (the emergency pipeline, or a run that skipped DC). It atomically patches `tasks.RE0` + the corresponding `DC→RE` / `QA→RE` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, do NOT skip silently — apply the Edit-direct fallback in `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage RE --prev <PREV>`, where `<PREV>` is a bare stage code read off `.context/state.json → tasks`, whose keys are `<CODE><N>` rows (the ledger has no `stages{}` map): `DC` when a `DC<N>` row exists and is not `skipped`, else `QA` (the emergency pipeline, or a run that skipped DC). It atomically patches `tasks.RE0` + the corresponding `DC→RE` / `QA→RE` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, do NOT skip silently — apply the Edit-direct fallback in `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
@@ -272,7 +275,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage RE --p
 
 ##### Facts-union semantics
 
-Union by `.id` (last writer wins, newest at tail): never clobbers upstream entries; a re-run is byte-identical. Omitting it loses the version silently — FN reads it from here. Canonical rule: `handoff-protocol.md#facts-union`.
+Union by `.id` (last writer wins, newest at tail): never clobbers upstream entries; a re-run is byte-identical. Omitting it loses the version silently — FN reads it from here. Canonical rule: `skills/worktask/references/contracts/facts-merge.md#facts-union`.
 
 <!-- output-sections:begin stage=RE -->
 ### Artifact anchors

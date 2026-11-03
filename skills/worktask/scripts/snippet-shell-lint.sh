@@ -49,10 +49,12 @@ WORD_SPLIT=0
 _SSL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 
 _SSL_DEFAULT_TARGETS=(
-  "commands/worktask.md::## Phase 1: Planning"
+  "skills/worktask/references/launch-preflight.md::## Phase 1: Planning"
+  "skills/worktask/references/launch-seed.md::#### Step 3a snippet"
+  "skills/worktask/references/launch-planning.md::#### Step 3c"
   "skills/worktask/references/autonomy-preflight.md::## Step 2a-pre"
-  "skills/worktask/references/initialization-patterns.md::## PL0 state.json Initialization"
-  "skills/worktask/references/handoff-protocol.md::### PL0 seed (initial state)"
+  "skills/worktask/references/initialization-ledger.md::## PL0 state.json Initialization"
+  "skills/worktask/references/contracts/ledger-seed.md::### PL0 seed (initial state)"
   "skills/megatask/SKILL.md::### Seeding a track's PL"
 )
 

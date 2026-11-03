@@ -1,10 +1,10 @@
 # FN Gate — full procedure
 
-Procedure for the FN gate, read at gate time from `skills/worktask/SKILL.md § FN Gate`. The gate is the pre-finalization human checkpoint: nothing remote happens before approval, and all writer work is worktree-local. `N` = `state.json.run_index` (default `0`).
+Procedure for the FN gate, read at gate time from `skills/worktask/references/finalization-policy.md § FN Gate`. The gate is the pre-finalization human checkpoint: nothing remote happens before approval, and all writer work is worktree-local. `N` = `state.json.run_index` (default `0`).
 
 ## Gate semantics
 
-Carrier: `PL0.metadata.fn_gate`, default `"checkpoint"`. It is stamped `"bypass"` only when `--auto=[finalization]` or `--emergency` is present (`commands/worktask.md § Step 4 — attach PL0 metadata`), or directly on each per-issue PL0 by a batch orchestrator such as `/megatask`. `--auto=[plan]` never bypasses the FN gate; it gates only the plan.
+Carrier: `PL0.metadata.fn_gate`, default `"checkpoint"`. It is stamped `"bypass"` only when `--auto=[finalization]` or `--emergency` is present (`skills/worktask/references/launch-planning.md § Step 4 — attach PL0 metadata`), or directly on each per-issue PL0 by a batch orchestrator such as `/megatask`. `--auto=[plan]` never bypasses the FN gate; it gates only the plan.
 
 ### Effect (checkpoint — the gated path)
 
@@ -14,12 +14,12 @@ Carrier: `PL0.metadata.fn_gate`, default `"checkpoint"`. It is stamped `"bypass"
 
 #### Step 3b — the closing sweep, before the approve/reject call
 
-3b. Render the batched closing sweep in `AskUserQuestion` calls of ≤4 questions, grouped by originating stage — collected and classified per `commands/worktask.md § Step C`. These precede step 4 and never merge into it.
+3b. Render the batched closing sweep in `AskUserQuestion` calls of ≤4 questions, grouped by originating stage — collected and classified per `skills/worktask/references/workflow.md § Step C`. These precede step 4 and never merge into it.
 
 #### Steps 4–6 — approve, reject, and the writer trip-wire
 
 4. `AskUserQuestion`. Approve → append `approval_received`, then delegate FN (commit, push, PR).
-5. Reject → append `approval_rejected` and stop without delegating FN. Surface the user's feedback, then resume per `skills/worktask/SKILL.md § FN gate rejection — resume path` (route each item to its owning stage, `run_index` frozen, re-present this gate on completion).
+5. Reject → append `approval_rejected` and stop without delegating FN. Surface the user's feedback, then resume per `skills/worktask/references/finalization-policy.md § FN gate rejection — resume path` (route each item to its owning stage, `run_index` frozen, re-present this gate on completion).
 6. `test -f` both attachment files once more immediately before the gate returns, so a partially-completed writer never reaches `return`.
 
 ### Effect (bypass)
@@ -40,13 +40,13 @@ Unconditional on the gated (`checkpoint`) path — bypass falls through to FN-ag
 
 ### Run the writer
 
-One Bash call from the worktask root; the script resolves git state, ledger fields and DR/QA verdicts itself, then renders both files from `conductor-attachments.md`:
+One Bash call from the worktask root; the script resolves git state, ledger fields and DR/QA verdicts itself, then renders `attachments-pr-template.md` and `attachments-review-template.md`:
 
 ```bash
 skills/worktask/scripts/attachments-preseed.sh
 ```
 
-Do not hand-render the templates: `tests/shell/worktask/attachments-preseed.bats` pins this script against `conductor-attachments.md`, and a hand-written copy drifts silently.
+Do not hand-render the templates: `tests/shell/worktask/attachments-preseed.bats` pins this script against both template leaves, and a hand-written copy drifts silently.
 
 #### Flags and exit codes
 
@@ -58,7 +58,7 @@ unresolved (below). Exit 2 — usage. Every resolved input has a flag override
 
 ### Fault tolerance — per-input policy
 
-Applied by the script; listed here because the trip-wires and the pre-FN summary depend on it. Field sources: `conductor-attachments.md § Data sources`.
+Applied by the script; listed here because the trip-wires and the pre-FN summary depend on it. Field sources: `skills/worktask/references/attachments-sources.md § Data sources`.
 
 | Input | Required? | If missing |
 |-------|-----------|-----------|
@@ -68,7 +68,7 @@ Applied by the script; listed here because the trip-wires and the pre-FN summary
 
 #### The plan file is not an input
 
-No template field derives from it. The conventional-commit type comes from `facts.goal` via `branch-lib.sh:derive_type` (`conductor-attachments.md § Plan, issue & verdict fields`).
+No template field derives from it. The conventional-commit type comes from `facts.goal` via `branch-lib.sh:derive_type` (`skills/worktask/references/attachments-sources.md § Plan, issue & verdict fields`).
 
 ## Audit
 
@@ -85,7 +85,7 @@ Checkpoint path (default) — park, then approve or reject:
 
 ### Audit — reject-resume line
 
-The `fn_revision_dispatched` line is written once per fix round on the resume path (`skills/worktask/SKILL.md § FN gate rejection — resume path`); `routed_to` is the owning stage code.
+The `fn_revision_dispatched` line is written once per fix round on the resume path (`skills/worktask/references/finalization-policy.md § FN gate rejection — resume path`); `routed_to` is the owning stage code.
 
 ### Audit — bypass path
 
@@ -97,7 +97,7 @@ Bypass path (`--auto=[finalization]` / `--emergency`, or a gate stamped `"bypass
 
 # Post-Worktask Self-Improvement
 
-After the execution loop exits (all tasks completed, including ST), the orchestrator handles any learnings captured at ST; a `/megatask` per-issue run skips this and ends at ST (`commands/worktask.md § Phase 3`). Read from `skills/worktask/SKILL.md § Post-Worktask Self-Improvement` when `.context/learnings.md` exists.
+After the execution loop exits (all tasks completed, including ST), the orchestrator handles any learnings captured at ST; a `/megatask` per-issue run skips this and ends at ST (`skills/worktask/references/workflow.md § Phase 3`). Read from `skills/worktask/references/finalization-publish.md § Post-Worktask Self-Improvement` when `.context/learnings.md` exists.
 
 ## Post-ST Procedure
 

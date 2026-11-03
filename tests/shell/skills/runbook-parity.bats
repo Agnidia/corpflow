@@ -10,7 +10,7 @@
 # the can-actually-fail twins re-run it against a planted copy.
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
-CONTRACTS="skills/shared/stage-contracts.md"
+CONTRACTS="skills/worktask/references/stage-contracts.md"
 ESTIMATION="skills/estimation-methodology/SKILL.md"
 PL0_PROC="skills/worktask/references/pl0-procedure.md"
 PM="agents/product-manager.md"
@@ -130,19 +130,19 @@ plant() {  # plant <src> <sed-expr> -> prints the mutated copy's path; refuses a
 
 @test "parity: the DR runbook frontmatter hash-equals stage-contracts.md #tpl-dr" {
   run check_yaml_parity "$PLUGIN_ROOT/$TL" '^#### DR runbook — frontmatter' \
-    "$PLUGIN_ROOT/$CONTRACTS" '^### #tpl-dr '
+    "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" '^### #tpl-dr '
   assert_success
 }
 
 @test "parity: the SR runbook frontmatter hash-equals stage-contracts.md #tpl-sr" {
   run check_yaml_parity "$PLUGIN_ROOT/$SR" '^#### SR runbook — frontmatter' \
-    "$PLUGIN_ROOT/$CONTRACTS" '^### #tpl-sr '
+    "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" '^### #tpl-sr '
   assert_success
 }
 
 @test "parity twin: a changed #tpl-dr in the canonical file fails the DR copy" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$CONTRACTS" '/^  stage: DR$/,/^---$/s/verdict: pass /verdict: ok   /')"
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" '/^  stage: DR$/,/^---$/s/verdict: pass /verdict: ok   /')"
   run check_yaml_parity "$PLUGIN_ROOT/$TL" '^#### DR runbook — frontmatter' "$planted" '^### #tpl-dr '
   assert_failure
   assert_output --partial "drifted"
@@ -168,7 +168,7 @@ plant() {  # plant <src> <sed-expr> -> prints the mutated copy's path; refuses a
 @test "exact output: the PL0 runbook and pl0-procedure.md both make exact-output rules byte-exact criteria" {
   local f
   for f in "$PM" "$PL0_PROC"; do
-    grep -q 'byte-exact' "$PLUGIN_ROOT/$f" || fail "$f lost the byte-exact acceptance-criteria rule"
-    grep -q 'quoted verbatim in a' "$PLUGIN_ROOT/$f" || fail "$f no longer requires the verbatim fenced quote"
+    grep -q 'byte-exact' "$(contract_source "$PLUGIN_ROOT/$f")" || fail "$f lost the byte-exact acceptance-criteria rule"
+    grep -q 'quoted verbatim in a' "$(contract_source "$PLUGIN_ROOT/$f")" || fail "$f no longer requires the verbatim fenced quote"
   done
 }

@@ -1,9 +1,9 @@
 # Auto-decision pre-pass (Step A.4)
 
-Read from `commands/worktask.md § Step A.4` when `tasks.PL0.metadata.decision_gate == "auto"` and
+Read from `skills/worktask/references/workflow.md § Step A.4` when `tasks.PL0.metadata.decision_gate == "auto"` and
 `facts.open_questions[]` holds a `sw-PL<N>-*` item whose `status` is not `"resolved"`. Any other
 run skips this file. Escalation-class questions never reach the delegate:
-`commands/worktask.md § Escalation guard (BINDING)` stays in force on every run.
+`skills/worktask/references/plan-transition.md § Escalation guard (BINDING)` stays in force on every run.
 
 ## Step A.4 — the delegate dispatch
 
@@ -11,7 +11,7 @@ run skips this file. Escalation-class questions never reach the delegate:
 2. Re-dispatch PM as a decision delegate on the Fable model:
    `Agent({ subagent_type: "corpflow:product-manager", model: "fable", prompt: <decision prompt> })`,
    the prompt carrying the open-question list verbatim (each with its recommended default) and the
-   plan file path. **Model fallback**: loop step 5f exactly (`skills/worktask/SKILL.md § Step 5f —
+   plan file path. **Model fallback**: loop step 5f exactly (`skills/worktask/references/orchestration.md § Step 5f —
    model resolution`) — if
    `facts.capabilities.fable_dispatch == "credit_blocked"`, dispatch on `"opus"` and audit
    `model_resolution_constrained`.
@@ -33,14 +33,9 @@ items. It adds no new anchor (`handoff-protocol.md § #anchor-allow-list`) and d
 
 ## Auto-decision ledger merge (orchestrator)
 
-3. On return the orchestrator, not the delegate, merges via `atomicMergeStateJson`: mark each
-   answered `facts.open_questions[]` item `status: "resolved"` with its `resolution` (the
-   `commands/worktask.md § Step C.5`
-   write — the whole stub, never `{id, status, resolution}` alone). That is the only write; nothing
-   is appended to `facts.decisions[]`. The answer survives because every stage extracts
-   `facts.open_questions[]` on entry (`skills/shared/stage-contracts.md § Required Inputs`).
-   Entries are marked resolved, never removed — a deleted item takes its `ref` anchor and its
-   answer with it.
+3. On return, the orchestrator applies [Step C.5](closing-sweep-step-c3c4--auto-answer-then-render.md#step-c5--record-and-the-unattended-lanes)
+   to every whole stub, marking the answer `(auto-decided)`. Resolve in place; never delete items or append to `facts.decisions[]`.
+   Downstream stages read `facts.open_questions[].resolution` on entry. A failed merge relays no answer and follows Error Handling.
 
 ### Auto-decision ledger merge — the audit row
 

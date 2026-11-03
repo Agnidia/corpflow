@@ -1247,7 +1247,7 @@ $(diff "$1/before.json" "$1/.context/state.json" || true)"
     f && /^#/ { exit }
     f && NF > 2 { c = $2; gsub(/[[:space:]]/, "", c);
                   if (c ~ /^[A-Z][A-Z]$/) print c }' \
-    "$PLUGIN_ROOT/skills/shared/stage-codes.md" | sort | paste -sd, -)"
+    "$PLUGIN_ROOT/skills/worktask/references/stage-codes.md" | sort | paste -sd, -)"
   script_list="$(grep -E '^REPLAY_SIDE_EFFECT_STAGES=' "$PLUGIN_ROOT/$SCRIPT" \
     | cut -d'"' -f2 | tr ',' '\n' | sort | paste -sd, -)"
   [ -n "$doc" ] || fail "stage-codes.md § Side-effect-bearing stages parsed empty"
@@ -1411,7 +1411,7 @@ EOART
       found && /^> ```bash/ { infence = 1; next }
       infence && /^> ```$/ { exit }
       infence { sub(/^> ?/, ""); print }
-    ' "$PLUGIN_ROOT/skills/worktask/SKILL.md")"
+    ' "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/orchestration.md")")"
   [ -n "$query" ] || fail "readiness query extraction from SKILL.md#Readiness-is-mechanical came back empty"
 
   local w; w="$(mk_tmpworkdir)"
@@ -2120,7 +2120,7 @@ exit 0'
 # --- metadata.effort enum gate -----------------------------------------------
 #
 # metadata.effort became a mandatory ledger field when the Step C.0a resolver started
-# reading it (commands/worktask.md § Step C.0a). It is validated at the write because an
+# reading it (skills/worktask/references/workflow.md § Step C.0a). It is validated at the write because an
 # off-ladder value is otherwise invisible until a resolver dispatch fails a stage later.
 # The enum lives in effort-ladder.sh; this suite asserts the gate, not a second copy of it.
 

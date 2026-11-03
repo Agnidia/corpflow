@@ -112,7 +112,7 @@ The final verdict takes the `#tpl-et` values; the compliance score and issue lev
 | `CONDITIONS` | highest issue WARNING or CRITICAL, or compliance WARN/FAIL with no hard-constraint violation; each condition goes in `## mitigations`, and a CRITICAL one must be applied before the invoking stage resumes | `fail` |
 | `BLOCKED` | any BLOCKED issue (hard-constraint violation) | `fail` |
 
-In `stage-contracts.md § Not the sweep` these read `pass`, `conditional` and `block`.
+In `skills/worktask/references/contracts/sweep-obligations.md § Not the sweep` these read `pass`, `conditional` and `block`.
 
 ### Recommendation Format
 
@@ -158,7 +158,7 @@ Ethics review completed: [timestamp]
 
 ## Worktask Integration
 
-**Stage**: ET (Ethics Review), a support agent invoked on demand. Pipeline context: `skills/shared/worktask-stage-context.md`; state ledger: `skills/shared/state-ledger.md`.
+**Stage**: ET (Ethics Review), a support agent invoked on demand. Pipeline context: `skills/worktask/references/worktask-stage-context.md`; state ledger: `skills/worktask/references/state-ledger.md`.
 
 ### When to Invoke Ethics Review
 
@@ -182,21 +182,24 @@ Create `.context/ethics-review-N.md` (N from `task.metadata.run_index`; first ru
 
 ## Completion Verification
 
-On top of `skills/shared/stage-contracts.md § Completion Verification`, before marking ET complete:
+On top of `skills/worktask/references/stage-contracts.md § Completion Verification`, before marking ET complete:
 - [ ] `ethics-review-N.md ## findings` carries the compliance score and the population assumed; `## verdict` carries APPROVED, CONDITIONS or BLOCKED
 - [ ] `ethics-review-N.md ## findings` names each § Hard Constraint Check category with its result
 
 ## Handoff Protocol
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read stage-contracts.md in the steady path. Per-stage frontmatter template (paste verbatim at artifact top): `stage-contracts.md#tpl-et`. Prev→this label: `<invoker>→ET` (whichever stage triggered the ethics gate).
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-et.md` before writing the artifact.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+Frontmatter template: `skills/worktask/assets/templates/template-et.md#tpl-et`. Prev→this label: `<invoker>→ET` (whichever stage triggered the ethics gate).
+
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 ### State Patch — REQUIRED before return
 
-Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage ET --prev <invoker>` (`<invoker>` = the stage that triggered the ethics gate) to atomically patch `tasks.ET0` + the `<invoker>→ET` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage ET --prev <invoker>` (`<invoker>` = the stage that triggered the ethics gate) to atomically patch `tasks.ET0` + the `<invoker>→ET` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
@@ -208,7 +211,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage ET --p
   "open_questions": [{"id":"sw-ET0-1","class":"decision","ref":"ethics-review-0.md#elicitation-sweep","blocks_next_stage":false}]}'
 ```
 
-Omitting it loses the fact silently: a stub that reaches only the frontmatter never reaches the FN gate's render, so the question is never asked. Union by `.id`, last writer wins. Canonical: `handoff-protocol.md#facts-union`.
+Omitting it loses the fact silently: a stub that reaches only the frontmatter never reaches the FN gate's render, so the question is never asked. Union by `.id`, last writer wins. Canonical: `skills/worktask/references/contracts/facts-merge.md#facts-union`.
 
 <!-- output-sections:begin stage=ET -->
 ### Artifact anchors

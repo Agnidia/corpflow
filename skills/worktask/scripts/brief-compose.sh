@@ -2,7 +2,7 @@
 # @description brief-compose.sh — composes a stage dispatch brief from contracts and the
 #   ledger, never from hand-written prose. Every fact in the brief is a `file:line` ref, an
 #   `artifact#anchor` ref, or a plain existing-file path ref the receiving agent resolves
-#   itself (skills/worktask/references/handoff-protocol.md#cache-prefix). The orchestrator
+#   itself (skills/worktask/references/contracts/prompt-layout.md#cache-prefix). The orchestrator
 #   is the only caller.
 #
 #   Section order mirrors the cache-prefix marker layout exactly, one marker per line:
@@ -55,6 +55,12 @@
 # Minimum shell: bash 3.2+ (macOS default).
 
 set -euo pipefail
+
+if [ "${1:-}" = "--instruction-set" ]; then
+  shift
+  exec python3 "$(dirname "${BASH_SOURCE[0]}")/instruction-set.py" "$@"
+fi
+
 
 # Stdout, exit 0: help is a normal invocation, not a failure; usage_error/die2
 # below are the stderr, exit-2 paths for an actual error.
@@ -308,6 +314,9 @@ check_ref_resolves() {
     n=$(wc -l < "$fpath" | tr -d ' ')
     if [[ "$lineno" -ge 1 && "$lineno" -le "$n" ]]; then return 0; fi
     return 1
+  elif [[ "$ref" == skills/*"#"* ]]; then
+    if bash "$PROOT/skills/worktask/scripts/brief-compose.sh" --instruction-set --check-reference "$ref" > /dev/null 2>&1; then return 0; fi
+    return 1
   elif [[ "$ref" == *"#"* ]]; then
     art="${ref%%#*}"; anchor="${ref#*#}"
     apath="$CTX_DIR/$art"
@@ -386,12 +395,14 @@ cmd_render() {
     || die2 "ledger is not valid JSON: $STATE"
   [[ "$known" == "true" ]] || die2 "unknown task id: $TASK_ID"
 
-  local SC="$PROOT/skills/shared/stage-contracts.md"
+  local SC="$PROOT/skills/worktask/references/contracts/stage-inputs.md"
+  local SO="$PROOT/skills/worktask/references/contracts/stage-outputs.md"
   local MP="$PROOT/skills/shared/model-prompting.md"
   local CL="$PROOT/skills/worktask/scripts/cache-lint.sh"
   local CR="$PROOT/skills/worktask/references/contract-reminder.md"
   local LDS="$PROOT/skills/worktask/scripts/ledger-digest.sh"
-  [[ -f "$SC" ]] || die2 "canon source missing: skills/shared/stage-contracts.md"
+  [[ -f "$SC" ]] || die2 "canon source missing: skills/worktask/references/contracts/stage-inputs.md"
+  [[ -f "$SO" ]] || die2 "canon source missing: skills/worktask/references/contracts/stage-outputs.md"
   [[ -f "$MP" ]] || die2 "canon source missing: skills/shared/model-prompting.md"
   [[ -f "$CL" ]] || die2 "canon source missing: skills/worktask/scripts/cache-lint.sh"
   [[ -f "$CR" ]] || die2 "canon source missing: skills/worktask/references/contract-reminder.md"
@@ -424,6 +435,14 @@ cmd_render() {
   ARTIFACT_BASENAME=$(printf '%s' "$allow_row" | cut -f3)
 
   local AGENT_FILE="agents/${AGENT_BASENAME}.md"
+  local CATALOGUE_ROLE="$AGENT_BASENAME" requested_role
+  requested_role="${AGENT#corpflow:}"
+  if [[ -n "$requested_role" && "$requested_role" != *":"* ]]; then
+    [[ "$requested_role" =~ ^[a-z][a-z0-9-]*$ ]] || die2 "malformed local agent role"
+    [[ -f "$PROOT/agents/${requested_role}.md" ]] || die2 "local agent role missing: $requested_role"
+    CATALOGUE_ROLE="$requested_role"
+  fi
+
   [[ -f "$PROOT/$AGENT_FILE" ]] || die2 "canon source missing: $AGENT_FILE"
   local MARKER_LINE
   MARKER_LINE=$(grep -n -m1 -F -- "<!-- output-sections:begin stage=${STAGE} -->" "$PROOT/$AGENT_FILE" \
@@ -483,22 +502,24 @@ cmd_render() {
   # ---- Section [1]: contract-reminder — byte-identical for every stage ----
   local CONTRACT_BLOCK
   CONTRACT_BLOCK=$(contract_reminder_block "$CR")
-  [[ -n "$CONTRACT_BLOCK" ]] || die2 "canon section absent: skills/worktask/references/contract-reminder.md#Text"
+  [[ -n "$CONTRACT_BLOCK" ]] || die2 "canon section absent: skills/worktask/references/contract-reminder.md#text"
 
   # ---- Section [5] refs: stage-contracts.md's Required Inputs/Outputs headings — refs,
   # not [1] text, since [1] must stay contract-reminder.md's block byte for byte ----
   local req_in_line req_out_line
   req_in_line=$(grep -n -m1 -E '^## Required Inputs \(handoff-protocol\)$' "$SC" | cut -d: -f1) || true
-  [[ -n "$req_in_line" ]] || die2 "canon section absent: skills/shared/stage-contracts.md#Required Inputs"
-  req_out_line=$(grep -n -m1 -E '^## Required Outputs \(handoff-protocol\)$' "$SC" | cut -d: -f1) || true
-  [[ -n "$req_out_line" ]] || die2 "canon section absent: skills/shared/stage-contracts.md#Required Outputs"
+  [[ -n "$req_in_line" ]] || die2 "canon section absent: skills/worktask/references/contracts/stage-inputs.md#required-inputs-handoff-protocol"
+  req_out_line=$(grep -n -m1 -E '^## Required Outputs \(handoff-protocol\)$' "$SO" | cut -d: -f1) || true
+  [[ -n "$req_out_line" ]] || die2 "canon section absent: skills/worktask/references/contracts/stage-outputs.md#required-outputs-handoff-protocol"
 
   # ---- Section [4]: this stage's contract block ----
   local stage_lc tpl_line tpl_block
   stage_lc=$(printf '%s' "$STAGE" | tr '[:upper:]' '[:lower:]')
-  tpl_line=$(grep -n -m1 -E "^### #tpl-${stage_lc} " "$SC" | cut -d: -f1) || true
-  [[ -n "$tpl_line" ]] || die2 "canon section absent: skills/shared/stage-contracts.md#tpl-${stage_lc}"
-  tpl_block=$(tpl_block_extract "$tpl_line" "$SC")
+  local ST="$PROOT/skills/worktask/assets/templates/template-${stage_lc}.md"
+  [[ -f "$ST" ]] || die2 "canon template missing: $ST"
+  tpl_line=$(grep -n -m1 -E "^### #tpl-${stage_lc} " "$ST" | cut -d: -f1) || true
+  [[ -n "$tpl_line" ]] || die2 "canon section absent: skills/worktask/assets/templates/template-${stage_lc}.md#tpl-${stage_lc}"
+  tpl_block=$(tpl_block_extract "$tpl_line" "$ST")
 
   # ---- Section [4b]: this task's model discipline block ----
   grep -q -E "^## ${MODEL}(\$| )" "$MP" || die2 "canon section absent: skills/shared/model-prompting.md##${MODEL}"
@@ -571,15 +592,13 @@ cmd_render() {
     *) die2 "tasks.$TASK_ID.metadata.context_refs has unexpected type: $ctxrefs_type" ;;
   esac
 
-  # A plain-path entry is emitted only when its file exists, the same gate refs.dev and
-  # AR_REF apply; file:line and artifact#anchor entries always emit, so an unresolved one
-  # fails the guard below.
+  # Required references cannot disappear merely because their source is missing.
   local CONTEXT_REFS_STR="" cr
   while IFS= read -r cr; do
     if [[ -z "$cr" ]]; then continue; fi
     if [[ "$cr" =~ ^.+:[0-9]+$ || "$cr" == *"#"* ]]; then
       CONTEXT_REFS_STR="${CONTEXT_REFS_STR}${cr}"$'\n'
-    elif plain_path_exists "$cr"; then
+    else
       CONTEXT_REFS_STR="${CONTEXT_REFS_STR}${cr}"$'\n'
     fi
   done <<< "$RAW_CTXREFS_STR"
@@ -654,10 +673,11 @@ cmd_render() {
   if [[ -n "$SUBJECT" ]]; then emit "subject: ${SUBJECT}"; fi
   emit "ref: ${PLAN_BASENAME}#requirements"
   emit "ref: ${PLAN_BASENAME}#acceptance-criteria"
-  emit "ref: skills/shared/stage-contracts.md:${tpl_line}"
-  emit "ref: skills/shared/stage-contracts.md:${req_in_line}"
-  emit "ref: skills/shared/stage-contracts.md:${req_out_line}"
+  emit "ref: skills/worktask/assets/templates/template-${stage_lc}.md:${tpl_line}"
+  emit "ref: skills/worktask/references/contracts/stage-inputs.md:${req_in_line}"
+  emit "ref: skills/worktask/references/contracts/stage-outputs.md:${req_out_line}"
   emit "ref: ${AGENT_FILE}:${MARKER_LINE}"
+  if [[ "$CATALOGUE_ROLE" != "$AGENT_BASENAME" ]]; then emit "ref: agents/${CATALOGUE_ROLE}.md"; fi
   while IFS= read -r r; do
     if [[ -n "$r" ]]; then emit "ref: $r"; fi
   done <<< "$DEV_REFS_STR"
@@ -674,6 +694,18 @@ cmd_render() {
 
   emit "<<<stage-banners>>>"
   emit "WORKSPACE_ROOT=${WORKSPACE_ROOT}"
+  local skill_catalogue task_skill
+  local skill_args=(--catalogue-only --role "$CATALOGUE_ROLE" --task-text "$SUBJECT")
+  while IFS= read -r r; do
+    if [[ "$r" =~ ^skills/([a-z][a-z0-9-]*)/ ]]; then
+      task_skill="${BASH_REMATCH[1]}"
+      if [[ "$task_skill" != "shared" ]]; then skill_args+=(--skill "$task_skill"); fi
+      skill_args+=(--reference "$r")
+    fi
+  done <<< "$RAW_CTXREFS_STR"
+  skill_catalogue=$(bash "$PROOT/skills/worktask/scripts/brief-compose.sh" --instruction-set "$STAGE" \
+    "${skill_args[@]}") || die2 "stage instruction catalogue could not be resolved"
+  printf '%s\n' "$skill_catalogue" >> "$BUF"
 
   # Deduped on the buffer, not at emit, so the emit lines above stay one per source. The
   # first copy keeps its place, so a fixed ref outranks a context_refs or AR repeat. Only

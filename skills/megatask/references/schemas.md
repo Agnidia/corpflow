@@ -128,7 +128,7 @@ The per-issue worktask MUST write its terminal outcome into `workspace.json.exec
 
 | Written by | Values |
 |-----------|--------|
-| the per-issue FN/ST stage (`agents/project-manager.md § FN Stage`), or the per-issue orchestrator when parking on escalate-class questions (`commands/worktask.md § Escalation guard — unattended /megatask per-issue runs (PARK)`) or stopping for the user (`skills/worktask/scripts/megatask-settle.sh`) | `in_progress` (default) → `completed` (PR created) \| `failed` (max retries, parked escalation, or escalated to the user) |
+| the per-issue FN/ST stage (`agents/project-manager.md § FN Stage`), or the per-issue orchestrator when parking on escalate-class questions (`skills/worktask/references/workflow.md § Escalation guard — unattended /megatask per-issue runs (PARK)`) or stopping for the user (`skills/worktask/scripts/megatask-settle.sh`) | `in_progress` (default) → `completed` (PR created) \| `failed` (max retries, parked escalation, or escalated to the user) |
 
 ##### `execution.reason` and `execution.pr`
 
