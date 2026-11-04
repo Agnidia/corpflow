@@ -16,6 +16,11 @@
 # results/runs/live-arm/ under an arm-suffixed run id and is NEVER rotated into
 # history.json. Join two of them into a paired record with:
 #     harness/bin/bench-pair --a <with.json> --b <without.json> --out <joined.json>
+# A paired run (claude or codex) also writes each graded arm to results/runs/live-arm/
+# <run_id>-<arm>.json (never rotated), so a WITHOUT arm survives a kill of the WITH
+# arm; resume with --arm with --budget <per-arm share> and join the two. A claude run
+# also probes both arms' plugin sets before the first paid stage and exits 5 on a
+# mismatch, rotating nothing.
 #
 # Usage:
 #   benchmark/run-benchmark.sh                                  # deterministic

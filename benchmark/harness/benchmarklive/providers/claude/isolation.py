@@ -33,7 +33,7 @@ SETTING_SOURCES = ""
 # but the WITHOUT arm's "loaded nothing" evidence would be unreadable with them present,
 # so both arms switch them off. A future builtin surfaces as a WITHOUT-arm refusal
 # naming it, never as a silent difference.
-BUILTIN_PLUGINS = ("agents-md@builtin", "telemetry@builtin", "plugin-authoring@builtin")
+BUILTIN_PLUGINS = ("agents-md@builtin", "telemetry@builtin", "plugin-authoring@builtin", "cc-plugin-privacy@builtin")
 
 # Plugins corpflow delegates to; they are part of the product under test, so the WITH
 # arm enables them and the WITHOUT arm does not.

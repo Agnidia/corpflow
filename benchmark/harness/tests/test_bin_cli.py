@@ -319,6 +319,10 @@ class TestBenchLiveArmWiring(unittest.TestCase):
     def test_no_stages_flag_pairs_both_arms(self):
         self.assertEqual(self._run()["selection"].dispatch, ("without", "with"))
 
+    def test_arm_records_go_beside_the_record_directory_under_live_arm(self):
+        kwargs = self._run("--record", "/bench/results/runs/live/live-1.json")
+        self.assertEqual(kwargs["arm_record_dir"], "/bench/results/runs/live-arm")
+
     def test_stages_listing_the_whole_pipeline_pairs_both_arms(self):
         kwargs = self._run("--stages", ",".join(self.full))
         self.assertEqual(kwargs["selection"].dispatch, ("without", "with"))

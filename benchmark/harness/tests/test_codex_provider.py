@@ -421,6 +421,26 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(record["era"]["accounting"]["with"]["allowance_usd"], 25)
         self.assertEqual(record["era"]["accounting"]["with"]["stop_reason"], "not started")
 
+    def test_codex_runs_no_claude_plugin_probe(self):
+        sb = make_live_sandbox(self.tmp.name)
+        provider = self.provider
+        provider.prepare = lambda *a: None
+        provider.metadata = lambda: {"provider": "codex", "model_pins": provider.models}
+        provider.env = lambda name: {}
+        provider.snapshot = ROOT
+
+        def probe(*_args):
+            raise AssertionError("codex must not run the claude preflight")
+
+        with patch.object(dispatch, "_measure_arm", return_value=None), \
+                patch.object(dispatch.preflight, "default_probe_runner", probe):
+            dispatch._dispatch(
+                sb.run_id, 50, sb.record_path, sb.benchmark_dir,
+                dispatcher=RecordingFakeDispatcher('{}'), workdir_root=sb.workdir_root,
+                stages=["PL"], selection=baseline.resolve_arm_selection("both", None, True),
+                provider_adapter=provider, preflight_runner=probe, stderr=lambda _s: None)
+        self.assertTrue(os.path.exists(sb.record_path))
+
     def test_pairing_rejects_provider_and_pricing_mismatch(self):
         for key in ("provider", "pricing", "source_digest", "model_pins", "cli_version"):
             with self.subTest(key=key):

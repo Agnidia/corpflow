@@ -237,6 +237,18 @@ the full **10-stage prompt sequence** (PL→AR→TL→DV→DR→SR→QA→DC→F
   `--setting-sources ""` (repo and account-synced plugins would otherwise leak in) and the
   builtin plugins switched off. `system/init` `plugins[]` is checked every stage; a violation
   is rc 5. Stamped as `era.plugins_with` / `era.plugins_without`
+- **Plugin-isolation preflight**: before the first paid stage (after the credential and budget
+  gates, before the WITH ledger is seeded), a Claude run probes **both** arm configurations
+  with one `claude -p` call each: the cheapest pinned model (Haiku), `--output-format
+  stream-json --verbose`, `--max-turns 1`, and the same config dir, `--setting-sources`,
+  `--settings` document, `--plugin-dir` and cwd as that arm's stages. It reads the
+  `system/init` plugin list and fails closed: WITHOUT must load zero plugins; WITH must load
+  exactly corpflow from the tree under test plus each sibling plugin, nothing else. A wrong
+  set, a missing `system/init`, a failed or timed-out probe, or a usage limit on the probe
+  refuses the run with **rc 5**, one line per refused arm naming the plugins it saw, and
+  nothing is dispatched or recorded. Both configurations are probed even on a `--stages`
+  subset or a single-arm run, so a new CLI builtin surfaces for a few cents, not after a
+  paid stage. The probe cost is printed on stderr and charged to no arm. Codex runs no probe
 - **Config-leak guard**: each stage's tool inputs, in both arms (sub-agents included), are scanned for
   `…/plugins/cache/` or `…/plugins/marketplaces/` paths outside the config dir (tool results do not
   count). The distinct prefixes are stamped per arm as `era.config_leaks` (`{"with": [], "without": []}`
@@ -335,6 +347,37 @@ both the history path and its newest-file fallback, so an arm record can never b
 selected as "the latest live record".
 
 A **joined** record carries no `arm` and rotates through exactly the pre-existing path.
+
+### Paired runs write arm records too — resume after a kill
+
+A paired run (`--arm both`, or the full-pipeline default) measures and oracle-grades
+each arm **as soon as that arm stops**, before the next arm starts, and writes it to
+`results/runs/live-arm/<run_id>-<arm>.json` in the same single-arm shape `--arm`
+writes (`arm`, one `paths.<arm>` block, `budget_usd` = that arm's half, era filtered
+to that arm). An arm stopped by the budget, the DV gate or the usage limit is graded
+and persisted as well, stamped `live_partial: true`; an arm that broke its plugin
+contract is never graded. Grading sits outside `wall_clock_s`. These records are
+never rotated into history; the paired record at `--record` is still the only one
+that is. A `--stages` subset run writes no arm record.
+
+So when a paired run is killed during the WITH arm, the finished WITHOUT arm is
+already on disk with its oracle digest. Rerun only the missing arm at the same
+commit and join the two. Pass `--budget` equal to the killed run's **per-arm share**
+(its arm record's `budget_usd`; `25.00` for a paired `--budget 50.00`), not the paired
+total: a single arm gets the whole `--budget`, so the paired figure would give the
+resumed arm twice the allowance its partner had, and the join would compare budgets,
+not agents.
+
+```bash
+./benchmark/run-benchmark.sh --live --arm with --budget 25.00   # paired run had --budget 50.00
+./benchmark/harness/bin/bench-pair \
+  --a benchmark/results/runs/live-arm/<new-with-run>.json \
+  --b benchmark/results/runs/live-arm/<killed-run>-without.json --out <joined.json>
+```
+
+`bench-pair` refuses the join unless commit, era and oracle case-set digest match. When
+the two arms' `budget_usd` differ it joins anyway (exit 0) and prints a warning on stderr
+naming both values.
 
 ### `bench-pair` — joining two arm records
 
