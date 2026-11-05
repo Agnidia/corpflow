@@ -4,7 +4,7 @@ Exercises the widened URL-detection trigger. Before the fix the trigger regex ma
 only `figma.com/design/…`, so a `/file/` or `/proto/` URL populated the `## design-preview`
 anchor but never fired capture — no PNGs, no `figma-registry.md`, and QA's design gate was
 silently skipped. The trigger now matches `figma\.com/(?:file|design|proto)/…` at both sites
-(`skills/worktask/references/pl0-procedure.md § Figma Design Capture` and `skills/shared/figma-capture.md
+(`skills/worktask/references/planning-design.md § Figma Design Capture` and `skills/shared/figma-capture.md
 § Figma URL Detection`). This fixture is the regression guard for that widening.
 
 Primary ACs: **AC-2** (single screen → exactly one PNG), **AC-3** (persisted file is a

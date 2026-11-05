@@ -164,7 +164,7 @@ derive_recovery() {
     --arg agent "$agent_basename" \
     --arg error_file "$error_file" \
     --arg stage_ts "$stage_ts" \
-    --arg contracts "skills/shared/stage-contracts.md" \
+    --arg contracts "skills/worktask/references/stage-contracts.md" \
     --arg resume_guide "skills/worktask/references/resume.md" \
     '{
       recovery: {

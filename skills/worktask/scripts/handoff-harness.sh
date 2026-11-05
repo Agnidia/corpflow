@@ -8,13 +8,18 @@
 #       (PL, AR, DV) under DIR (default: a tempdir). Constructs a "baseline"
 #       prompt (full-file inlining) and a "new" prompt (state.json + anchors
 #       only) for stages DV, DR, QA, DC, FN. Computes token counts using a
-#       wc-words proxy (words × 1.33 ≈ cl100k_base tokens), prints a
+#       word-count estimate (words × 1.33; not provider tokenization), prints a
 #       per-stage diff table, and asserts ≥30% reduction on each. Exits 1
 #       if any stage fails the threshold (AC-12).
 #
 #   handoff-harness.sh --self-test
 #       Runs the above against built-in fixtures, then validates frontmatter
 #       and state.json schemas using yq + jq. Exits 0 on pass.
+#
+#   handoff-harness.sh --validate-transition <artifact> --state <ledger>
+#                      --return-file <return> [--compressor <executable>]
+#       Returns one JSON result for schema and structural budgets. A compressor
+#       receives a candidate path once; invalid candidates never replace evidence.
 #
 #   handoff-harness.sh --validate-frontmatter <artifact.md> [--state <state.json>] [--strict]
 #                      [--legacy-tests-executed]
@@ -31,7 +36,7 @@
 #       --state adds the AR->DV architecture-reference gate: when the artifact
 #       is a DV handoff and the state ledger has a tasks.AR<N> entry, the
 #       architecture reference (refs.decisions, then architecture.ref -- the
-#       same precedence stage-contracts.md#tpl-dv and the DR rule declare)
+#       same precedence skills/worktask/assets/templates/template-dv.md#tpl-dv and the DR rule declare)
 #       must match ^architecture-[0-9]+\.md(#[a-z-]+)?$ and
 #       resolve to a file beside the artifact. Without --state the check does
 #       not run at all and behaviour is unchanged.
@@ -73,7 +78,8 @@
 #
 #       A QA `verdict: no-go` needs handoff.blocking_defects as a non-empty list of non-empty
 #       strings, with or without yq: one `fail:` line for an absent, non-list or empty value,
-#       and one per bad entry. A QA `go` and every other stage are unaffected.
+#       and one per bad entry. DR `fail` requires the same shape in handoff.blockers.
+#       Passing verdicts and other stages are unaffected.
 #
 #   handoff-harness.sh --read-blocked-on <artifact.md>
 #       Prints the artifact's need normalized through blocked-on-lib.sh as one compact JSON
@@ -89,6 +95,11 @@
 # Tokenizer proxy: wc-words × 1.33 — enough, because the ≥30% gate is a RELATIVE reduction.
 
 set -euo pipefail
+
+if [[ "${1:-}" == "--validate-transition" ]]; then
+  shift
+  exec python3 "$(dirname "${BASH_SOURCE[0]}")/handoff-transition.py" "$@"
+fi
 
 OUT_DIR=""
 MODE="run"
@@ -596,7 +607,7 @@ check_empty_sweep_prose() {
   [[ -z "$rows" ]] || return 0
 
   if ! grep -qE '^## +elicitation-sweep[[:space:]]*$' "$artifact"; then
-    echo "fail: open_questions is empty but $(basename "$artifact") has no '## elicitation-sweep' heading — an empty array alone cannot tell 'swept, nothing to ask' from 'never swept'. Write the heading with the explicit statement (stage-contracts.md § Closing Elicitation Sweep)" >&2
+    echo "fail: open_questions is empty but $(basename "$artifact") has no '## elicitation-sweep' heading — an empty array alone cannot tell 'swept, nothing to ask' from 'never swept'. Write the heading with the explicit statement (skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep)" >&2
     return 1
   fi
   return 0
@@ -933,7 +944,7 @@ check_sweep_ledger() {
   # held a boundary gate for an item its own author had marked non-blocking (OV-183).
   #
   # This is deliberately NOT a join: the two copies have ONE author, so a disagreement is a
-  # defect and not a lattice (`skills/shared/stage-contracts.md § Self-labels raise, never
+  # defect and not a lattice (`skills/worktask/references/stage-contracts.md § Self-labels raise, never
   # lower`). The harness refuses and names both values; reconciling is the agent's job, because
   # a harness that picked a winner would be guessing which copy the author meant.
   #
@@ -1285,7 +1296,7 @@ te_list_reports_zero() {  # <fmfile>
 #
 # Blocking, not warn-only: unlike the AR-ref arm this is not a rollout, and a
 # missing value is exactly the state the check exists to refuse.
-# Contract: stage-contracts.md#tpl-dv § Zero executed tests must say whether the
+# Contract: skills/worktask/assets/templates/template-dv.md#tpl-dv § Zero executed tests must say whether the
 # suite compiles.
 check_test_evidence() {
   local fmfile="$1" tag executed compiles missing_msg
@@ -1339,7 +1350,7 @@ check_test_evidence() {
 #
 # DV and QA only: they are the two stages holding test-execution authority, so no
 # other stage can produce the line honestly.
-# Contract: stage-contracts.md#tpl-dv § Verification Command carries the runner's
+# Contract: skills/worktask/assets/templates/template-dv.md#tpl-dv § Verification Command carries the runner's
 # verbatim summary line.
 #
 # Shape dispatcher. Absence is the required-field loop's business. A map is refused
@@ -1730,7 +1741,7 @@ check_anchors() {
   while IFS=$'\t' read -r kind h; do
     case "$kind" in
       missing) echo "fail: anchor-lint stage=$stage missing required H2 '## $h' in $name" >&2 ;;
-      unexpected) echo "fail: anchor-lint stage=$stage unexpected H2 '## $h' in $name — nest it as H3 (handoff-protocol.md#anchor-allow-list)" >&2 ;;
+      unexpected) echo "fail: anchor-lint stage=$stage unexpected H2 '## $h' in $name — nest it as H3 (skills/worktask/references/contracts/artifact-anchors.md#anchor-allow-list)" >&2 ;;
     esac
   done <<< "$rows"
   return 1
@@ -1799,10 +1810,10 @@ validate_frontmatter() {
   if [[ -n "$fm_stage" && "$fm_stage" != "null" && -n "$(required_for "$fm_stage")" ]]; then
     check_anchors "$f" "$fm_stage" || anchor_rc=1
   fi
-  # Here, not after the yq gate, so a host without yq refuses the same QA no-go artifacts.
+  # Before the yq gate so failed reviews require remediation on every host.
   local bd_rc=0
-  if [[ "$fm_stage" == "QA" ]]; then
-    check_blocking_defects "$fmfile" || bd_rc=1
+  if [[ "$fm_stage" == "QA" || "$fm_stage" == "DR" ]]; then
+    check_blocking_defects "$fmfile" "$fm_stage" || bd_rc=1
   fi
   # Same placement reason: a host without yq must still refuse a DV that never ran its checks.
   local ac_rc=0
@@ -1969,42 +1980,43 @@ check_blocked_on() {
   blocked_on_validate "$(printf '%s' "$norm" | jq -c '.blocked_on')"
 }
 
-# check_blocking_defects <fmfile> — a QA no-go must name each defect, because the Step 7
-# loop-back copies this list into the re-dispatched DV brief as its only remediation text.
-# Always the awk reader, never yq: awk reads every scalar as a string and yq does not, so
-# preferring yq when present would give `- 42` a different verdict on a different host.
+# Failed gates must name their remediation; use the awk reader for identical scalar handling across hosts.
 check_blocking_defects() {
-  local raw out line
-  raw=$(awk -v want="verdict blocking_defects" "$_FM_BO_AWK" "$1" 2> /dev/null) || raw=""
+  local raw out line stage="$2" key failed
+  case "$stage" in
+    QA) key=blocking_defects; failed=no-go ;;
+    DR) key=blockers; failed=fail ;;
+    *) return 0 ;;
+  esac
+  raw=$(awk -v want="verdict $key" "$_FM_BO_AWK" "$1" 2> /dev/null) || raw=""
   if [[ -z "$raw" ]]; then
-    echo "fail: handoff.blocking_defects could not be parsed" >&2
+    echo "fail: handoff.$key could not be parsed" >&2
     return 1
   fi
   if ! command -v jq > /dev/null 2>&1; then
-    # The awk object is jstr-encoded, so a literal match is exact; anything but a no-go passes.
-    [[ "$raw" == *'"verdict":"no-go"'* ]] || return 0
-    if [[ "$raw" == *'"blocking_defects":null'* ]]; then
-      echo "fail: stage=QA verdict=no-go requires handoff.blocking_defects: a non-empty list, one string per defect" >&2
+    [[ "$raw" == *"\"verdict\":\"$failed\""* ]] || return 0
+    if [[ "$raw" == *"\"$key\":null"* ]]; then
+      echo "fail: stage=$stage verdict=$failed requires handoff.$key: a non-empty list, one string per defect" >&2
     else
-      echo "fail: handoff.blocking_defects present but jq is not installed to validate it" >&2
+      echo "fail: handoff.$key present but jq is not installed to validate it" >&2
     fi
     return 1
   fi
-  out=$(printf '%s' "$raw" | jq -r '
-    if .verdict != "no-go" then empty
-    elif (.blocking_defects | type) != "array" or (.blocking_defects | length) == 0 then "list"
-    else .blocking_defects | to_entries[]
+  out=$(printf '%s' "$raw" | jq -r --arg key "$key" --arg failed "$failed" '
+    if .verdict != $failed then empty
+    elif (.[$key] | type) != "array" or (.[$key] | length) == 0 then "list"
+    else .[$key] | to_entries[]
       | select((.value | type) != "string" or (.value | test("^\\s*$")))
       | "entry \(.key)"
     end' 2> /dev/null) || {
-    echo "fail: handoff.blocking_defects could not be parsed" >&2
+    echo "fail: handoff.$key could not be parsed" >&2
     return 1
   }
   [[ -n "$out" ]] || return 0
   while IFS= read -r line; do
     case "$line" in
-      list) echo "fail: stage=QA verdict=no-go requires handoff.blocking_defects: a non-empty list, one string per defect" >&2 ;;
-      "entry "*) echo "fail: stage=QA handoff.blocking_defects[${line#entry }] is empty or not a string" >&2 ;;
+      list) echo "fail: stage=$stage verdict=$failed requires handoff.$key: a non-empty list, one string per defect" >&2 ;;
+      "entry "*) echo "fail: stage=$stage handoff.$key[${line#entry }] is empty or not a string" >&2 ;;
     esac
   done <<< "$out"
   return 1

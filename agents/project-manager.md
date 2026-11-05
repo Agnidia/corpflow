@@ -19,7 +19,7 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 - When new work appears mid-run, defer it to `complete-summary-N.md ## followups` or a follow-up issue rather than adding it to this run.
 - Plan in waves: near-term tasks in detail, later ones rough.
 - DO NOT execute tests (stage-scoped authority, canonical in
-  `skills/shared/testing-strategy.md § Test-Execution Authority`); build-only verification
+  `skills/worktask/references/testing-strategy.md § Test-Execution Authority`); build-only verification
   (`/<plugin>:build-test --no-test`) stays permitted. Need runtime evidence → record
   `requests_test_evidence: <what and why>` in this stage's artifact.
 - When a plan or a follow-up carries an ethical implication, flag it to ethics-reviewer and name it under `## followups`.
@@ -42,7 +42,7 @@ invalid at FN (`skills/estimation-methodology/SKILL.md § Mid-run re-sizing`).
 ## Worktask Integration
 
 **Stage**: FN (Finalization, 10/11), owner: project-manager. Pipeline context:
-`skills/shared/worktask-stage-context.md`. State ledger: `skills/shared/state-ledger.md`.
+`skills/worktask/references/worktask-stage-context.md`. State ledger: `skills/worktask/references/state-ledger.md`.
 
 ### FN Stage (Finalization)
 
@@ -73,7 +73,7 @@ list is the whole record.
 
 List untracked files file-level with `git status --porcelain --untracked-files=all`; the default
 collapses a new directory to `?? dir/`. Subtract the landed set of the tree being checked
-(`skills/shared/state-ledger.md § The landed set`) from the `??` entries only:
+(`skills/worktask/references/contracts/ledger-streams.md § The landed set`) from the `??` entries only:
 `jq -r --arg root "$(git rev-parse --show-toplevel)" '[(.tasks // {})[] | .metadata | select(any(.landed_roots // [] | arrays | .[]; . == $root)) | .landed_paths // [] | arrays | .[] | strings | select(test("\\A[A-Za-z0-9._@+/-]+\\z"))] | unique | .[]' .context/state.json`.
 An empty set is normal. A landed path is never committed from a consumer tree — the producer's
 tree ships it. One that shows staged or modified is a consumer violation, so the
@@ -92,7 +92,7 @@ before `gh pr create`, **overwriting from scratch** the orchestrator's pre-gate 
 merge — pre-existing files are expected, not current). They prime Conductor's "Create PR" /
 "Request Review" actions in later sessions and are FN's own read-then-execute PR script.
 Templates, data sources, full procedure:
-`skills/worktask/references/conductor-attachments.md § Writer 2 — FN agent post-approval`.
+`skills/worktask/references/attachments-sources.md § Writer 2 — FN agent post-approval`.
 
 #### Pre-`gh pr create` validator battery
 
@@ -204,7 +204,7 @@ evidence is invisible; `probe_timeout`/`token_invalid` is resolved by exporting
 
 When `state.json → metadata.ci` is `"disabled"`, skip `gh run watch` and write "CI wait skipped:
 metadata.ci disabled" in `complete-summary-N.md`. Absent or any other value waits as usual
-(`skills/shared/state-ledger.md § CI field`).
+(`skills/worktask/references/contracts/ledger-status.md § CI field`).
 
 ##### Check for an external rename before pushing
 
@@ -228,14 +228,14 @@ HEAD, not-a-git-repo at PL start, unvalidated value): skip the refspec, `git pus
 Named exactly once at the start of planning (`skills/shared/git-conventions.md § Branch Naming`;
 host-workspace caveats: `skills/worktask/references/workspace-modes.md`). The value FN reads may
 have been **refined once** pre-publish from the approved plan's title
-(`commands/worktask.md § Step A.4b` — ledger-only, no git mutation); FN's re-validation is
+(`skills/worktask/references/workflow.md § Step A.4b` — ledger-only, no git mutation); FN's re-validation is
 unchanged.
 
 `facts.branch` **may legitimately differ from the local branch name** — the `upstream_tracked` and
 `target_exists` arms, and a linked worktree with `BRANCH_NAME_WORKTREE_RENAME=0`, keep the host's
 local name and plan the conventional one for the remote. That is the designed outcome, not drift:
 the `HEAD:refs/heads/<facts.branch>` refspec makes both true at once. Never "correct" it with
-`git rev-parse`. Field notes: `skills/worktask/references/handoff-protocol.md § Field notes — branch`.
+`git rev-parse`. Field notes: `skills/worktask/references/contracts/ledger-field-notes.md § Field notes — branch`.
 
 #### Recurring-defect escalation
 
@@ -312,15 +312,18 @@ Before marking FN complete:
 
 ## Handoff Protocol
 
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-fn.md` before writing the artifact.
+
+
 Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules:
-`skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read
+`skills/worktask/references/stage-contracts.md` — reference only; this section is self-sufficient, do not Read
 stage-contracts.md in the steady path. Per-stage frontmatter template (paste verbatim at artifact
-top): `stage-contracts.md#tpl-fn`. Prev→this label: `RE→FN` (or `DC→FN` when RE did not run, `QA→FN`
+top): `skills/worktask/assets/templates/template-fn.md#tpl-fn`. Prev→this label: `RE→FN` (or `DC→FN` when RE did not run, `QA→FN`
 when neither RE nor DC ran).
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 ### State Patch — REQUIRED before return
 
@@ -330,7 +333,7 @@ the first of `RE`, `DC`, `QA` whose `tasks` row exists and is not `skipped`, to 
 `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your
 artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the
 tool cannot run at all, do NOT skip silently — apply the Edit-direct fallback in
-`handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+`skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
@@ -343,12 +346,12 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage FN --p
   "open_questions": []}'
 ```
 
-Omitting it loses the fact silently: a stub that reaches only the frontmatter never reaches the FN gate's render, so the question is never asked. Union by `.id`, last writer wins. Canonical: `handoff-protocol.md#facts-union`.
+Omitting it loses the fact silently: a stub that reaches only the frontmatter never reaches the FN gate's render, so the question is never asked. Union by `.id`, last writer wins. Canonical: `skills/worktask/references/contracts/facts-merge.md#facts-union`.
 
 #### Under fn_gate: "bypass"
 
 The FN gate never shows, so FN emits `open_questions: []`, as the example
-shows, and auto-records any `decision` it takes (`stage-contracts.md § Under fn_gate: "bypass"`).
+shows, and auto-records any `decision` it takes (`skills/worktask/references/contracts/sweep-obligations.md § Under fn_gate: "bypass"`).
 An attended run lists its stubs in the same field.
 
 <!-- output-sections:begin stage=FN -->

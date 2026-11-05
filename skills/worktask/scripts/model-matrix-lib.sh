@@ -61,7 +61,7 @@ fi
 # time; every default below hangs off it so a caller that sources this from anywhere still
 # resolves the live doc and the live agents/ tree.
 _MML_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-_MML_DEFAULT_DOC="${_MML_PLUGIN_ROOT}/skills/shared/stage-codes.md"
+_MML_DEFAULT_DOC="${_MML_PLUGIN_ROOT}/skills/worktask/references/stage-codes.md"
 _MML_DEFAULT_AGENTS_DIR="${_MML_PLUGIN_ROOT}/agents"
 
 # _mml_split_row <line> -> sets _mml_c1 _mml_c2 _mml_c3, returns 1 if not exactly 3 cells.
@@ -81,7 +81,7 @@ _mml_split_row() {
 
 # model_matrix_rows [doc] [agents_dir]
 # Prints "agent<TAB>model<TAB>effort" per row under `## Agent Model Matrix`, in document
-# order. [doc] defaults to skills/shared/stage-codes.md; a fixture path is how R1-R3
+# order. [doc] defaults to skills/worktask/references/stage-codes.md; a fixture path is how R1-R3
 # regression cases exercise the extractor without touching the live file.
 model_matrix_rows() {
   local doc="${1:-$_MML_DEFAULT_DOC}"

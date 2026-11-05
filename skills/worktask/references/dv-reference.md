@@ -6,7 +6,7 @@ Kept out of the agent body because every DV turn pays for the body's tokens.
 ## Sibling tooling — listed, not granted
 
 Names this route can reach, not tools this agent holds: `tools:` carries no platform build or MCP
-tool (`skills/worktask/SKILL.md § Platform tooling ownership`). An XcodeBuildMCP tool is reached
+tool (`skills/worktask/references/completion-handoff.md § Platform tooling ownership`). An XcodeBuildMCP tool is reached
 only by delegating to an Apple implementation agent, which inherits the server
 (`skills/cross-plugin-handoff/SKILL.md § MCP Dynamic Server Inheritance`).
 
@@ -64,7 +64,7 @@ The gate above fires at return time; if you exhaust context mid-batch the orches
 
 ### Checkpoint steps
 
-1. **After each sub-batch commit**, merge a lightweight progress record into `state.json → tasks.<ID>.progress` (your own row; schema: `handoff-protocol.md#state-json-schema`) — completed batch ids and the next pending batch, nothing heavier (no diffs, no file contents):
+1. **After each sub-batch commit**, merge a lightweight progress record into `state.json → tasks.<ID>.progress` (your own row; schema: `skills/worktask/references/contracts/ledger-root.md#state-json-schema`) — completed batch ids and the next pending batch, nothing heavier (no diffs, no file contents):
 
    ```bash
    _sf=".context/state.json"; _tmp="${_sf}.tmp.$$"
@@ -80,7 +80,7 @@ The gate above fires at return time; if you exhaust context mid-batch the orches
 
 ## Delegation
 
-Route with the Agent tool. The `subagent_type` is the qualified agent ID from `agents/developer.md § Platform Specialization` or, for specialists outside those rows, from the per-platform tables in `skills/shared/platform-detection.md`. The delegate's brief carries its own `TURN BUDGET` line, sized to the delegate's `maxTurns` by the same helper (`references/return-arms.md § Turn budget — the cap`).
+Route with the Agent tool. The `subagent_type` is the qualified agent ID from `agents/developer.md § Platform Specialization` or, for specialists outside those rows, from the per-platform tables in `skills/shared/platform-detection.md`. The delegate's brief carries its own `TURN BUDGET` line, sized to the delegate's `maxTurns` by the same helper (`skills/worktask/references/return-yield.md § Turn budget — the cap`).
 
 ### Dispatch Injection (REQUIRED)
 
@@ -111,4 +111,4 @@ Pass: the exact-output contract verbatim (`agents/developer.md § Pass the contr
 
 ### Routing Audit
 
-On every `Agent(specialist)` invocation append one `audit.jsonl` line: `action: "delegation"`, `metadata: {to_agent: "<qualified subagent_type>", platform: "<apple|android|web|systems|backend|ai>", markers: [<matched globs>], reason: "<one-line why>", task_id: "<DV task id>"}`. When the target came from a routing override, add `alias: "<corpflow:* alias>"` and `routing_source` (`"project-override"` or `"user-override"`, from `state.routing_source`) to the metadata. The specialist writes its own retry/error narrative to `.context/errors/<basename>.md` (e.g. `errors/ios-developer.md`) per `stage-contracts § Cross-Plugin Stages`. A `delegation` row pointing at `self`/generic for a back-end (→ `backend-developer:*`) or web-UI (`.tsx`/`.vue`/`.svelte`/component/state/styling → `frontend-developer:*`) DV task is a routing miss.
+On every `Agent(specialist)` invocation append one `audit.jsonl` line: `action: "delegation"`, `metadata: {to_agent: "<qualified subagent_type>", platform: "<apple|android|web|systems|backend|ai>", markers: [<matched globs>], reason: "<one-line why>", task_id: "<DV task id>"}`. When the target came from a routing override, add `alias: "<corpflow:* alias>"` and `routing_source` (`"project-override"` or `"user-override"`, from `state.routing_source`) to the metadata. The specialist writes its own retry/error narrative to `.context/errors/<basename>.md` (e.g. `errors/ios-developer.md`) per `stage-contracts § Cross-Plugin Stages`. A `delegation` row pointing at `self`/generic for a DV task on any platform with a granted specialist (`agents/developer.md` `tools:`) is a routing miss (examples: back-end → `backend-developer:*`; web UI, `.tsx`/`.vue`/`.svelte`/component/state/styling → `frontend-developer:*`), and so is a missing `delegation` row on any platform with a granted specialist (`agents/developer.md` `tools:`), unless a valid `dispatch_flattened` row (`not_granted`, `plugin_unavailable` or `depth_cap`) precedes the inline work.

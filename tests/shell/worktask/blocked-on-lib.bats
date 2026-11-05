@@ -11,7 +11,7 @@ LIB="skills/worktask/scripts/blocked-on-lib.sh"
 HARNESS="skills/worktask/scripts/handoff-harness.sh"
 ROUTER="skills/worktask/scripts/blocked-on-dispatch.sh"
 PROTOCOL_MD="skills/worktask/references/handoff-protocol.md"
-SKILL_MD="skills/worktask/SKILL.md"
+SKILL_MD="skills/worktask/references/orchestration.md"
 FIX="${FIXTURES}/worktask/blocked-on"
 
 # _lib <snippet> — runs the snippet with the library sourced under the callers' strict mode.
@@ -39,8 +39,8 @@ _lib() {
 
 @test "parity: both enums equal the registry lines in handoff-protocol.md, order included" {
   local kinds rw
-  kinds="$(grep -E '^[[:space:]]+kind: user_decision \|' "$PLUGIN_ROOT/$PROTOCOL_MD" | sed 's/^[[:space:]]*kind: //; s/ | / /g')"
-  rw="$(grep -E '^[[:space:]]+resume_with: decision_ref \|' "$PLUGIN_ROOT/$PROTOCOL_MD" | sed 's/^[[:space:]]*resume_with: //; s/ | / /g')"
+  kinds="$(grep -E '^[[:space:]]+kind: user_decision \|' "$(contract_source "$PLUGIN_ROOT/$PROTOCOL_MD")" | sed 's/^[[:space:]]*kind: //; s/ | / /g')"
+  rw="$(grep -E '^[[:space:]]+resume_with: decision_ref \|' "$(contract_source "$PLUGIN_ROOT/$PROTOCOL_MD")" | sed 's/^[[:space:]]*resume_with: //; s/ | / /g')"
   [ -n "$kinds" ] && [ -n "$rw" ] || fail "registry enum lines not found"
   _lib "printf '%s\n%s' \"\$BLOCKED_ON_KINDS\" \"\$BLOCKED_ON_RESUME_WITH\""
   assert_success
@@ -49,7 +49,7 @@ _lib() {
 
 @test "parity: required, optional and resume_with match the seven-arms table in handoff-protocol.md" {
   local rows kind keys rw req opt want
-  rows="$(awk '/^#### Schema — blocked_on, the seven arms at a glance/{f=1; next} f && /^####/{exit} f' "$PLUGIN_ROOT/$PROTOCOL_MD" \
+  rows="$(awk '/^#### Schema — blocked_on, the seven arms at a glance/{f=1; next} f && /^####/{exit} f' "$(contract_source "$PLUGIN_ROOT/$PROTOCOL_MD")" \
     | grep -E '^\| `[a-z_]+` \|')"
   [ "$(printf '%s\n' "$rows" | wc -l | tr -d ' ')" = 7 ] || fail "expected 7 arm rows, got: $rows"
   while IFS='|' read -r _ kind keys rw _; do
@@ -66,7 +66,7 @@ _lib() {
 
 @test "parity: legs, closing leg, owner and landed match SKILL.md § blocked-on-lib.sh — the arm table" {
   local rows kind legs closing owner landed n=0
-  rows="$(awk '/^#### blocked-on-lib.sh — the arm table/{f=1; next} f && /^#/{exit} f' "$PLUGIN_ROOT/$SKILL_MD" \
+  rows="$(awk '/^#### blocked-on-lib.sh — the arm table/{f=1; next} f && /^#/{exit} f' "$(contract_source "$PLUGIN_ROOT/$SKILL_MD")" \
     | grep -E '^\| [a-z_]+ \|' | grep -v '^| kind |')"
   while IFS='|' read -r _ kind legs closing owner landed _; do
     kind="$(printf '%s' "$kind" | tr -d ' ')"

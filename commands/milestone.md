@@ -9,7 +9,6 @@ related:
   - agents/product-manager.md
   - commands/product-requirements.md
   - commands/roadmap.md
-  - commands/worktask.md
 ---
 
 # Milestone Tickets
@@ -175,7 +174,6 @@ Then [expected result]
 
 - Priority: P{n}
 - Complexity: {low|medium|high}
-- Estimated stages: {e.g., PL → DV → DR → QA → FN}
 ```
 
 ### Template — machine-read parts

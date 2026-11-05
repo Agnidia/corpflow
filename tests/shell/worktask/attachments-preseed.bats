@@ -2,7 +2,7 @@
 # Behavioural tests for skills/worktask/scripts/attachments-preseed.sh — the FN
 # pre-gate Conductor-attachments writer.
 #
-# The script reads both templates from conductor-attachments.md at run time, so
+# The script reads the two canonical template leaves at run time, so
 # there is no copy left to drift. P12/P12b pin the refusal that replaces the old
 # drift guard — a broken install must not emit a half-rendered attachment — and
 # P12c pins the emission rule itself against a fixture document. The rest pin
@@ -10,7 +10,8 @@
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
 SCRIPT="skills/worktask/scripts/attachments-preseed.sh"
-DOC="skills/worktask/references/conductor-attachments.md"
+PR_DOC="skills/worktask/assets/templates/attachments-pr-template.md"
+RV_DOC="skills/worktask/assets/templates/attachments-review-template.md"
 
 PR_FILE=".context/attachments/PR instructions.md"
 RV_FILE=".context/attachments/Review request.md"
@@ -224,13 +225,15 @@ EOF
 # path of the script copy so the arm can invoke it out of tree.
 _fixture_with_doc() {
   local doc_content="$1" fx="$BATS_TEST_TMPDIR/fx"
-  mkdir -p "$fx/skills/worktask/scripts" "$fx/skills/worktask/references" \
+  mkdir -p "$fx/skills/worktask/scripts" "$fx/skills/worktask/assets/templates" \
            "$fx/skills/shared/lib"
   cp "$PLUGIN_ROOT/$SCRIPT" "$fx/skills/worktask/scripts/"
   cp "$PLUGIN_ROOT/skills/worktask/scripts/branch-lib.sh" "$fx/skills/worktask/scripts/"
   cp "$PLUGIN_ROOT/skills/shared/lib/audit-lib.sh" "$fx/skills/shared/lib/"
-  [ "$doc_content" = "__omit__" ] \
-    || printf '%s' "$doc_content" > "$fx/skills/worktask/references/conductor-attachments.md"
+  if [ "$doc_content" != "__omit__" ]; then
+    printf '%s' "$doc_content" > "$fx/$PR_DOC"
+    printf '%s' "$doc_content" > "$fx/$RV_DOC"
+  fi
   printf '%s\n' "$fx/skills/worktask/scripts/attachments-preseed.sh"
 }
 
@@ -321,6 +324,22 @@ delta
 gamma"
   run cat "$WD/$RV_FILE"
   assert_output "delta"
+}
+
+@test "P12d: a missing review leaf leaves both existing attachments unchanged" {
+  local script fx="$BATS_TEST_TMPDIR/fx"
+  script="$(_fixture_with_doc __omit__)"
+  cp "$PLUGIN_ROOT/$PR_DOC" "$fx/$PR_DOC"
+  mkdir -p "$WD/.context/attachments"
+  printf 'existing PR\n' > "$WD/$PR_FILE"
+  printf 'existing review\n' > "$WD/$RV_FILE"
+  run bash "$script" --workdir "$WD" --worktask-id wt-1 --branch feature/x \
+    --base-branch main --run-index 0 --no-upstream --uncommitted 0 \
+    --ts 2026-01-01T00:00:00Z
+  assert_failure 2
+  assert_output --partial "attachments-review-template.md"
+  [ "$(cat "$WD/$PR_FILE")" = 'existing PR' ]
+  [ "$(cat "$WD/$RV_FILE")" = 'existing review' ]
 }
 
 @test "P13: --self-test passes and unknown args exit 2 with usage" {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Single-sourcing and completeness contracts for the closing elicitation sweep
-# (skills/shared/stage-contracts.md § Closing Elicitation Sweep).
+# (skills/worktask/references/stage-contracts.md § Closing Elicitation Sweep).
 #
 # Every parity assertion extracts BOTH sides from their own defining file. A
 # hardcoded copy inside the test would be the same drift defect these contracts
@@ -12,13 +12,13 @@
 # contains/minContains/maxContains) rather than executing the schema against instances.
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
-CONTRACTS="skills/shared/stage-contracts.md"
+CONTRACTS="skills/worktask/references/stage-contracts.md"
 HANDOFF="skills/worktask/references/handoff-protocol.md"
-STAGE_CODES="skills/shared/stage-codes.md"
-WORKTASK_CMD="commands/worktask.md"
+STAGE_CODES="skills/worktask/references/stage-codes.md"
+WORKTASK_CMD="skills/worktask/references/workflow.md"
 PL0_PROC="skills/worktask/references/pl0-procedure.md"
 PREFLIGHT="skills/worktask/scripts/preflight-issue-scan.sh"
-WORKTASK_SKILL="skills/worktask/SKILL.md"
+WORKTASK_SKILL="skills/worktask/references/orchestration.md"
 
 # Agents that are NOT stage agents and therefore owe no sweep pointer.
 NON_STAGE_AGENTS="designer prompt-engineer"
@@ -146,7 +146,7 @@ check_facts_transport() {  # <agents-dir>
   # The exemption above is only sound while the procedure it defers to carries
   # the command; otherwise PL is a hole this suite declared out of scope.
   grep -q -- "state-patch.sh --stage PL" \
-    "$PLUGIN_ROOT/skills/worktask/references/pl0-procedure.md" \
+    "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/pl0-procedure.md")" \
     || fail "pl0-procedure.md carries no literal PL --facts invocation"
 }
 
@@ -218,7 +218,7 @@ check_raise_only() {  # <worktask-cmd> <contracts>
   printf '%s\n' "$cmd" | grep -q 'max(' \
     && { echo "the command restates the join instead of pointing at it"; return 1; }
 
-  c2=$(grep -n 'C.2 — Classify' "$1" | head -1 | cut -d: -f1)
+  c2=$(grep -n '^#### Step C.2 — classify' "$1" | head -1 | cut -d: -f1)
   c3=$(grep -n 'C.3 — Auto-answer' "$1" | head -1 | cut -d: -f1)
   [ -n "$c2" ] && [ -n "$c3" ] || { echo "non-vacuity: Step C.2/C.3 not found"; return 1; }
   [ "$c2" -lt "$c3" ] || { echo "classification does not precede auto-answer"; return 1; }
@@ -258,9 +258,9 @@ check_channels() {  # <contracts> <repo-root>
       echo "unparseable channel row: $line"; rc=1; continue
     fi
     case "$path" in */*) ;; *) echo "channel row must cite a repo-relative path: $line"; rc=1; continue ;; esac
-    [ -f "$2/$path" ] || { echo "channel row cites a missing file: $path"; rc=1; continue; }
+    [ -f "$(contract_source "$2/$path")" ] || { echo "channel row cites a missing file: $path"; rc=1; continue; }
     needle=$(printf '%s' "$token" | sed 's/^handoff\.//; s/^facts\.//')
-    grep -qF "$needle" "$2/$path" \
+    grep -qF "$needle" "$(contract_source "$2/$path")" \
       || { echo "channel $token is not defined in the file it cites ($path)"; rc=1; }
   done <<EOF
 $rows
@@ -350,21 +350,21 @@ plant() {  # plant <src> <sed-expr> -> prints the mutated copy's path
 # --- obligation matrix covers every stage code -------------------------
 
 @test "AC-1: sweep obligation matrix rows equal the canonical stage list (both sides extracted)" {
-  run check_matrix_completeness "$PLUGIN_ROOT/$CONTRACTS" "$PLUGIN_ROOT/$STAGE_CODES" "$PLUGIN_ROOT/$HANDOFF"
+  run check_matrix_completeness "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" "$PLUGIN_ROOT/$STAGE_CODES" "$(contract_source "$PLUGIN_ROOT/$HANDOFF")"
   assert_success
 }
 
 @test "AC-1 twin: dropping one matrix row makes the completeness check fail" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$CONTRACTS" 's/, RE, ET — takes the default/, RE — takes the default/')"
-  run check_matrix_completeness "$planted" "$PLUGIN_ROOT/$STAGE_CODES" "$PLUGIN_ROOT/$HANDOFF"
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" 's/, RE, ET — takes the default/, RE — takes the default/')"
+  run check_matrix_completeness "$planted" "$PLUGIN_ROOT/$STAGE_CODES" "$(contract_source "$PLUGIN_ROOT/$HANDOFF")"
   assert_failure
 }
 
 # --- one pointer per stage agent, never a restatement ------------------
 
 @test "AC-2: every stage agent carries the sweep pointer exactly once" {
-  run check_pointer_once "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/$CONTRACTS"
+  run check_pointer_once "$PLUGIN_ROOT/agents" "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_success
 }
 
@@ -372,9 +372,9 @@ plant() {  # plant <src> <sed-expr> -> prints the mutated copy's path
   local d phrase
   d="$(mk_tmpworkdir)"
   cp "$PLUGIN_ROOT"/agents/*.md "$d/"
-  phrase="$(canonical_phrase "$PLUGIN_ROOT/$CONTRACTS")"
+  phrase="$(canonical_phrase "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")")"
   printf '\nsee %s\n' "$phrase" >> "$d/stakeholder.md"
-  run check_pointer_once "$d" "$PLUGIN_ROOT/$CONTRACTS"
+  run check_pointer_once "$d" "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_failure
 }
 
@@ -383,7 +383,7 @@ plant() {  # plant <src> <sed-expr> -> prints the mutated copy's path
   d="$(mk_tmpworkdir)"
   mkdir -p "$d/agents" "$d/commands" "$d/skills"
   cp "$PLUGIN_ROOT/agents/stakeholder.md" "$d/agents/"
-  cp "$PLUGIN_ROOT/$CONTRACTS" "$d/skills/"
+  cp "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" "$d/skills/"
   printf '\n## Closing Elicitation Sweep\n\nrestated\n' >> "$d/agents/stakeholder.md"
   run check_single_heading "$d"
   assert_failure
@@ -392,13 +392,13 @@ plant() {  # plant <src> <sed-expr> -> prints the mutated copy's path
 # --- one item shape, and exactly-one-recommended still pinned ----------
 
 @test "AC-3: open_questions accepts the sweep stub and nothing else, and pins exactly-one-recommended" {
-  run check_schema_shape "$PLUGIN_ROOT/$HANDOFF"
+  run check_schema_shape "$(contract_source "$PLUGIN_ROOT/$HANDOFF")"
   assert_success
 }
 
 @test "AC-3 twin: re-adding the not:{required:[class]} guard fails (nothing left to discriminate)" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$HANDOFF" \
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" \
     "s|^        items: { \\\$ref: '#/\\\$defs/SweepStub' }.*|        items: { not: { required: [class] }, \\\$ref: '#/\\\$defs/SweepStub' }|")"
   run check_schema_shape "$planted"
   assert_failure
@@ -407,7 +407,7 @@ plant() {  # plant <src> <sed-expr> -> prints the mutated copy's path
 
 @test "AC-3 twin: re-admitting the legacy string form via a oneOf fails" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$HANDOFF" \
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" \
     "s|^        items: { \\\$ref: '#/\\\$defs/SweepStub' }.*|        items: { oneOf: [{ type: string }, { \\\$ref: '#/\\\$defs/SweepStub' }] }|")"
   run check_schema_shape "$planted"
   assert_failure
@@ -416,7 +416,7 @@ plant() {  # plant <src> <sed-expr> -> prints the mutated copy's path
 
 @test "AC-3 twin: dropping the \$ref fails non-vacuity rather than passing silently" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$HANDOFF" \
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" \
     "s|^        items: { \\\$ref: '#/\\\$defs/SweepStub' }.*|        items: { type: object }|")"
   run check_schema_shape "$planted"
   assert_failure
@@ -425,14 +425,14 @@ plant() {  # plant <src> <sed-expr> -> prints the mutated copy's path
 
 @test "AC-3 twin: dropping maxContains would let a two-recommended item pass, and fails" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$HANDOFF" '/maxContains: 1/d')"
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" '/maxContains: 1/d')"
   run check_schema_shape "$planted"
   assert_failure
 }
 
 @test "AC-3 twin: dropping minContains would let a zero-recommended item pass, and fails" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$HANDOFF" '/minContains: 1/d')"
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" '/minContains: 1/d')"
   run check_schema_shape "$planted"
   assert_failure
 }
@@ -453,13 +453,13 @@ check_typed_return_shape() {  # <handoff>
 }
 
 @test "AC-3b: all 13 typed-return schemas carry items:{\$ref SweepItem} and no oneOf" {
-  run check_typed_return_shape "$PLUGIN_ROOT/$HANDOFF"
+  run check_typed_return_shape "$(contract_source "$PLUGIN_ROOT/$HANDOFF")"
   assert_success
 }
 
 @test "AC-3b twin: schemas reverting to the legacy oneOf fail" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$HANDOFF" \
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" \
     's|"open_questions": { "type": "array", "items": { "\$ref": "#/\$defs/SweepItem" } }|"open_questions": { "type": "array", "items": { "oneOf": [{ "type": "string" }, { "$ref": "#/$defs/SweepItem" }] } }|')"
   run check_typed_return_shape "$planted"
   assert_failure
@@ -477,16 +477,16 @@ ledger_oq_required() {  # <handoff>
 
 @test "AC-3b: the ledger open_questions item requires the same set as SweepStub" {
   local ledger stub
-  ledger="$(ledger_oq_required "$PLUGIN_ROOT/$HANDOFF" | sed 's/^ *//')"
+  ledger="$(ledger_oq_required "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" | sed 's/^ *//')"
   [ -n "$ledger" ] || fail "non-vacuity: the ledger required: line was not extracted"
-  stub="$(sweep_stub_defs "$PLUGIN_ROOT/$HANDOFF" | grep -m1 'required:' | sed 's/^ *//')"
+  stub="$(sweep_stub_defs "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" | grep -m1 'required:' | sed 's/^ *//')"
   [ -n "$stub" ] || fail "non-vacuity: SweepStub required: line was not extracted"
   [ "$ledger" = "$stub" ] || fail "ledger requires '$ledger'; SweepStub requires '$stub'"
 }
 
 @test "AC-3b twin: a ledger that reverts to required: [id] fails the comparison" {
   local planted ledger stub
-  planted="$(plant "$PLUGIN_ROOT/$HANDOFF" \
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" \
     's/^          required: \[id, class, ref, blocks_next_stage\]$/          required: [id]/')"
   ledger="$(ledger_oq_required "$planted" | sed 's/^ *//')"
   stub="$(sweep_stub_defs "$planted" | grep -m1 'required:' | sed 's/^ *//')"
@@ -496,13 +496,13 @@ ledger_oq_required() {  # <handoff>
 # --- every template carries the field; empty obligation stated once ----
 
 @test "AC-4: every per-stage frontmatter template carries open_questions" {
-  run check_templates_carry_field "$PLUGIN_ROOT/$CONTRACTS"
+  run check_templates_carry_field "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_success
 }
 
 @test "AC-4 twin: a template missing open_questions fails the enumeration" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$CONTRACTS" '/sw-ST0-1/d')"
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" '/sw-ST0-1/d')"
   # Chained through plant(), not a bare `sed -i`: this second mutation is the one
   # the assertion actually rests on, and an unguarded sed that stops matching
   # leaves a twin that can no longer fail.
@@ -512,13 +512,13 @@ ledger_oq_required() {  # <handoff>
 }
 
 @test "AC-4: the explicit-empty obligation is stated exactly once" {
-  run check_empty_obligation_once "$PLUGIN_ROOT/$CONTRACTS"
+  run check_empty_obligation_once "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_success
 }
 
 @test "AC-4 twin: restating the explicit-empty obligation a second time fails" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$CONTRACTS" '$a\
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" '$a\
 A stage with nothing to ask says so: nothing to elicit.')"
   run check_empty_obligation_once "$planted"
   assert_failure
@@ -527,14 +527,14 @@ A stage with nothing to ask says so: nothing to elicit.')"
 # --- raise-only classification -----------------------------------------
 
 @test "AC-5: the class self-label may be raised, never lowered, and is applied before auto-answer" {
-  run check_raise_only "$PLUGIN_ROOT/$WORKTASK_CMD" "$PLUGIN_ROOT/$CONTRACTS"
+  run check_raise_only "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_success
 }
 
 @test "AC-5 twin: removing the monotone-join statement fails the guard check" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$CONTRACTS" 's/`max(agent label, orchestrator label)`/a label the orchestrator picks/')"
-  run check_raise_only "$PLUGIN_ROOT/$WORKTASK_CMD" "$planted"
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" 's/`max(agent label, orchestrator label)`/a label the orchestrator picks/')"
+  run check_raise_only "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" "$planted"
   assert_failure
 }
 
@@ -542,37 +542,37 @@ A stage with nothing to ask says so: nothing to elicit.')"
   # The failure mode R-24 closes: a second copy that drifts from the first while both
   # read as authoritative.
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$WORKTASK_CMD" '/^A closing-sweep item arrives/a\
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" '/^A closing-sweep item arrives/a\
 The orchestrator computes `effective = max(agent_label, orchestrator_label)`.')"
-  run check_raise_only "$planted" "$PLUGIN_ROOT/$CONTRACTS"
+  run check_raise_only "$planted" "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_failure
 }
 
 # --- one behaviour row per unattended carrier --------------------------
 
 @test "AC-6: every carrier named in its defining file has exactly one fallback row" {
-  run check_carriers "$PLUGIN_ROOT/$CONTRACTS" "$PLUGIN_ROOT/$PL0_PROC" "$PLUGIN_ROOT/$WORKTASK_CMD" "$PLUGIN_ROOT/$PREFLIGHT"
+  run check_carriers "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" "$(contract_source "$PLUGIN_ROOT/$PL0_PROC")" "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" "$PLUGIN_ROOT/$PREFLIGHT"
   assert_success
 }
 
 @test "AC-6 twin: deleting a carrier's fallback row fails the completeness check" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$CONTRACTS" '/CORPFLOW_NONINTERACTIVE=1/d')"
-  run check_carriers "$planted" "$PLUGIN_ROOT/$PL0_PROC" "$PLUGIN_ROOT/$WORKTASK_CMD" "$PLUGIN_ROOT/$PREFLIGHT"
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" '/CORPFLOW_NONINTERACTIVE=1/d')"
+  run check_carriers "$planted" "$(contract_source "$PLUGIN_ROOT/$PL0_PROC")" "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" "$PLUGIN_ROOT/$PREFLIGHT"
   assert_failure
 }
 
 # --- no duplication of channels that already exist ---------------------
 
 @test "AC-7: each of the four pre-existing channels is named once and resolves in the file it cites" {
-  run check_channels "$PLUGIN_ROOT/$CONTRACTS" "$PLUGIN_ROOT"
+  run check_channels "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" "$PLUGIN_ROOT"
   assert_success
 }
 
 @test "AC-7 twin: a fifth channel row fails the count" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$CONTRACTS" '/^| an ethics decision |/a\
-| a fifth thing | `made_up_field:` | `skills/shared/stage-codes.md` |')"
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" '/^| an ethics decision |/a\
+| a fifth thing | `made_up_field:` | `skills/worktask/references/stage-codes.md` |')"
   run check_channels "$planted" "$PLUGIN_ROOT"
   assert_failure
 }
@@ -593,9 +593,9 @@ The orchestrator computes `effective = max(agent_label, orchestrator_label)`.')"
   local d
   d="$(mk_tmpworkdir)"
   mkdir -p "$d/agents" "$d/commands" "$d/skills"
-  cp "$PLUGIN_ROOT/commands/worktask.md" "$d/commands/"
-  cp "$PLUGIN_ROOT/skills/worktask/SKILL.md" "$d/skills/"
-  cp "$PLUGIN_ROOT/skills/worktask/references/pl0-procedure.md" "$d/skills/"
+  cp "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/workflow.md")" "$d/commands/"
+  cp "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/orchestration.md")" "$d/skills/"
+  cp "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/pl0-procedure.md")" "$d/skills/"
   cp "$PLUGIN_ROOT/agents/stakeholder.md" "$d/agents/"
   printf '\nirreversible, scope-expanding, posture-weakening, or spend-authorizing.\n' >> "$d/agents/stakeholder.md"
   run check_no_fourth_escalation_copy "$d"
@@ -605,13 +605,13 @@ The orchestrator computes `effective = max(agent_label, orchestrator_label)`.')"
 # --- the 30-line frontmatter budget survives the wider template -------
 
 @test "AC-13: every per-stage template yaml block stays within the 30-line budget" {
-  run check_frontmatter_line_budget "$PLUGIN_ROOT/$CONTRACTS"
+  run check_frontmatter_line_budget "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_success
 }
 
 @test "AC-13 twin: a template block past 30 lines fails the budget check" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$CONTRACTS" '/^  stage: ST$/a\
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" '/^  stage: ST$/a\
   filler_01: x\
   filler_02: x\
   filler_03: x\
@@ -661,13 +661,13 @@ The orchestrator computes `effective = max(agent_label, orchestrator_label)`.')"
 # --- strict from day one, no escape hatch -----------------------------
 
 @test "AC-15: the sweep surface carries no warn-only mode, opt-in variable, or advisory tier" {
-  run check_no_escape_hatch "$PLUGIN_ROOT/$CONTRACTS"
+  run check_no_escape_hatch "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_success
 }
 
 @test "AC-15 twin: adding a warn-only arm to the canonical section fails" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$CONTRACTS" '/^### Sweep obligation matrix$/a\
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" '/^### Sweep obligation matrix$/a\
 A missing sweep is warn-only until the next minor.')"
   run check_no_escape_hatch "$planted"
   assert_failure
@@ -675,7 +675,7 @@ A missing sweep is warn-only until the next minor.')"
 
 @test "AC-15 twin: an advisory column in the matrix fails" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$CONTRACTS" 's/^| Code | Obligation |/| Code | Advisory |/')"
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" 's/^| Code | Obligation |/| Code | Advisory |/')"
   run check_no_escape_hatch "$planted"
   assert_failure
 }
@@ -706,17 +706,17 @@ A missing sweep is warn-only until the next minor.')"
 
 @test "the sweep render precedes the FN approve/reject STOP, which stays last and unmodified" {
   local render stop
-  render=$(grep -n '(c+) Render the collected sweep' "$PLUGIN_ROOT/$WORKTASK_SKILL" | head -1 | cut -d: -f1)
-  stop=$(grep -n '(d) AskUserQuestion: approve' "$PLUGIN_ROOT/$WORKTASK_SKILL" | head -1 | cut -d: -f1)
+  render=$(grep -n '(c+) Render the collected sweep' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_SKILL")" | head -1 | cut -d: -f1)
+  stop=$(grep -n '(d) AskUserQuestion: approve' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_SKILL")" | head -1 | cut -d: -f1)
   [ -n "$render" ] && [ -n "$stop" ] || fail "non-vacuity: step 4.9 sub-steps not found"
   [ "$render" -lt "$stop" ] || fail "the sweep does not precede the approve/reject call"
 }
 
 @test "both orchestrator commands declare AskUserQuestion in allowed-tools" {
   local f
-  for f in commands/worktask.md commands/megatask.md; do
-    grep -q 'AskUserQuestion' "$PLUGIN_ROOT/$f" || fail "$f never calls AskUserQuestion"
-    grep -E '^allowed-tools:' "$PLUGIN_ROOT/$f" | grep -q 'AskUserQuestion' \
+  for f in skills/worktask/SKILL.md commands/megatask.md; do
+    grep -q 'AskUserQuestion' "$(contract_source "$PLUGIN_ROOT/$f")" || fail "$f never calls AskUserQuestion"
+    grep -E '^allowed-tools:' "$(contract_source "$PLUGIN_ROOT/$f")" | grep -q 'AskUserQuestion' \
       || fail "$f calls AskUserQuestion but does not declare it"
   done
 }
@@ -826,14 +826,14 @@ sweep_fixture_items() {  # sweep_fixture_items <dir> <items-yaml> [with-anchor|n
 
 @test "sw-DR0-2: Step C.1 derives the stage from the item id and treats an explicit stage as optional" {
   local body
-  body="$(awk '/^### Step C — Closing-sweep collection/{f=1;next} f && /^#{2,3} /{f=0} f' "$PLUGIN_ROOT/$WORKTASK_CMD")"
+  body="$(awk '/^### Step C — Closing-sweep collection/{f=1;next} f && /^#{2,3} /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")")"
   [ -n "$body" ] || fail "non-vacuity: Step C not found"
   printf '%s\n' "$body" | grep -q 'Derive' || fail "C.1 does not derive the stage"
   printf '%s\n' "$body" | grep -q 'sw-<TASK_ID>-<n>' || fail "C.1 does not name the id shape it parses"
-  printf '%s\n' "$body" | grep -q 'takes precedence' || fail "explicit stage precedence unstated"
+  printf '%s\n' "$body" | grep -q 'explicit .*stage.* wins when present' || fail "explicit stage precedence unstated"
   # The schema must keep `stage` optional, or the derivation is pointless.
   local defs
-  defs="$(sweep_stub_defs "$PLUGIN_ROOT/$HANDOFF")"
+  defs="$(sweep_stub_defs "$(contract_source "$PLUGIN_ROOT/$HANDOFF")")"
   printf '%s\n' "$defs" | grep -q 'required: \[id, class, ref, blocks_next_stage\]' \
     || fail "SweepStub's required set changed; stage may have become mandatory"
 }
@@ -842,12 +842,12 @@ sweep_fixture_items() {  # sweep_fixture_items <dir> <items-yaml> [with-anchor|n
 
 @test "sw-DR0-3: Step C.5 records answers in open_questions[].resolution, not facts.decisions[]" {
   local body
-  body="$(section_body "$PLUGIN_ROOT/$WORKTASK_CMD" '^#### Step C.5')"
+  body="$(section_body "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" '^#### Step C.5')"
   [ -n "$body" ] || fail "non-vacuity: Step C.5 not found"
   printf '%s\n' "$body" | grep -q 'resolution' || fail "C.5 does not record into resolution"
-  printf '%s\n' "$body" | grep -q 'do \*\*not\*\* go to' || fail "C.5 does not exclude facts.decisions[]"
+  printf '%s\n' "$body" | grep -q 'do not append.*facts.decisions' || fail "C.5 does not exclude facts.decisions[]"
   # The field it writes has to exist in the ledger schema.
-  grep -q 'resolution: { type: string, maxLength: 160 }' "$PLUGIN_ROOT/$HANDOFF" \
+  grep -q 'resolution: { type: string, maxLength: 160 }' "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" \
     || fail "facts.open_questions[].resolution is not in the ledger schema"
 }
 
@@ -1142,7 +1142,7 @@ CACHE_LINT="skills/worktask/scripts/cache-lint.sh"
   local body
   # Read the whole H4 subtree: the rationale lives in its H5 child, and section_body
   # (leaf semantics, matching section-lint) would stop at that child's heading.
-  body="$(awk '/^#### Ledger bounds/{f=1;next} f && /^#{2,4} /{f=0} f' "$PLUGIN_ROOT/$CONTRACTS")"
+  body="$(awk '/^#### Ledger bounds/{f=1;next} f && /^#{2,4} /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")")"
   [ -n "$body" ] || fail "non-vacuity: the Ledger bounds section is absent"
   # The LIVE bound, not merely a number: the retired global 12 is still named in this
   # section as history, so grepping a bare digit would pass on the wrong value.
@@ -1162,7 +1162,7 @@ sweep_stub_defs() {
 
 @test "q10: SweepStub requires [id, class, ref, blocks_next_stage] and no more" {
   local defs
-  defs="$(sweep_stub_defs "$PLUGIN_ROOT/$HANDOFF")"
+  defs="$(sweep_stub_defs "$(contract_source "$PLUGIN_ROOT/$HANDOFF")")"
   [ -n "$defs" ] || fail "non-vacuity: SweepStub not extracted"
   printf '%s\n' "$defs" | grep -q 'required: \[id, class, ref, blocks_next_stage\]' \
     || fail "SweepStub's required set is not [id, class, ref, blocks_next_stage]: $defs"
@@ -1176,12 +1176,12 @@ sweep_stub_defs() {
   # With one item shape there is nothing to discriminate, so the guard must be gone —
   # while `summary` stays a legal optional field, which is the half q10 was about.
   local blk defs
-  blk="$(open_questions_schema "$PLUGIN_ROOT/$HANDOFF")"
+  blk="$(open_questions_schema "$(contract_source "$PLUGIN_ROOT/$HANDOFF")")"
   [ -n "$blk" ] || fail "non-vacuity: the open_questions block was not extracted"
   if printf '%s\n' "$blk" | grep -q 'not:'; then
     fail "a disjointness guard survives; with one item shape it discriminates nothing"
   fi
-  defs="$(sweep_stub_defs "$PLUGIN_ROOT/$HANDOFF")"
+  defs="$(sweep_stub_defs "$(contract_source "$PLUGIN_ROOT/$HANDOFF")")"
   printf '%s\n' "$defs" | grep -q 'summary:' \
     || fail "summary was removed entirely; it must stay legal-but-optional"
   printf '%s\n' "$defs" | grep -q 'required: \[id, class, ref, blocks_next_stage\]' \
@@ -1190,7 +1190,7 @@ sweep_stub_defs() {
 
 @test "q10 TRAP twin: a planted guard is observable (the check can actually fail)" {
   local planted blk
-  planted="$(plant "$PLUGIN_ROOT/$HANDOFF" \
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" \
     "s|^        items: { \\\$ref: '#/\\\$defs/SweepStub' }.*|        items: { not: { required: [class] }, \\$ref: '#/\\$defs/SweepStub' }|")"
   blk="$(open_questions_schema "$planted")"
   printf '%s\n' "$blk" | grep -q 'not:' \
@@ -1199,14 +1199,14 @@ sweep_stub_defs() {
 
 @test "q10 twin: a stub schema that keeps summary required fails the check" {
   local planted
-  planted="$(plant "$PLUGIN_ROOT/$HANDOFF" 's/required: \[id, class, ref, blocks_next_stage\]/required: [id, summary, class, ref, blocks_next_stage]/')"
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" 's/required: \[id, class, ref, blocks_next_stage\]/required: [id, summary, class, ref, blocks_next_stage]/')"
   run bash -c "awk '/^  SweepStub:\$/{f=1} f{print} f&&/^\`\`\`\$/{exit}' '$planted' | grep -q 'required: \[id, class, ref, blocks_next_stage\]'"
   assert_failure
 }
 
 @test "q10: the 200-token budget is stated as a property of the whole handoff block" {
   local body
-  body="$(awk '/^#### The stub carries no summary/{f=1;next} f && /^#{2,4} /{f=0} f' "$PLUGIN_ROOT/$CONTRACTS")"
+  body="$(awk '/^#### The stub carries no summary/{f=1;next} f && /^#{2,4} /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")")"
   [ -n "$body" ] || fail "non-vacuity: the stub-shortening rationale section is absent"
   printf '%s\n' "$body" | grep -q '200-token' || fail "the driver budget is not named"
   printf '%s\n' "$body" | grep -qi 'whole .handoff:. block\|property of the block' \
@@ -1215,9 +1215,9 @@ sweep_stub_defs() {
 
 @test "q10: no per-stage template still carries summary in its sweep stub" {
   local hits
-  hits="$(grep -c 'id: sw-[A-Z][A-Z]0-1, summary:' "$PLUGIN_ROOT/$CONTRACTS" || true)"
+  hits="$(grep -c 'id: sw-[A-Z][A-Z]0-1, summary:' "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" || true)"
   [ "$hits" -eq 0 ] || fail "$hits templates still put summary in the stub"
-  [ "$(grep -c 'id: sw-[A-Z][A-Z]0-1, class: decision, ref:' "$PLUGIN_ROOT/$CONTRACTS")" -ge 13 ] \
+  [ "$(grep -c 'id: sw-[A-Z][A-Z]0-1, class: decision, ref:' "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")")" -ge 13 ] \
     || fail "non-vacuity: shortened stubs not found in the templates"
 }
 
@@ -1357,7 +1357,7 @@ union_filter() { sed -n "/^_FACTS_UNION_FILTER='/,/'\$/p" "$1" | sed "1s/^_FACTS
   # Without this scope the orchestrator reaches for the nearest rule when an agent's artifact
   # and its own ledger stub disagree, ORs them, and manufactures a gate out of a bookkeeping slip.
   local body
-  body="$(awk '/^#### Self-labels raise, never lower/{f=1;next} f && /^#{2,4} /{f=0} f' "$PLUGIN_ROOT/$CONTRACTS")"
+  body="$(awk '/^#### Self-labels raise, never lower/{f=1;next} f && /^#{2,4} /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")")"
   [ -n "$body" ] || fail "non-vacuity: § Self-labels raise, never lower is absent"
   printf '%s\n' "$body" | grep -qi 'never transports' \
     || fail "the lattice is not scoped away from transports"
@@ -1370,7 +1370,7 @@ union_filter() { sed -n "/^_FACTS_UNION_FILTER='/,/'\$/p" "$1" | sed "1s/^_FACTS
 @test "q9: the transport rule is mirrored where the orchestrator actually reads the join" {
   # A rule stated only in stage-contracts.md is a rule the orchestrator may never reach.
   local body
-  body="$(awk '/^##### Escalation guard — raise-only self-labels/{f=1;next} f && /^#{2,5} /{f=0} f' "$PLUGIN_ROOT/$WORKTASK_CMD")"
+  body="$(awk '/^##### Escalation guard — raise-only self-labels/{f=1;next} f && /^#{2,5} /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")")"
   [ -n "$body" ] || fail "non-vacuity: § Escalation guard — raise-only self-labels is absent"
   printf '%s\n' "$body" | grep -qi 'never transports' \
     || fail "the orchestrator's own copy does not scope the join away from transports"
@@ -1382,17 +1382,17 @@ union_filter() { sed -n "/^_FACTS_UNION_FILTER='/,/'\$/p" "$1" | sed "1s/^_FACTS
   # The corollary of the harness refusing a divergence: a ledger-only write-back would fail the
   # next --validate-frontmatter on a value this very step created.
   local body
-  body="$(awk '/^##### Step C.5 — the write-back is a whole stub/{f=1;next} f && /^#{2,5} /{f=0} f' "$PLUGIN_ROOT/$WORKTASK_CMD")"
-  [ -n "$body" ] || fail "non-vacuity: § Step C.5 — the write-back is a whole stub is absent"
+  body="$(awk '/^#### Step C.5 — record, and the unattended lanes/{f=1;next} f && /^#{2,4} /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")")"
+  [ -n "$body" ] || fail "non-vacuity: § Step C.5 recording is absent"
   printf '%s\n' "$body" | grep -q 'blocks_next_stage' \
     || fail "the complete item does not name blocks_next_stage"
-  printf '%s\n' "$body" | grep -qi 'both.*transports' \
+  printf '%s\n' "$body" | grep -qi 'both.*ledger.*artifact' \
     || fail "a raise is not bound to both transports"
 }
 
 @test "q8 artifact side: § Item shape requires a re-emitted stub to carry its answer forward" {
   local body
-  body="$(awk '/^#### A re-emitted stub carries its answer forward/{f=1;next} f && /^#{2,4} /{f=0} f' "$PLUGIN_ROOT/$CONTRACTS")"
+  body="$(awk '/^#### A re-emitted stub carries its answer forward/{f=1;next} f && /^#{2,4} /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")")"
   [ -n "$body" ] || fail "non-vacuity: the carry-forward rule is absent from the canonical section"
   printf '%s\n' "$body" | grep -q 'status' || fail "carry-forward does not name status"
   printf '%s\n' "$body" | grep -q 'resolution' || fail "carry-forward does not name resolution"
@@ -1407,7 +1407,7 @@ union_filter() { sed -n "/^_FACTS_UNION_FILTER='/,/'\$/p" "$1" | sed "1s/^_FACTS
   # It was additive once. Absent and explicit `false` are different claims, and treating them
   # alike is what let one item's two transports disagree undetected, so the author states it.
   local defs
-  defs="$(sweep_stub_defs "$PLUGIN_ROOT/$HANDOFF")"
+  defs="$(sweep_stub_defs "$(contract_source "$PLUGIN_ROOT/$HANDOFF")")"
   printf '%s\n' "$defs" | grep -q 'blocks_next_stage' || fail "the q9 carrier is absent from SweepStub"
   printf '%s\n' "$defs" | grep -q 'required: \[id, class, ref, blocks_next_stage\]' \
     || fail "blocks_next_stage is not in required[]: $defs"
@@ -1417,7 +1417,7 @@ union_filter() { sed -n "/^_FACTS_UNION_FILTER='/,/'\$/p" "$1" | sed "1s/^_FACTS
 
 @test "q9: the canonical section no longer claims no stage boundary gains a round-trip" {
   local body
-  body="$(awk '/^## Closing Elicitation Sweep/{f=1;next} /^## /{f=0} f' "$PLUGIN_ROOT/$CONTRACTS")"
+  body="$(awk '/^## Closing Elicitation Sweep/{f=1;next} /^## /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")")"
   [ -n "$body" ] || fail "non-vacuity: canonical section not extracted"
   if printf '%s\n' "$body" | grep -q 'no stage boundary gains a round-trip'; then
     fail "the section still asserts a claim q9 made false"
@@ -1428,39 +1428,39 @@ union_filter() { sed -n "/^_FACTS_UNION_FILTER='/,/'\$/p" "$1" | sed "1s/^_FACTS
 
 @test "q9: both destinations are documented, selected per item rather than per stage" {
   local body
-  body="$(awk '/^#### Where an item is answered/{f=1;next} f && /^#{2,4} /{f=0} f' "$PLUGIN_ROOT/$CONTRACTS")"
+  body="$(awk '/^#### Where an item is answered/{f=1;next} f && /^#{2,4} /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")")"
   [ -n "$body" ] || fail "non-vacuity: § Where an item is answered is absent"
   printf '%s\n' "$body" | grep -q 'blocks_next_stage' || fail "the selector is not named"
   printf '%s\n' "$body" | grep -qi 'never by stage' || fail "per-item selection is not stated"
 }
 
 @test "q9: Step C.0 renders blocking items at their own boundary, with a per-boundary subject" {
-  grep -q '^#### Step C.0 — blocking items, at their own boundary' "$PLUGIN_ROOT/$WORKTASK_CMD" \
+  grep -q '^#### Step C.0 — blocking items, at their own boundary' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" \
     || fail "Step C.0 is absent"
   local body
-  body="$(awk '/^#### Step C.0 — blocking/{f=1;next} f && /^#{2,4} /{f=0} f' "$PLUGIN_ROOT/$WORKTASK_CMD")"
+  body="$(awk '/^#### Step C.0 — blocking/{f=1;next} f && /^#{2,4} /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")")"
   printf '%s\n' "$body" | grep -q 'subject:"<CODE><N>"' || fail "C.0 does not scope its audit subject to the boundary"
   printf '%s\n' "$body" | grep -qi 'no-op' || fail "the common (no blocking items) path is unstated"
-  grep -q 'Step 6.6' "$PLUGIN_ROOT/$WORKTASK_SKILL" || fail "the loop has no step for the blocking render"
+  grep -q 'Step 6.6' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_SKILL")" || fail "the loop has no step for the blocking render"
 }
 
 @test "q9: Step C.1's filter is status-based, and explicitly not stage-based" {
   local body
-  body="$(awk '/^#### Step C.1 — collect/{f=1;next} f && /^#{2,4} /{f=0} f' "$PLUGIN_ROOT/$WORKTASK_CMD")"
+  body="$(awk '/^#### Step C.1 — collect/{f=1;next} f && /^#{2,4} /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")")"
   [ -n "$body" ] || fail "non-vacuity: Step C.1 not found"
   if printf '%s\n' "$body" | grep -q 'stage != "PL"'; then
     fail "the stage-name exclusion survived q9"
   fi
-  printf '%s\n' "$body" | grep -qi 'not.. filter on stage' || fail "C.1 does not forbid a stage filter"
+  printf '%s\n' "$body" | grep -qi 'regardless of originating stage' || fail "C.1 does not forbid a stage filter"
   # sw-DR0-2's id-derivation is retained for grouping rather than deleted silently.
   printf '%s\n' "$body" | grep -qi 'grouping' || fail "id-derivation's surviving purpose is unstated"
 }
 
 @test "q9: the obligation matrix Surfaced-by column is conditional, and AC-1 still passes" {
-  grep -q 'Surfaced by (non-blocking / blocking)' "$PLUGIN_ROOT/$CONTRACTS" \
+  grep -q 'Surfaced by (non-blocking / blocking)' "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" \
     || fail "the Surfaced by column was not made conditional"
   # AC-1 reads the code column only, so it must be unaffected by the column rename.
-  run check_matrix_completeness "$PLUGIN_ROOT/$CONTRACTS" "$PLUGIN_ROOT/$STAGE_CODES" "$PLUGIN_ROOT/$HANDOFF"
+  run check_matrix_completeness "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" "$PLUGIN_ROOT/$STAGE_CODES" "$(contract_source "$PLUGIN_ROOT/$HANDOFF")"
   assert_success
 }
 
@@ -1469,14 +1469,14 @@ union_filter() { sed -n "/^_FACTS_UNION_FILTER='/,/'\$/p" "$1" | sed "1s/^_FACTS
   # copy; it now carries the procedural step and a pointer, so asserting there would
   # pin a restatement back into existence.
   local body
-  body="$(section_body "$PLUGIN_ROOT/$CONTRACTS" '^#{2,5} Self-labels raise, never lower')"
+  body="$(section_body "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" '^#{2,5} Self-labels raise, never lower')"
   [ -n "$body" ] || fail "non-vacuity: the raise-only section is absent"
   printf '%s\n' "$body" | grep -q 'OR' || fail "the join is not stated as OR"
   printf '%s\n' "$body" | grep -qi 'never clear' || fail "raise-only is not stated for the blocking axis"
   printf '%s\n' "$body" | grep -qi 'orthogonal' || fail "orthogonality with class is unstated"
 
   # And the command file points at it rather than restating it.
-  body="$(awk '/^##### Escalation guard — raise-only self-labels/{f=1;next} f && /^#{2,6} /{f=0} f' "$PLUGIN_ROOT/$WORKTASK_CMD")"
+  body="$(awk '/^##### Escalation guard — raise-only self-labels/{f=1;next} f && /^#{2,6} /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")")"
   [ -n "$body" ] || fail "non-vacuity: the command-side procedural step is absent"
   printf '%s\n' "$body" | grep -q 'Self-labels raise, never lower' \
     || fail "the command file neither states the join nor points at where it is stated"
@@ -1510,17 +1510,17 @@ union_filter() { sed -n "/^_FACTS_UNION_FILTER='/,/'\$/p" "$1" | sed "1s/^_FACTS
 @test "P2-13: the \$defs injector is stated as an obligation, not attributed to a section that lacks it" {
   local note
   # Singular or plural: TestRunEntry made it more than one block to inline.
-  note="$(grep -nE 'inline th(at|ose) .\$defs. blocks?' "$PLUGIN_ROOT/$HANDOFF" || true)"
+  note="$(grep -nE 'inline th(at|ose) .\$defs. blocks?' "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" || true)"
   [ -n "$note" ] || fail "non-vacuity: the \$defs obligation sentence is absent"
   # The previous text cited SKILL.md Step 6, which carries no such claim. Verify both:
   # the citation is gone, and the file it named still does not carry the claim.
-  if grep -q 'Orchestrator Execution Loop. Step 6, so the item shape' "$PLUGIN_ROOT/$HANDOFF"; then
+  if grep -q 'Orchestrator Execution Loop. Step 6, so the item shape' "$(contract_source "$PLUGIN_ROOT/$HANDOFF")"; then
     fail "the misattributed citation is still present"
   fi
-  if grep -q 'SweepItem' "$PLUGIN_ROOT/$WORKTASK_SKILL"; then
+  if grep -q 'SweepItem' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_SKILL")"; then
     fail "SKILL.md now mentions SweepItem — re-check whether the citation should be restored"
   fi
-  grep -q 'no shipped file implements that step today' "$PLUGIN_ROOT/$HANDOFF" \
+  grep -q 'no shipped file implements that step today' "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" \
     || fail "the unimplemented status is not stated"
 }
 
@@ -1557,17 +1557,17 @@ union_filter() { sed -n "/^_FACTS_UNION_FILTER='/,/'\$/p" "$1" | sed "1s/^_FACTS
 # --- review: the harness has a per-stage call site, and parity never skips ----
 
 @test "review-1: the orchestrator invokes the harness at every stage completion, not only DV" {
-  grep -q '^### Step B.1 — Sweep checks at every stage completion' "$PLUGIN_ROOT/$WORKTASK_CMD" \
+  grep -q '^### Step B.1 — Sweep checks at every stage completion' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" \
     || fail "Step B.1 is absent"
   local body
-  body="$(awk '/^### Step B.1 — Sweep/{f=1;next} f && /^### /{f=0} f' "$PLUGIN_ROOT/$WORKTASK_CMD")"
+  body="$(awk '/^### Step B.1 — Sweep/{f=1;next} f && /^### /{f=0} f' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")")"
   printf '%s\n' "$body" | grep -q 'handoff-harness.sh --validate-frontmatter' || fail "B.1 does not call the harness"
   printf '%s\n' "$body" | grep -q -- '--state' || fail "B.1 omits --state, so ledger parity never runs"
   printf '%s\n' "$body" | grep -q 'sweep_check' || fail "B.1 records no audit row"
-  grep -q 'Step 6.5c' "$PLUGIN_ROOT/$WORKTASK_SKILL" || fail "the loop has no step for the per-stage harness call"
+  grep -q 'Step 6.5c' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_SKILL")" || fail "the loop has no step for the per-stage harness call"
   local b1 c0
-  b1=$(grep -n '^### Step B.1' "$PLUGIN_ROOT/$WORKTASK_CMD" | head -1 | cut -d: -f1)
-  c0=$(grep -n '^#### Step C.0' "$PLUGIN_ROOT/$WORKTASK_CMD" | head -1 | cut -d: -f1)
+  b1=$(grep -n '^### Step B.1' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" | head -1 | cut -d: -f1)
+  c0=$(grep -n '^#### Step C.0' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" | head -1 | cut -d: -f1)
   [ "$b1" -lt "$c0" ] || fail "the harness call is documented after the render it guards"
 }
 
@@ -1614,13 +1614,13 @@ check_no_legacy_pl_ids() {  # <repo-root> <files...>
   local root="$1"; shift
   local f n=0 rc=0
   for f in "$@"; do
-    [ -f "$root/$f" ] || { echo "non-vacuity: $f is absent"; return 1; }
+    [ -f "$(contract_source "$root/$f")" ] || { echo "non-vacuity: $f is absent"; return 1; }
     n=$((n + 1))
-    if grep -qE '(^|[^a-z-])q[0-9]+:|"id" *: *"q[0-9]+"|id: q[0-9]+' "$root/$f"; then
+    if grep -qE '(^|[^a-z-])q[0-9]+:|"id" *: *"q[0-9]+"|id: q[0-9]+' "$(contract_source "$root/$f")"; then
       echo "$f still writes a legacy q<N> open-question id"
       rc=1
     fi
-    grep -q 'sw-PL' "$root/$f" || { echo "$f names no sw-PL<N>-<n> id at all"; rc=1; }
+    grep -q 'sw-PL' "$(contract_source "$root/$f")" || { echo "$f names no sw-PL<N>-<n> id at all"; rc=1; }
   done
   [ "$n" -ge 3 ] || { echo "non-vacuity: only $n PL producers checked"; return 1; }
   return $rc
@@ -1636,7 +1636,7 @@ check_no_legacy_pl_ids() {  # <repo-root> <files...>
   d="$(mk_tmpworkdir)"
   for f in $PL_PRODUCERS; do
     mkdir -p "$d/$(dirname "$f")"
-    cp "$PLUGIN_ROOT/$f" "$d/$f"
+    cp "$(contract_source "$PLUGIN_ROOT/$f")" "$d/$f"
   done
   printf '\nAppend `q1: Figma MCP auth pending` to `facts.open_questions[]`.\n' >> "$d/$FIGMA"
   run check_no_legacy_pl_ids "$d" $PL_PRODUCERS
@@ -1648,22 +1648,28 @@ check_no_legacy_pl_ids() {  # <repo-root> <files...>
 # never deleted. Deleting it takes its ref anchor and its recorded answer with it, so a
 # resumed run can neither re-render the question nor show what was decided.
 AUTO_DECISION="skills/worktask/references/auto-decision.md"
-PL_RESOLVERS="$AUTO_DECISION $WORKTASK_SKILL $PL0_PROC"
+SWEEP_RECORDING="skills/worktask/references/closing-sweep-step-c3c4--auto-answer-then-render.md"
+PL_RESOLVERS="$AUTO_DECISION $SWEEP_RECORDING"
 
 check_resolved_not_dropped() {  # <repo-root> <files...>
   local root="$1"; shift
   local f n=0 rc=0
   for f in "$@"; do
-    [ -f "$root/$f" ] || { echo "non-vacuity: $f is absent"; return 1; }
+    [ -f "$(contract_source "$root/$f")" ] || { echo "non-vacuity: $f is absent"; return 1; }
     n=$((n + 1))
-    grep -q 'status: "resolved"' "$root/$f" \
-      || { echo "$f never states the mark-resolved idiom"; rc=1; }
-    if grep -qE '(remove|removes|removing|drop|drops|dropped|dropping) the resolved|resolved entries (from|dropped)' "$root/$f"; then
+    if [ "$f" = "$AUTO_DECISION" ]; then
+      grep -qF "$(basename "$SWEEP_RECORDING")#step-c5--record-and-the-unattended-lanes" "$(contract_source "$root/$f")" \
+        || { echo "$f does not route to the canonical resolution procedure"; rc=1; }
+    else
+      grep -q 'status: "resolved"' "$(contract_source "$root/$f")" \
+        || { echo "$f never states the mark-resolved idiom"; rc=1; }
+    fi
+    if grep -qE '(remove|removes|removing|drop|drops|dropped|dropping) the resolved|resolved entries (from|dropped)' "$(contract_source "$root/$f")"; then
       echo "$f still describes deleting answered open_questions entries"
       rc=1
     fi
   done
-  [ "$n" -ge 3 ] || { echo "non-vacuity: only $n resolver files checked"; return 1; }
+  [ "$n" -ge 1 ] || { echo "non-vacuity: only $n resolver files checked"; return 1; }
   return $rc
 }
 
@@ -1677,7 +1683,7 @@ check_resolved_not_dropped() {  # <repo-root> <files...>
   d="$(mk_tmpworkdir)"
   for f in $PL_RESOLVERS; do
     mkdir -p "$d/$(dirname "$f")"
-    cp "$PLUGIN_ROOT/$f" "$d/$f"
+    cp "$(contract_source "$PLUGIN_ROOT/$f")" "$d/$f"
   done
   printf '\nThe orchestrator then drops the resolved entries from `facts.open_questions[]`.\n' \
     >> "$d/$AUTO_DECISION"
@@ -1692,7 +1698,7 @@ step_a4_body() {  # <worktask-cmd>
 
 @test "PL-3: Step A.4 reads the sweep anchor the way Step C.4 does" {
   local body
-  body="$(step_a4_body "$PLUGIN_ROOT/$WORKTASK_CMD")"
+  body="$(step_a4_body "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")")"
   [ -n "$body" ] || fail "non-vacuity: Step A.4 body not extracted"
   printf '%s\n' "$body" | grep -q '#elicitation-sweep' \
     || fail "A.4 does not resolve the question text from the sweep anchor"
@@ -1709,7 +1715,7 @@ step_a4_body() {  # <worktask-cmd>
 
 @test "PL-3 twin: restoring the numbered-list wording fails" {
   local planted body
-  planted="$(plant "$PLUGIN_ROOT/$WORKTASK_CMD" \
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" \
     's|unresolved `sw-PL<N>-\*` items|unresolved items (the numbered elicitation list)|')"
   body="$(step_a4_body "$planted")"
   printf '%s\n' "$body" | grep -qi 'numbered' \
@@ -1719,17 +1725,17 @@ step_a4_body() {  # <worktask-cmd>
 @test "PL-4: Signal 2b and the resume row key on status, not on a non-empty array" {
   local body
   body="$(awk '/^##### Signal 2b \(decision gate\)/{f=1;next} f && /^#{2,5} /{f=0} f' \
-        "$PLUGIN_ROOT/$WORKTASK_SKILL")"
+        "$(contract_source "$PLUGIN_ROOT/$WORKTASK_SKILL")")"
   [ -n "$body" ] || fail "non-vacuity: Signal 2b body not extracted"
   printf '%s\n' "$body" | grep -q 'status != "resolved"' \
     || fail "Signal 2b does not key on status != resolved"
-  grep -q 'status != "resolved"' "$PLUGIN_ROOT/$RESUME" \
+  grep -q 'status != "resolved"' "$(contract_source "$PLUGIN_ROOT/$RESUME")" \
     || fail "the resume auto-decision row does not key on status != resolved"
 }
 
 @test "PL-4 twin: keying Signal 2b back on a non-empty array is observable" {
   local planted body
-  planted="$(plant "$PLUGIN_ROOT/$WORKTASK_SKILL" \
+  planted="$(plant "$(contract_source "$PLUGIN_ROOT/$WORKTASK_SKILL")" \
     's|`status != "resolved"`|a non-empty `open_questions[]`|')"
   body="$(awk '/^##### Signal 2b \(decision gate\)/{f=1;next} f && /^#{2,5} /{f=0} f' "$planted")"
   if printf '%s\n' "$body" | grep -q 'status != "resolved"'; then
@@ -1762,25 +1768,25 @@ resolver_body() {
 }
 
 @test "the resolver contract exists and is canonical in stage-contracts.md" {
-  run resolver_body "$PLUGIN_ROOT/$CONTRACTS"
+  run resolver_body "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_success
   [ -n "$output" ]
 }
 
 @test "the resolver exempts exactly the four stages the obligation matrix exempts" {
   # Derived on both sides: a fifth exception added to one file alone must fail here.
-  matrix_exceptions=$(grep -o 'Exceptions — PL, FN, ST, IR' "$PLUGIN_ROOT/$CONTRACTS" | head -1)
+  matrix_exceptions=$(grep -o 'Exceptions — PL, FN, ST, IR' "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")" | head -1)
   [ -n "$matrix_exceptions" ]
-  run resolver_body "$PLUGIN_ROOT/$CONTRACTS"
+  run resolver_body "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_output --partial "PL, FN, ST or IR"
 }
 
 @test "every non-exception stage code is resolver-eligible in the command" {
   # The nine are derived from the canonical vocabulary minus the four exceptions, never listed.
-  expected=$(left_codes "$PLUGIN_ROOT/$STAGE_CODES" "$PLUGIN_ROOT/$HANDOFF" \
+  expected=$(left_codes "$PLUGIN_ROOT/$STAGE_CODES" "$(contract_source "$PLUGIN_ROOT/$HANDOFF")" \
     | grep -vxE 'PL|FN|ST|IR' | tr '\n' ' ')
   [ -n "$expected" ]
-  scope=$(grep 'blocking `decision` item from' "$PLUGIN_ROOT/$WORKTASK_CMD")
+  scope=$(grep 'blocking `decision` item from' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")")
   [ -n "$scope" ] || fail "the --auto=[decision] resolver scope line is gone"
   for code in $expected; do
     grep -q "\b$code\b" <<< "$scope" \
@@ -1790,29 +1796,29 @@ resolver_body() {
 
 @test "Step C.0a is ordered before Step C.0 in the command" {
   # C.0a must have had its pass before C.0 renders, or C.0 asks about items a resolver owns.
-  a=$(grep -n '^#### Step C.0a' "$PLUGIN_ROOT/$WORKTASK_CMD" | cut -d: -f1)
-  b=$(grep -n '^#### Step C.0 — blocking items' "$PLUGIN_ROOT/$WORKTASK_CMD" | cut -d: -f1)
+  a=$(grep -n '^#### Step C.0a' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" | cut -d: -f1)
+  b=$(grep -n '^#### Step C.0 — blocking items' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")" | cut -d: -f1)
   [ -n "$a" ] && [ -n "$b" ]
   [ "$a" -lt "$b" ]
 }
 
 @test "the escalate carve-out is stated in both the contract and the command" {
-  run resolver_body "$PLUGIN_ROOT/$CONTRACTS"
+  run resolver_body "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_output --partial 'effective_class == "decision"'
-  grep -q 'must never' <<< "$(sed -n '/^#### Step C.0a/,/^#### Step C.0 —/p' "$PLUGIN_ROOT/$WORKTASK_CMD")"
+  grep -q 'must never' <<< "$(sed -n '/^#### Step C.0a/,/^#### Step C.0 —/p' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")")"
 }
 
 @test "the resolver runs strictly after the C.2 raise-only join" {
   # Ordering is the whole guard: joined before dispatch, an item raised to escalate cannot
   # reach a delegate. Reversed, the raise happens too late to exclude anything.
-  run bash -c "sed -n '/^#### Step C.0a/,/^#### Step C.0 —/p' '$PLUGIN_ROOT/$WORKTASK_CMD'"
+  run bash -c "sed -n '/^#### Step C.0a/,/^#### Step C.0 —/p' '$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")'"
   assert_success
   assert_output --partial "**after** the § Step C.2"
   assert_output --partial "Run C.2 first"
 }
 
 @test "the contract cites the executable ladder rather than restating the rungs" {
-  run resolver_body "$PLUGIN_ROOT/$CONTRACTS"
+  run resolver_body "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_output --partial "effort-ladder.sh"
   [ -f "$PLUGIN_ROOT/$LADDER" ]
 }
@@ -1822,13 +1828,13 @@ resolver_body() {
   # safe while the translation table says so too. If the table falls back to Advisory, this
   # fires and the contract's claim becomes wrong rather than merely stale.
   grep -qE '^\| `effort` \|.*\| \*\*Yes\*\* \(`Agent` `effort`' "$PLUGIN_ROOT/$HEADLESS"
-  run resolver_body "$PLUGIN_ROOT/$CONTRACTS"
+  run resolver_body "$(contract_source "$PLUGIN_ROOT/$CONTRACTS")"
   assert_output --partial "\`effort\` parameter"
   refute_output --partial "takes no effort parameter"
 }
 
 @test "the resolver records effort_transport on every path" {
-  run bash -c "sed -n '/^#### Step C.0a/,/^#### Step C.0 —/p' '$PLUGIN_ROOT/$WORKTASK_CMD'"
+  run bash -c "sed -n '/^#### Step C.0a/,/^#### Step C.0 —/p' '$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")'"
   assert_output --partial "effort_transport"
   assert_output --partial '`agent-param`'
   assert_output --partial "dispatch-flag"
@@ -1836,19 +1842,19 @@ resolver_body() {
 }
 
 @test "an unstamped effort skips the resolver instead of defaulting a tier" {
-  run bash -c "sed -n '/^#### Step C.0a/,/^#### Step C.0 —/p' '$PLUGIN_ROOT/$WORKTASK_CMD'"
+  run bash -c "sed -n '/^#### Step C.0a/,/^#### Step C.0 —/p' '$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")'"
   assert_output --partial "effort_unstamped"
   refute_output --partial "default to"
 }
 
 @test "metadata.effort is mandatory in the PL0 stamp table, not optional" {
-  grep -q '`metadata.effort`' "$PLUGIN_ROOT/$PL0_PROC"
+  grep -q '`metadata.effort`' "$(contract_source "$PLUGIN_ROOT/$PL0_PROC")"
   # The checklist is the half that actually gets read during a run.
-  grep -q 'metadata.effort' <<< "$(grep 'Stage tasks created with' "$PLUGIN_ROOT/$PL0_PROC")"
+  grep -q 'metadata.effort' <<< "$(grep 'Stage tasks created with' "$(contract_source "$PLUGIN_ROOT/$PL0_PROC")")"
 }
 
 @test "the deep_reads resolver exemption is stated where deep_reads is defined" {
-  grep -q 'deep_reads — the resolver exemption' "$PLUGIN_ROOT/$HANDOFF"
+  grep -q 'deep_reads — the resolver exemption' "$(contract_source "$PLUGIN_ROOT/$HANDOFF")"
 }
 
 AUDIT_FIXTURE="tests/fixtures/worktask/audit.resolver-effort.jsonl"
@@ -1869,7 +1875,7 @@ AUDIT_FIXTURE="tests/fixtures/worktask/audit.resolver-effort.jsonl"
   [[ "$frontmatter_resolved" =~ ^(low|medium|high|xhigh|max)$ ]]
 
   # Every literal above must be the one C.0a documents, not a fixture-only string.
-  c0a=$(sed -n '/^#### Step C.0a/,/^#### Step C.0 —/p' "$PLUGIN_ROOT/$WORKTASK_CMD")
+  c0a=$(sed -n '/^#### Step C.0a/,/^#### Step C.0 —/p' "$(contract_source "$PLUGIN_ROOT/$WORKTASK_CMD")")
   grep -qF "$none_resolved" <<< "$c0a"
   grep -qF '`dispatch-flag`' <<< "$c0a"
   grep -qF '`agent-param`' <<< "$c0a"

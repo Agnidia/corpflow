@@ -394,7 +394,7 @@ $(diff <(printf '%s\n' "$before") <(printf '%s\n' "$after") || true)"
   while IFS= read -r src; do
     [ -n "$src" ] || continue
     heading="${src#* § }"
-    grep -Fq "$heading" "$PLUGIN_ROOT/skills/worktask/references/resume.md" \
+    grep -Fq "$heading" "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/resume.md")" \
       || fail "cited section not found in resume.md: $heading"
   done <<< "$sources"
 }

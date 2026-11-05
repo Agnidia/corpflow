@@ -11,7 +11,7 @@ figma\.com/(?:file|design|proto)/([a-zA-Z0-9]+)/([^?]+)(\?node-id=([0-9-]+))?
 ```
 
 - Group 1 `fileKey`, Group 4 `nodeId` (`-` → `:` for API calls); `(?:file|design|proto)` is non-capturing, so all three path forms keep the same group numbers.
-- Keep it in step with the two trigger regexes in `skills/worktask/references/pl0-procedure.md § Figma Design Capture` — on drift, `/file/` and `/proto/` URLs reach `design-preview` but never fire capture (no PNGs, no registry, QA design gate skipped).
+- Keep it in step with the two trigger regexes in `skills/worktask/references/planning-design.md § Figma Design Capture` — on drift, `/file/` and `/proto/` URLs reach `design-preview` but never fire capture (no PNGs, no registry, QA design gate skipped).
 - Don't add `/board/` or `/slides/`: `get_metadata` is design-file-only and rejects FigJam/Slides.
 - Branch URL (`…/branch/:branchKey/…`) → `branchKey` is the fileKey. No `node-id` → capture the top-level frame.
 
@@ -38,7 +38,7 @@ The error string matches (case-insensitive) `authenticate`, `OAuth`, `unauthoriz
 
 #### Auth failure — the sweep item
 
-Same contract as every other stage's (`skills/shared/stage-contracts.md § Closing Elicitation Sweep`): the full `SweepItem` under `planning-<N>.md#elicitation-sweep`, and its stub in both `handoff.open_questions[]` and the PL `--facts` payload — nothing derives one from the other, so a stub written to only one never reaches the gate.
+Same contract as every other stage's (`skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`): the full `SweepItem` under `planning-<N>.md#elicitation-sweep`, and its stub in both `handoff.open_questions[]` and the PL `--facts` payload — nothing derives one from the other, so a stub written to only one never reaches the gate.
 
 - `id: sw-PL<N>-<n>`, `class: decision`, `ref: "planning-<N>.md#elicitation-sweep"`, `blocks_next_stage: false` (required on every stub; `false` because PL's boundary already is the plan gate).
 - `summary`: `Figma MCP auth pending; proceed without screenshot capture? (URLs: <comma-separated list>)`
@@ -49,7 +49,7 @@ Same contract as every other stage's (`skills/shared/stage-contracts.md § Closi
 
 Run the Auth Probe first; on auth failure skip these steps. All PNGs land in `.context/designs/` (`skills/task-folder-organization/SKILL.md § Canonical Figma Asset Directory`), never `.context/images/` — that directory is DV-only, and a Figma PNG there disables the QA design gate.
 
-Run `mkdir -p .context/designs` once per turn before any `curl`: `curl -o` cannot create parents, and the `commands/worktask.md` init mkdir may not have run.
+Run `mkdir -p .context/designs` once per turn before any `curl`: `curl -o` cannot create parents, and the `skills/worktask/references/workflow.md` init mkdir may not have run.
 
 ### Steps 1–2 — Parse and classify
 

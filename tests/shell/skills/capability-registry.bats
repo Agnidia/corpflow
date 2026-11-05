@@ -179,9 +179,9 @@ $bad"
   # Non-vacuity for the PREDICATE: a checker that accepts everything would pass the
   # test above whatever the trailer said.
   local bad
-  bad="$(printf '%s\n' 'skills/shared/*.md' 'tests/' 'skills/shared/testing-strategy.md' \
+  bad="$(printf '%s\n' 'skills/shared/*.md' 'tests/' 'skills/worktask/references/testing-strategy.md' \
            | non_class_tokens)"
-  [ "$bad" = "skills/shared/testing-strategy.md" ] \
+  [ "$bad" = "skills/worktask/references/testing-strategy.md" ] \
     || fail "checker did not single out the file-shaped token; got: ${bad:-<nothing>}"
 }
 

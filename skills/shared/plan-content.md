@@ -72,7 +72,7 @@ every step is still unambiguous.
 
 | Stage or skill | Its artifact names | Pointer site |
 |---|---|---|
-| PL | Requirements, acceptance criteria with the spec's values, scope | `pl0-procedure.md § Plan content — decisions, not code`; `product-manager.md § What a plan records` |
+| PL | Requirements, acceptance criteria with the spec's values, scope | `skills/worktask/references/planning-artifacts.md § Plan content — decisions, not code`; `product-manager.md § What a plan records` |
 | AR | Files, signatures, schemas, decisions | `software-architector.md § What a design records` |
 | TL | Each stream's interface contract | `team-lead.md § File Ownership Rules` |
 | request-plan | Phases, with the files and interfaces each fixes | `request-plan/SKILL.md § Key reuse — do not reinvent these` |

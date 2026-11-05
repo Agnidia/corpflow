@@ -6,6 +6,7 @@ Frozen seam argv (run-benchmark.sh --live):
   [--stages CODE[,CODE...]] [--capture json|stream-json] [--benchmark-dir D] [--prompts-dir D]
   [--without-arm real|skip] [--arm with|without|both] [--config-dir D] [--workdir-root D]
   [--wait-on-limit | --no-wait-on-limit]
+  [--provider claude|codex]
 --workdir-root (else BENCH_WORKDIR_ROOT, else ${TMPDIR:-/tmp}/corpflow-bench) holds the
 per-arm workdirs <root>/<run_id>/{with,without}, kept outside the repo, one git repo per arm.
 --config-dir (else BENCH_CONFIG_DIR, else ~/.claude-eval) is the CLAUDE_CONFIG_DIR both
@@ -19,15 +20,21 @@ pre-existing default byte-stable.
 --wait-on-limit (the default) sleeps through the account's rolling usage limit, to the
 reset plus a 2-minute margin (6h cap), and re-dispatches only the stage that hit it;
 --no-wait-on-limit ends the run instead.
+A paired run (claude or codex) writes each finished arm, graded, to
+results/runs/live-arm/<run_id>-<arm>.json so bench-pair can join it with a later --arm
+run if the other arm is killed. A claude run first probes both arms' plugin sets with
+one cheap call each.
 Exit codes: 0 ok / 1 the WITH ledger could not be seeded, nothing dispatched / 2 pre-flight
-decline / 3 no credential / 4 running-tally breach (partial written first) / 5 an arm's
-loaded plugins broke its contract, or either arm read a plugin cache outside its config dir /
+decline / 3 no credential / 4 running-tally breach (partial written first) / 5 the plugin
+preflight refused (nothing dispatched), an arm's loaded plugins broke its contract, or
+either arm read a plugin cache outside its config dir /
 6 usage limit, waiting off or over the cap (partial written, reset time in the message) /
 64 bad usage.
 """
 
 import os
 import sys
+import math
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -47,6 +54,7 @@ def main(argv):
     budget = None
     capture_arg = "stream-json"
     wait_on_limit = True
+    provider = "claude"
 
     i = 0
     while i < len(argv):
@@ -57,6 +65,7 @@ def main(argv):
                   "[--benchmark-dir <dir>] [--prompts-dir <dir>] "
                   "[--without-arm real|skip] [--arm with|without|both] [--config-dir <dir>] "
                   "[--workdir-root <dir>] [--wait-on-limit | --no-wait-on-limit]")
+            print("[--provider claude|codex] (default: claude)")
             sys.exit(0)
         if a in ("--wait-on-limit", "--no-wait-on-limit"):
             wait_on_limit = a == "--wait-on-limit"
@@ -64,12 +73,14 @@ def main(argv):
             continue
         if a in ("--workdir", "--budget", "--record", "--stages", "--capture",
                  "--benchmark-dir", "--prompts-dir", "--without-arm", "--arm", "--config-dir",
-                 "--workdir-root"):
+                 "--workdir-root", "--provider"):
             if i + 1 >= len(argv):
                 die(f"bench-live: {a} needs a value", 64)
             value = argv[i + 1]
             i += 2
-            if a == "--workdir":
+            if a == "--provider":
+                provider = value
+            elif a == "--workdir":
                 workdir = value
             elif a == "--budget":
                 try:
@@ -99,6 +110,12 @@ def main(argv):
 
     if workdir is None or budget is None or record is None:
         die("bench-live: --workdir, --budget and --record are required", 64)
+    if provider not in ("claude", "codex"):
+        die("bench-live: --provider must be claude or codex", 64)
+    if not math.isfinite(budget) or budget <= 0:
+        die("bench-live: --budget must be finite and positive", 64)
+    if not workdir or os.path.basename(workdir) != workdir or workdir in (".", ".."):
+        die("bench-live: --workdir must be a run identifier", 64)
 
     stages = budget_mod.PIPELINE_STAGES
     if stages_arg is not None:
@@ -137,7 +154,9 @@ def main(argv):
             workdir=workdir, budget=budget, record_path=record, benchmark_dir=benchmark_dir,
             prompts_dir=prompts_dir_arg, stages=stages, capture_mode=capture_arg,
             selection=selection, config_dir=config_dir_arg,
-            workdir_root=workdir_root_arg, wait_on_limit=wait_on_limit)
+            workdir_root=workdir_root_arg, wait_on_limit=wait_on_limit, provider=provider,
+            arm_record_dir=os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(record))), "live-arm"))
     except Exception as exc:  # noqa: BLE001 — top-level CLI guard
         die(f"bench-live: dispatch failed: {exc}", 1)
     sys.exit(rc)

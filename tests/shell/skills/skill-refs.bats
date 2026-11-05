@@ -50,7 +50,7 @@ ungranted_skill_calls() {
 # (`platform="apple"`), and reading them as targets is a false positive. Template
 # metavariables (`<command>`, `${embedded_cmd}`) are placeholders, not targets.
 # skills/ is in the glob because the defect that motivated this file lived there:
-# skills/worktask/SKILL.md ordered a skill that does not exist, and a collector
+# skills/worktask/references/orchestration.md ordered a skill that does not exist, and a collector
 # scoped to agents/ + commands/ silently no-opped on it.
 collect_skill_targets() {
   ( cd "$1" || return 1
@@ -439,6 +439,63 @@ _related_entries() {
        flag && /^[a-zA-Z_-]+:/ { exit }
        flag && /^[[:space:]]*-[[:space:]]/ { print }' "$1" \
     | sed -E 's/^[[:space:]]*-[[:space:]]*//; s/^"//; s/"$//'
+}
+
+@test "contract: standalone command dependencies use public entry points" {
+  local entries
+  entries="$(_related_entries "$PLUGIN_ROOT/commands/test-plan.md")"
+  [[ "$entries" != *skills/worktask/* ]]
+  entries="$(_related_entries "$PLUGIN_ROOT/commands/milestone.md")"
+  [[ "$entries" != *skills/worktask/* ]]
+  [[ "$entries" == *commands/megatask.md* ]]
+  entries="$(_related_entries "$PLUGIN_ROOT/commands/request-plan.md")"
+  [[ "$entries" != *skills/worktask/references/* ]]
+  [[ "$entries" == *skills/worktask/SKILL.md* ]]
+}
+
+@test "contract: optimize-command examples target command definitions" {
+  local examples path count=0
+  examples="$(awk '/^## Examples$/ {inside=1; next} inside && /^## / {exit} inside {print}' \
+    "$PLUGIN_ROOT/commands/optimize-command.md")"
+  while IFS= read -r path; do
+    [[ "$path" == commands/*.md ]]
+    [ -f "$PLUGIN_ROOT/$path" ]
+    count=$((count + 1))
+  done < <(printf '%s\n' "$examples" | awk '$1 == "/optimize-command" && $2 !~ /^(<|--)/ {print $2}')
+  [ "$count" -ge 3 ]
+}
+
+@test "contract: cc-update command samples resolve to command definitions" {
+  local name count=0
+  while IFS= read -r name; do
+    [ -f "$PLUGIN_ROOT/commands/$name.md" ]
+    count=$((count + 1))
+  done < <(grep -oE -- '--command [a-z][a-z-]+' "$PLUGIN_ROOT/commands/cc-update.md" | awk '{print $2}')
+  [ "$count" -ge 1 ]
+  run grep -F 'command file basename (e.g. `prompt-audit`)' "$PLUGIN_ROOT/commands/cc-update.md"
+  assert_success
+}
+
+@test "contract: create-agent reserves handoff protocols for stage owners" {
+  local file="$PLUGIN_ROOT/commands/create-agent.md"
+  run grep -E '^\| Worktask Integration \|' "$file"
+  assert_failure
+  run grep -F '### Handoff Protocol (stage owners only)' "$file"
+  assert_success
+  run grep -F 'Do not add this section to a support agent:' "$file"
+  assert_success
+  run grep -F 'it carries a DV-scoped Handoff Protocol gated on that mode.' "$file"
+  assert_success
+}
+
+@test "contract: prompt-audit retains planning rules without the stale disclosure example" {
+  local file="$PLUGIN_ROOT/commands/prompt-audit.md"
+  run grep -F 'Orchestrator Execution Loop' "$file"
+  assert_failure
+  run grep -F '### Planning-Stage Rules' "$file"
+  assert_success
+  run grep -F 'skills/worktask/references/pl0-procedure.md' "$file"
+  assert_success
 }
 
 # dangling_related_targets <plugin-root>

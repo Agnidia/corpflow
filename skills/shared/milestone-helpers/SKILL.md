@@ -3,8 +3,8 @@ name: milestone-helpers
 description: Use when implementing milestone workspace initialization, PR detection, or worktree management. Reusable helper function patterns for milestone worktask operations.
 related:
   - ../../megatask/SKILL.md
-  - ../../../commands/worktask.md
-  - ../stage-codes.md
+  - ../../worktask/references/workflow.md
+  - ../../worktask/references/stage-codes.md
 ---
 
 # Milestone Helper Functions

@@ -5,10 +5,10 @@
 # resolver: resolve() below reads them exactly as PL0 is told to.
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
-STAGE_CODES="skills/shared/stage-codes.md"
+STAGE_CODES="skills/worktask/references/stage-codes.md"
 PL0="skills/worktask/references/pl0-procedure.md"
 AGENT="agents/technical-writer.md"
-CONTRACTS="skills/shared/stage-contracts.md"
+CONTRACTS="skills/worktask/references/stage-contracts.md"
 SCRIPT="skills/worktask/scripts/doc-option-check.sh"
 
 # Same reset rule as effort-ladder.bats: a table ends at the first non-table line.
@@ -94,7 +94,7 @@ pl0_dc_writer_value() { # <key>
   awk -F'|' -v k="\`$1\`" '
     { for (i = 1; i <= NF; i++) gsub(/^ +| +$/, "", $i) }
     $2 == k && $3 ~ /Stage is `DC`/ && $3 ~ /--secure/ { v = $4; gsub(/[`"]/, "", v); print v; exit }
-  ' "$PLUGIN_ROOT/$PL0"
+  ' "$(contract_source "$PLUGIN_ROOT/$PL0")"
 }
 
 @test "the secure-override table parses and holds the DC row" {
@@ -158,10 +158,10 @@ pl0_dc_writer_value() { # <key>
 @test "both prose surfaces name the gate, the correction kind and all four detail keys" {
   local f key
   for f in "$AGENT" "$CONTRACTS"; do
-    grep -q 'doc-option-check\.sh' "$PLUGIN_ROOT/$f" || fail "$f does not name the script"
-    grep -q 'kind: correction' "$PLUGIN_ROOT/$f" || fail "$f lacks kind: correction"
+    grep -q 'doc-option-check\.sh' "$(contract_source "$PLUGIN_ROOT/$f")" || fail "$f does not name the script"
+    grep -q 'kind: correction' "$(contract_source "$PLUGIN_ROOT/$f")" || fail "$f lacks kind: correction"
     for key in target_task finding evidence_ref severity; do
-      grep -q "$key" "$PLUGIN_ROOT/$f" || fail "$f lacks detail key $key"
+      grep -q "$key" "$(contract_source "$PLUGIN_ROOT/$f")" || fail "$f lacks detail key $key"
     done
   done
 }

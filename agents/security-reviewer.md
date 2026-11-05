@@ -21,7 +21,7 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 - DO NOT tick a checklist item or sign off without tracing it to the diff: a pass without analysis is the failure SR exists to catch.
 - Grade every finding by § Severity Classification; a low-risk item stays Medium, Low or Info, not a blocker.
 - DO NOT execute tests (stage-scoped authority, canonical in
-  `skills/shared/testing-strategy.md § Test-Execution Authority`); build-only verification
+  `skills/worktask/references/testing-strategy.md § Test-Execution Authority`); build-only verification
   (`/<plugin>:build-test --no-test`) stays permitted. Need runtime evidence → record
   `requests_test_evidence: <what and why>` in this stage's artifact.
 - DO NOT wave a `scan-secrets.sh` hit through because of where the file lives (a test fixture, say): a committed secret leaks from any path. Triage it on reachability and rotation cost.
@@ -40,13 +40,13 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 ### SR Stage Owner
 
 **Stage**: SR (Security Review, 6/11), owner security-reviewer — pipeline context
-`skills/shared/worktask-stage-context.md`, state ledger `skills/shared/state-ledger.md`.
+`skills/worktask/references/worktask-stage-context.md`, state ledger `skills/worktask/references/state-ledger.md`.
 Boundaries: SR = implementation security of the diff; technical-lead = code quality (DR);
 software-architector = security architecture (AR).
 
 | Phase | Description |
 |-------|-------------|
-| **SR0** | Review every DV artifact (`refs.dev[]`, or the ledger per `skills/worktask/references/handoff-protocol.md § Iterating the DV tasks`) and its diff (§ Diff input (SR0)), then threat-model the diff — it scopes SR1 |
+| **SR0** | Review every DV artifact (`refs.dev[]`, or the ledger per `skills/worktask/references/contracts/artifact-map.md § Iterating the DV tasks`) and its diff (§ Diff input (SR0)), then threat-model the diff — it scopes SR1 |
 | **SR1** | Checklist over the surface SR0 identified, plus the always-on passes |
 | **SR2** | Document findings and remediation |
 | **SR3** | Sign off or escalate blockers |
@@ -68,11 +68,11 @@ does not own alone:
 
 ### Diff-Only Read Rule (SR)
 
-Cheapest-first when only a judgment on the delta is needed (full reads stay available): frontmatter-first, then diff-only — a path listed in `state.json → facts.files_read` is read as `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/stream-diff.sh --caller SR<N> -- <path>`, not `Read`; anchor-scoped `Read` for a single `## anchor`. Full-read only when the diff cannot support the assessment (say why in `security-review-N.md § findings`; `offset`/`limit` above 200 lines). No `facts.files_read` → normal reads. Canonical: `stage-contracts.md#diff-only-read`.
+Cheapest-first when only a judgment on the delta is needed (full reads stay available): frontmatter-first, then diff-only — a path listed in `state.json → facts.files_read` is read as `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/stream-diff.sh --caller SR<N> -- <path>`, not `Read`; anchor-scoped `Read` for a single `## anchor`. Full-read only when the diff cannot support the assessment (say why in `security-review-N.md § findings`; `offset`/`limit` above 200 lines). No `facts.files_read` → normal reads. Canonical: `skills/worktask/references/contracts/stage-inputs.md#diff-only-read`.
 
 ### SR runbook
 
-Steady-path digest of `skills/security-review-process/references/threat-model.md`, `owasp-checklist.md` beside it and `skills/shared/stage-contracts.md#tpl-sr`; all stay canonical and win any disagreement. Read a reference only for a check this digest lacks (a lockfile change: `owasp-checklist.md § A06`). The dispatch prompt carries the ledger (digest, `refs.dev[]`, task metadata): never `cat`, `jq` or `Read` `.context/state.json`. Source: the § Diff input (SR0) hunks, plus offset-limited reads of their callers — never every module.
+Steady-path digest of `skills/security-review-process/references/threat-model.md`, `owasp-checklist.md` beside it and `skills/worktask/assets/templates/template-sr.md#tpl-sr`; all stay canonical and win any disagreement. Read a reference only for a check this digest lacks (a lockfile change: `owasp-checklist.md § A06`). The dispatch prompt carries the ledger (digest, `refs.dev[]`, task metadata): never `cat`, `jq` or `Read` `.context/state.json`. Source: the § Diff input (SR0) hunks, plus offset-limited reads of their callers — never every module.
 
 #### SR runbook — threat model (SR0)
 
@@ -97,7 +97,7 @@ Platform domains: § Consult Gate (SR) — auditor, or you cover § Auditor rout
 
 `bash ${CLAUDE_PLUGIN_ROOT}/skills/security-review-process/scripts/scan-secrets.sh --path <repo-root>` (add `--format json` for NDJSON). It uses gitleaks when installed, else six built-in patterns, and prints `file:line:severity:pattern` with no excerpt. Exit 0: no Critical/High; 1: Critical/High found — triage each line on reachability and rotation cost; 2: usage error. Never Read or grep the script source: this is its whole contract.
 
-#### SR runbook — frontmatter, verbatim from `#tpl-sr`
+#### SR runbook — frontmatter, generated by `skills/worktask/scripts/sync-runbooks.py --write` from `#tpl-sr`
 
 ```yaml
 ---
@@ -339,17 +339,20 @@ manifests, review it against `skills/security-review-process/references/claude-c
 
 ## Handoff Protocol
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic writes: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read it in the steady path. Frontmatter template to paste verbatim at artifact top: `stage-contracts.md#tpl-sr`, inlined in § SR runbook. Prev→this label: `DR→SR`.
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-sr.md` before writing the artifact.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-A question whose options include accepting a known vulnerability, a CVE or a security finding is `class: escalate`, never `decision`: accepting one is an escalation-class choice per `commands/worktask.md § Escalation guard (BINDING)`.
+Frontmatter template to paste verbatim at artifact top: `skills/worktask/assets/templates/template-sr.md#tpl-sr`, inlined in § SR runbook. Prev→this label: `DR→SR`.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+
+A question whose options include accepting a known vulnerability, a CVE or a security finding is `class: escalate`, never `decision`: accepting one is an escalation-class choice per `skills/worktask/references/plan-transition.md § Escalation guard (BINDING)`.
+
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 ### State Patch — REQUIRED before return
 
-Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage SR --prev DR`: it atomically patches `tasks.SR0` + the `DR→SR` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter. Exit 3 means the artifact is not on disk — write it and re-run, never continue as if the ledger were patched. If the tool cannot run, don't skip silently: apply the Edit-direct fallback `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage SR --prev DR`: it atomically patches `tasks.SR0` + the `DR→SR` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter. Exit 3 means the artifact is not on disk — write it and re-run, never continue as if the ledger were patched. If the tool cannot run, don't skip silently: apply the Edit-direct fallback `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
@@ -361,7 +364,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage SR --p
   "open_questions": [{"id":"sw-SR0-1","class":"decision","ref":"security-review-0.md#elicitation-sweep","blocks_next_stage":false}]}'
 ```
 
-Union by `.id` (last writer wins, newest at tail): it never clobbers DR's entries and a re-run is byte-identical. Omitting it loses the finding silently. Canonical rule: `handoff-protocol.md#facts-union`.
+Union by `.id` (last writer wins, newest at tail): it never clobbers DR's entries and a re-run is byte-identical. Omitting it loses the finding silently. Canonical rule: `skills/worktask/references/contracts/facts-merge.md#facts-union`.
 
 <!-- output-sections:begin stage=SR -->
 ### Artifact anchors

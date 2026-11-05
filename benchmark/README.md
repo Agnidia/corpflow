@@ -37,6 +37,7 @@ make report        # -> benchmark/results/result.html
 ./benchmark/run-benchmark.sh --live --budget 2.50
 ./benchmark/run-benchmark.sh --live --stages PL,AR,DV   # targeted stage subset
 ./benchmark/run-benchmark.sh --live --without-arm skip  # force-skip the WITHOUT baseline
+./benchmark/run-benchmark.sh --live --provider codex --arm both --budget 50.00
 
 # One arm at a time (live), then join the two records offline
 ./benchmark/run-benchmark.sh --live --arm with --budget 50.00
@@ -46,6 +47,24 @@ make report        # -> benchmark/results/result.html
   --b benchmark/results/runs/live-arm/<without-run>.json \
   --out benchmark/results/runs/live/joined.json
 ```
+
+`--provider claude|codex` defaults to Claude. Make accepts `PROVIDER=codex` for the benchmark targets.
+The providers share the workload, stage efforts, scoring, budget gates, records, and reports.
+Codex uses `codex exec --json` with stdin prompts and the existing ChatGPT login.
+Its isolated configuration loads a verified skills snapshot and canonical stage roles for WITH.
+WITHOUT loads no Corpflow skills or roles. Both arms disable nested agents and external services.
+Codex applies workspace restrictions and denies reads of credentials, the source checkout, and the opposite arm.
+
+The pinned Codex tiers are Opus → `gpt-6.1-sol`, Sonnet → `gpt-6.1-terra`,
+Haiku → `gpt-6-luna`, and Fable → `gpt-6-astra`.
+The official standard API-equivalent rates are pinned in `harness/benchmarklive/providers/codex/pricing.json`.
+The $50 paired allowance reserves $25 per arm, including failed attempts and retries.
+Missing usage or pricing stops the run and saves partial results. Stage admission permits a running-stage overshoot.
+Each live JSON record has adjacent HTML and Markdown reports, including partial runs.
+Codex coding stages defer native UI, Xcode, and simulator operations to host validation.
+Run `make benchmark-native APP=<generated-app>` from the host to test the app's shared iOS scheme.
+The command uses a dedicated simulator and writes a separate result bundle; it makes no model calls.
+Unavailable runtimes produce an explicit skip. Service errors and failed tests produce failures.
 
 ## What It Does
 
@@ -218,6 +237,18 @@ the full **10-stage prompt sequence** (PL→AR→TL→DV→DR→SR→QA→DC→F
   `--setting-sources ""` (repo and account-synced plugins would otherwise leak in) and the
   builtin plugins switched off. `system/init` `plugins[]` is checked every stage; a violation
   is rc 5. Stamped as `era.plugins_with` / `era.plugins_without`
+- **Plugin-isolation preflight**: before the first paid stage (after the credential and budget
+  gates, before the WITH ledger is seeded), a Claude run probes **both** arm configurations
+  with one `claude -p` call each: the cheapest pinned model (Haiku), `--output-format
+  stream-json --verbose`, `--max-turns 1`, and the same config dir, `--setting-sources`,
+  `--settings` document, `--plugin-dir` and cwd as that arm's stages. It reads the
+  `system/init` plugin list and fails closed: WITHOUT must load zero plugins; WITH must load
+  exactly corpflow from the tree under test plus each sibling plugin, nothing else. A wrong
+  set, a missing `system/init`, a failed or timed-out probe, or a usage limit on the probe
+  refuses the run with **rc 5**, one line per refused arm naming the plugins it saw, and
+  nothing is dispatched or recorded. Both configurations are probed even on a `--stages`
+  subset or a single-arm run, so a new CLI builtin surfaces for a few cents, not after a
+  paid stage. The probe cost is printed on stderr and charged to no arm. Codex runs no probe
 - **Config-leak guard**: each stage's tool inputs, in both arms (sub-agents included), are scanned for
   `…/plugins/cache/` or `…/plugins/marketplaces/` paths outside the config dir (tool results do not
   count). The distinct prefixes are stamped per arm as `era.config_leaks` (`{"with": [], "without": []}`
@@ -316,6 +347,37 @@ both the history path and its newest-file fallback, so an arm record can never b
 selected as "the latest live record".
 
 A **joined** record carries no `arm` and rotates through exactly the pre-existing path.
+
+### Paired runs write arm records too — resume after a kill
+
+A paired run (`--arm both`, or the full-pipeline default) measures and oracle-grades
+each arm **as soon as that arm stops**, before the next arm starts, and writes it to
+`results/runs/live-arm/<run_id>-<arm>.json` in the same single-arm shape `--arm`
+writes (`arm`, one `paths.<arm>` block, `budget_usd` = that arm's half, era filtered
+to that arm). An arm stopped by the budget, the DV gate or the usage limit is graded
+and persisted as well, stamped `live_partial: true`; an arm that broke its plugin
+contract is never graded. Grading sits outside `wall_clock_s`. These records are
+never rotated into history; the paired record at `--record` is still the only one
+that is. A `--stages` subset run writes no arm record.
+
+So when a paired run is killed during the WITH arm, the finished WITHOUT arm is
+already on disk with its oracle digest. Rerun only the missing arm at the same
+commit and join the two. Pass `--budget` equal to the killed run's **per-arm share**
+(its arm record's `budget_usd`; `25.00` for a paired `--budget 50.00`), not the paired
+total: a single arm gets the whole `--budget`, so the paired figure would give the
+resumed arm twice the allowance its partner had, and the join would compare budgets,
+not agents.
+
+```bash
+./benchmark/run-benchmark.sh --live --arm with --budget 25.00   # paired run had --budget 50.00
+./benchmark/harness/bin/bench-pair \
+  --a benchmark/results/runs/live-arm/<new-with-run>.json \
+  --b benchmark/results/runs/live-arm/<killed-run>-without.json --out <joined.json>
+```
+
+`bench-pair` refuses the join unless commit, era and oracle case-set digest match. When
+the two arms' `budget_usd` differ it joins anyway (exit 0) and prints a warning on stderr
+naming both values.
 
 ### `bench-pair` — joining two arm records
 
@@ -784,6 +846,97 @@ The arm folder path (`workdirs/<run_id>/{with,without}`, a link into `--workdir-
 canonical location to inspect the full generated source and test suite post-run, while the
 scratch root survives. A zero-spend fixture-driven test sample is
 committed to `benchmark/results/samples/analysis-paired-sample.md` demonstrating the rendering.
+
+## Offline utilization experiment
+
+`bench-experiment` prepares baseline WITH versus optimized WITH comparisons without dispatching models.
+The ordinary WITH/WITHOUT pairing gate remains unchanged.
+
+### Prepare and verify
+
+```bash
+python3 benchmark/harness/bin/bench-experiment prepare \
+  --baseline-root <baseline-snapshot> --optimized-root <optimized-snapshot> \
+  --common-fixes-root <remediated-app> --output-dir .context/utilization-experiment \
+  --pairs 3 --required-finding <finding-id>
+python3 benchmark/harness/bin/bench-experiment verify \
+  --manifest .context/utilization-experiment/manifest.json
+```
+
+Preparation verifies identical workload, model pins, efforts, pricing, effective restrictions, and native acceptance checks.
+Both workload directories receive the same fingerprinted remediated app, including the Unicode and native regression suites.
+This is a declared remediated starting workload; historical native evidence remains provenance, not trial acceptance.
+Source changes and their groups remain explicit in the manifest. Live trials require separate budget authorization.
+
+### Prepare each attempted run
+
+Before each separately authorized live attempt, copy the verified overlay into the exact harness workdir.
+Use a fresh run identifier, app directory, and record path for every full-run restart.
+
+```bash
+python3 benchmark/harness/bin/bench-experiment prepare-trial \
+  --manifest .context/utilization-experiment/manifest.json --variant baseline \
+  --run-id <run-id> --app <scratch-root>/<run-id>/with --record <new-record.json>
+```
+
+This offline command returns a preparation receipt and a compatible `bench-live` argv template.
+Its budget remains a placeholder requiring separate authorization. Preparation launches no model or native command.
+The receipt binds the source, workload, initial common fixes, run identifier, app, and expected record.
+The analyzer rejects missing receipts and record workload digests that differ from the verified preparation.
+
+### Bind fresh host acceptance
+
+After the attempted run produces its final record, invoke this command on the trusted host:
+
+```bash
+python3 benchmark/harness/bin/bench-experiment validate-native \
+  --manifest .context/utilization-experiment/manifest.json \
+  --preparation-receipt <run-id.prepared.json>
+```
+
+This explicit command runs the Unicode regressions and unchanged native acceptance helper.
+It fingerprints app inputs before and after validation, plus the record, invocation logs, and native result bundle.
+The returned native receipt binds that invocation to the trial. Changed inputs or evidence invalidate acceptance.
+Preparation and ordinary analysis never execute this host command.
+
+### Declare trial results
+
+Create an assignments JSON object with `manifest_id` and ordered `trials`.
+Each trial has `pair`, `variant`, and an `attempts` list retaining every full-run record.
+Each attempt supplies `record`, `preparation_receipt`, and, after successful host validation, `quality`:
+
+```json
+{
+  "run_id": "the-record-run-id",
+  "native_receipt": "the-host-validation-receipt.json",
+  "native_record": "the-bound-native-result.json",
+  "unicode_record": "the-bound-unicode-result.json",
+  "findings": [{"id": "finding-id", "evidence": "review.log"}],
+  "blockers": []
+}
+```
+
+### Preserve all evidence
+
+Use `blockers: []` only when the trial found no blockers.
+Each resolved blocker needs `operation`, `status: resolved`, `recovery_condition_changed`, and an `evidence` path.
+Pending blockers remain pending and prevent acceptance. The inventory cannot omit blockers found by the baseline trial.
+Records already contain their internal stage retry costs; do not duplicate those retries as additional full-run attempts.
+Evidence paths resolve against the assignments file directory. Receipt-generated paths are absolute.
+Historical native provenance and unbound operator assertions cannot accept a new trial.
+
+### Analyze paired trials
+
+```bash
+python3 benchmark/harness/bin/bench-experiment analyze \
+  --manifest .context/utilization-experiment/manifest.json \
+  --assignments <trial-assignments.json> --output <new-experiment-report.json>
+```
+
+Reports retain attempts, partial results, costs, per-pair comparisons, and medians.
+`comparison_valid` reports complete, consistent evidence; `observed_savings_accepted` additionally requires a positive median token reduction.
+Missing measurements say `unavailable`. Lost findings, concealed blockers, and incomplete acceptance evidence reject observed savings.
+The 20–30% reduction remains an experimental target until repeated quality-preserving trials establish it.
 
 ## Test suites
 

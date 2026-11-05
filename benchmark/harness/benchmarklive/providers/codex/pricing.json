@@ -1,0 +1,12 @@
+{
+  "id": "openai-standard-short-2026-11-02",
+  "source": "https://developers.openai.com/api/docs/pricing",
+  "verified_at": "2026-11-02",
+  "basis": "API-equivalent USD, standard tier, implicit caching, context limited to 200000 tokens",
+  "per_million": {
+    "gpt-6.1-sol": {"input": 2.0, "cached_input": 0.10, "output": 10.0},
+    "gpt-6.1-terra": {"input": 1.0, "cached_input": 0.05, "output": 5.0},
+    "gpt-6-luna": {"input": 0.10, "cached_input": 0.01, "output": 0.50},
+    "gpt-6-astra": {"input": 10.0, "cached_input": 1.0, "output": 50.0}
+  }
+}

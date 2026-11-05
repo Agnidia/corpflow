@@ -163,7 +163,7 @@ _basename_for_stage() {
 
 # ---------- Locate state-patch.sh ----------
 HOOK_DIR=$(cd "$(dirname "$0")" && pwd)
-# Plugin root first: worktask.md Step 3b copies this hook into <project>/.claude/hooks/,
+# Plugin root first: skills/worktask/references/workflow.md Step 3b copies this hook into <project>/.claude/hooks/,
 # where the relative arm resolves to a skills/ tree that does not exist. state-patch.sh is
 # the only merge implementation, so failing to find it silently disables the Layer-2 net.
 # The relative arm serves the shipped copy, one level below the plugin root at hooks/.

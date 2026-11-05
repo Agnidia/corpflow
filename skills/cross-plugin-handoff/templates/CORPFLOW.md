@@ -23,7 +23,7 @@ Default run: `PL→AR→TL→DV→DR→QA→DC→FN→ST`; `--secure` adds **SR*
 ### Stages <PLUGIN> works in
 
 | Stage | <PLUGIN> agent | Handoff data |
-|---|---|---|
+| --- | --- | --- |
 | AR (Architecture) | `<architect-agent>` | planning context + platform constraints — **consultation only**, corpflow retains the stage |
 | DV (Development) | `<router-agent>`, `<specialist-agents>` | planning + architecture context |
 | DR (Developer Review) | `<code-fixer-agent>` | `metadata.gate_blockers[]` + minimal-diff remediation — **consultation only**, corpflow retains the stage and writes the artifact |
@@ -42,7 +42,7 @@ only under `.context/logs/` and never patches.
 ## Evidence declaration
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | `requires_screenshots` default | `<true\|false>` |
 | Build Evidence adapter | `<adapter>` |
 | Error file | `.context/errors/<agent-basename>.md` |
@@ -78,7 +78,7 @@ Write to `.context/` and, in DV, the assigned source paths inside your worktree.
 The frontmatter is the contract; errors go to `.context/errors/<agent-basename>.md`.
 
 | Stage | Artifact |
-|---|---|
+| --- | --- |
 | AR | `.context/<platform>-architecture.md` (consultation output, ≤500-token return summary) |
 | DV | your row's `metadata.artifact` — `.context/development-<N>-<stream>.md`, or `.context/development-<N>.md` when the run has one DV row |
 | DR | `.context/developer-review-<N>.md` (written by corpflow:technical-lead) |
@@ -111,6 +111,8 @@ handoff:
   next_stage_focus: "<imperative: what DR/QA must focus on>"
 ```
 
+#### DV test evidence
+
 Quote each nonzero `summary_line` verbatim under `## verification-command`, or name its
 `.context/logs/` capture there. Strict runners (`bats`, `pytest`, `jest`, `vitest`,
 `swift-testing`, `gradle*`, `junit*`) require `count` as a whole-number token in that line; a failing
@@ -142,7 +144,7 @@ report `missing_input`, either without AR trips the inverse guard.
 ### Other stages — same block, these deltas
 
 | Stage | Delta | Verdict |
-|---|---|---|
+| --- | --- | --- |
 | AR | `key_decisions` + `open_questions` anchored in `<platform>-architecture.md`; no `files_touched` / `worktree` / `architecture` | ok / blocked / escalate |
 | DR / SR | `key_decisions` = findings; no `files_touched` | pass / fail |
 | QA | `files_touched` = tests added, `key_decisions` = results | go / no-go |
@@ -166,7 +168,7 @@ under `## elicitation-sweep`. Resolve questions existing artifacts answer; cost 
 ### One item, three transports — none derived from another
 
 | Where | Carries |
-|---|---|
+| --- | --- |
 | artifact `## elicitation-sweep` H2 | the FULL item. Canonical. Heading present even when the array is empty. |
 | `handoff.open_questions[]` | the stub `{ id, class, ref }` |
 | `state-patch.sh --facts` | the stub plus `stage`, `blocks_next_stage`, `status` |
@@ -193,6 +195,8 @@ under `## elicitation-sweep`. Resolve questions existing artifacts answer; cost 
   lowers it. `blocks_next_stage` is REQUIRED on every stub and on BOTH stub transports —
   `handoff.open_questions[]` **and** the `state-patch.sh --facts` payload — and the two copies must
   agree — `true` costs a round trip at your own boundary, `false` batches at the final gate.
+##### Rework and authority
+
 - On rework or retry, preserve `status` and `resolution`. Ledger `class` is raise-only:
   `decision < escalate` (downgrade exits 2); explicit `blocks_next_stage: false` clears prior `true`.
 - An option to accept a known vulnerability, CVE, or security finding requires `class: escalate`.
@@ -255,19 +259,17 @@ This plugin's commands name a **role**, never an id. Resolve the id, then check 
 
 ### Which roles never route through corpflow
 
-**Roles with a local equivalent are not dispatched through corpflow at all.** Architect, QA
-engineer, and security reviewer resolve to routers that come straight back here, so app-layer work
+**Roles with a local equivalent are not dispatched through corpflow at all.** Architect, QA engineer, and security reviewer resolve to routers that come straight back here, so app-layer work
 calls this plugin's own architect, test generator, and security auditor directly. Those aliases are
 corpflow's *inbound* routing, resolved at worktask init; these commands run outside any worktask.
 
-**Split by layer, not by role.** The local architect selects this platform's patterns; service
-decomposition, storage topology, and API contracts have no local equivalent and go to the
+**Split by layer, not by role.** The local architect selects this platform's patterns; service decomposition, storage topology, and API contracts have no local equivalent and go to the
 orchestrator's architect. Routing system-level design at the local architect is misrouted.
 
 ### Role to agent id
 
 | Role named in a command | Agent id |
-|---|---|
+| --- | --- |
 | the orchestrator's product manager | `corpflow:product-manager` |
 | the orchestrator's architect | `corpflow:software-architector` |
 | the orchestrator's DR reviewer | `corpflow:technical-lead` |
@@ -280,20 +282,18 @@ orchestrator's architect. Routing system-level design at the local architect is 
 | the orchestrator's platform router | `corpflow:developer` |
 | the orchestrator's meta-prompt engineer | `corpflow:prompt-engineer` |
 
-A standard that is absent is simply unavailable — the skill's own guidance stands alone. Never
-fork a standard's text into this plugin; a copy drifts silently.
+A standard that is absent is simply unavailable — the skill's own guidance stands alone. Never fork a standard's text into this plugin; a copy drifts silently.
 
 ## Keeping the seam single
 
-- Never add a corpflow reference to an agent, command, skill, or hook, and never split this file
-  into references. A rule an agent needs belongs here; dispatch injection delivers it.
+- Never add a corpflow reference to an agent, command, skill, or hook, and never split this file into references. A rule an agent needs belongs here; dispatch injection delivers it.
 - Hooks say "the orchestrator" generically, so they work standalone.
 - Shared standards are the exception, referenced by id: `corpflow:code-comment-standard`,
   `corpflow:security-review-process`, `corpflow:claude-constitution`, `corpflow:logging-conventions`.
 - <PLUGIN>'s version does not track corpflow's. Bump the target below when the contract changes.
 
-| | |
-|---|---|
+|  |  |
+| --- | --- |
 | Targets corpflow | `<version>` |
 | Consultant return | `consultant-return.v1` |
 | Size budget | ≤300 lines |

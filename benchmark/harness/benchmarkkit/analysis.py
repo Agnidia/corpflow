@@ -11,6 +11,7 @@ outlier flags — no fabricated recommendations.
 
 from __future__ import annotations
 
+import json
 from typing import Optional
 
 from .formatting import format_cost
@@ -284,7 +285,8 @@ def era_differences(era_a: Optional[dict], era_b: Optional[dict]) -> list:
     if era_a is None or era_b is None:
         return ["era-unstamped"]
     diffs = []
-    for key in ("harness", "prompt_contract"):
+    for key in ("harness", "prompt_contract", "provider", "pricing", "source_digest",
+                "plugin_snapshot_digest", "cli_version", "efforts", "context_window"):
         if era_a.get(key) != era_b.get(key):
             diffs.append(f"{key}: {era_a.get(key)!r} vs {era_b.get(key)!r}")
     pins_a = era_a.get("model_pins") or {}
@@ -340,6 +342,9 @@ def observed_gap_s(record_a: dict, record_b: dict) -> Optional[int]:
 def _caveats(record: dict, with_pm: dict, without_pm: dict, reference: Optional[dict],
              previous: Optional[dict] = None) -> list:
     caveats = []
+    if (record.get("era") or {}).get("provider") == "codex":
+        caveats.append("The CLI oracle does not validate native UI, simulator execution, "
+                       "or worktask approval gates; read the stage artifacts separately.")
     if record.get("era") is None:
         caveats.append(
             "unstamped record: no era block, so comparability against other records "
@@ -408,6 +413,7 @@ def analyze(record: dict, reference: Optional[dict] = None,
         "outliers": _outliers(stages, with_pm, without_pm),
         "caveats": _caveats(record, with_pm, without_pm, reference, previous),
         "generated": generated_projects(record, workdirs_root),
+        "era": record.get("era"),
     }
 
 
@@ -440,6 +446,12 @@ def render_markdown(analysis: dict) -> str:
         "| metric | WITH | WITHOUT | Δ | premium % |",
         "|---|---|---|---|---|",
     ]
+    era = analysis.get("era") or {}
+    if era.get("provider") == "codex":
+        lines[4:4] = [
+            "Provider: Codex, authenticated through ChatGPT. Costs are API-equivalent estimates.",
+            "The allowance controls stage admission. A running stage can overshoot.", "",
+            "```json", json.dumps(era, indent=2, sort_keys=True), "```", ""]
     for key, label in (("tokens_total", "tokens total"), ("cost_usd", "cost (USD)")):
         entry = analysis["totals"].get(key)
         if entry is None:

@@ -136,7 +136,7 @@ field() { jq -r --arg k "$1" '.[$k]' <<< "$output"; }
 @test "dispatch recipe refuses unstamped controlled rows before any launch" {
   local recipe_file
   recipe_file="$(mk_tmpworkdir)/dispatch-recipe.cjs"
-  python3 - "$PLUGIN_ROOT/skills/worktask/SKILL.md" "$recipe_file" <<'PY'
+  python3 - "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/orchestration.md")" "$recipe_file" <<'PY'
 from pathlib import Path
 import sys
 source = Path(sys.argv[1]).read_text().split("##### Step 6 — route before every dispatch, headless or in-process", 1)[1]

@@ -16,7 +16,7 @@ related:
   - commands/estimate.md
   - skills/claude-constitution/SKILL.md
   - skills/security-review-process/SKILL.md
-  - skills/shared/stage-contracts.md
+  - skills/worktask/references/stage-contracts.md
   - skills/agent-coordination/SKILL.md
 ---
 
@@ -282,7 +282,7 @@ A read-confirmed P0/P1 (read-confirmed trigger or directly-cited contradiction) 
 
 ### How to escalate (reuse existing machinery)
 
-1. Set the DR run `verdict: fail` — this is the escalation. On a DR rejection the orchestrator re-dispatches DV with the DR findings verbatim (`run_index` unchanged, `retry_count` up by 1); see `skills/worktask/SKILL.md § Orchestrator Execution Loop` and the `…DR→DV…` chain in `skills/agent-coordination/SKILL.md § Error Handling`.
+1. Set the DR run `verdict: fail` — this is the escalation. On a DR rejection the orchestrator re-dispatches DV with the DR findings verbatim (`run_index` unchanged, `retry_count` up by 1); see `skills/worktask/references/dispatch-readiness.md § Orchestrator Execution Loop` and the `…DR→DV…` chain in `skills/agent-coordination/SKILL.md § Error Handling`.
 2. Record the sound findings in `.context/developer-review-N.md § Findings` — the artifact the DV retry prompt reads — one entry per finding naming the file, the trigger, and what must change.
 
 #### Escalation step 3 — optional tracking block

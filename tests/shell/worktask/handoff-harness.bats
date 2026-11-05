@@ -2180,7 +2180,7 @@ ANCHORS="$FIXTURES/worktask/anchors"
   assert_failure 1
   assert_output --partial "fail: anchor-lint stage=ST missing required H2 '## followups' in retrospective-0.drift.md"
   [ "$(grep -c "unexpected H2 '## " <<< "$output")" -eq 5 ] || fail "want 5 unexpected lines: $output"
-  assert_output --partial "nest it as H3 (handoff-protocol.md#anchor-allow-list)"
+  assert_output --partial "nest it as H3 (skills/worktask/references/contracts/artifact-anchors.md#anchor-allow-list)"
 }
 
 @test "anchors: every stage's conforming fixture passes; dropping any one required H2 fails" {
@@ -2327,6 +2327,65 @@ _bd_run() {
     - "AC-3 fails: x"'
   mk_qa_bd "$WD/bd-flow.md" no-go '  blocking_defects: ["AC-3 fails: x", "missing test for y"]'
   mk_qa_bd "$WD/bd-go.md" go -
+  for hide in no yes; do
+    _bd_run "$WD/bd-ok.md" "$hide"
+    [ "$status" -eq 0 ] || fail "one string (hide yq: $hide): exit $status: $stderr"
+    _bd_run "$WD/bd-flow.md" "$hide"
+    [ "$status" -eq 0 ] || fail "flow list (hide yq: $hide): exit $status: $stderr"
+    _bd_run "$WD/bd-go.md" "$hide"
+    [ "$status" -eq 0 ] || fail "go (hide yq: $hide): exit $status: $stderr"
+  done
+}
+
+mk_dr_blockers() {
+  {
+    printf -- '---\nhandoff:\n  stage: DR\n  verdict: %s\n' "$2"
+    [ "$3" = "-" ] || printf '%s\n' "$3"
+    printf '  summary: "review fixture"\n  key_decisions: []\n  open_questions: []\n'
+    printf '  refs: { findings: developer-review-0.md#findings }\n---\n\n# DR\n'
+    anchor_h2s DR
+    printf '\n## elicitation-sweep\n\nnothing to ask\n'
+  } > "$1"
+}
+
+@test "blockers: a DR fail with the list absent, empty or not a list fails by name, with and without yq" {
+  local spec name bd hide
+  local want='fail: stage=DR verdict=fail requires handoff.blockers: a non-empty list, one string per defect'
+  for spec in 'absent|-' 'empty|  blockers: []  # required on fail; one string per defect' \
+    'scalar|  blockers: "AC-3 fails"' 'null|  blockers: ~' 'mapping|  blockers: { defect: broken }'; do
+    name="${spec%%|*}" bd="${spec#*|}"
+    mk_dr_blockers "$WD/bd-$name.md" fail "$bd"
+    for hide in no yes; do
+      _bd_run "$WD/bd-$name.md" "$hide"
+      [ "$status" -eq 1 ] || fail "$name (hide yq: $hide): exit $status, want 1: $stderr"
+      [[ "$stderr" == *"$want"* ]] || fail "$name (hide yq: $hide): no '$want' in: $stderr"
+    done
+  done
+}
+
+@test "blockers: an empty, blank or mapping entry fails per entry, with and without yq" {
+  local hide
+  mk_dr_blockers "$WD/bd-entries.md" fail '  blockers:
+    - ""
+    - "AC-3 fails: x"
+    - { id: d1, summary: "a map" }
+    - "   "'
+  for hide in no yes; do
+    _bd_run "$WD/bd-entries.md" "$hide"
+    [ "$status" -eq 1 ] || fail "hide yq: $hide: exit $status, want 1: $stderr"
+    [[ "$stderr" == *"handoff.blockers[0] is empty or not a string"* ]] || fail "[0] ($hide): $stderr"
+    [[ "$stderr" != *"handoff.blockers[1]"* ]] || fail "[1] flagged ($hide): $stderr"
+    [[ "$stderr" == *"handoff.blockers[2] is empty or not a string"* ]] || fail "[2] ($hide): $stderr"
+    [[ "$stderr" == *"handoff.blockers[3] is empty or not a string"* ]] || fail "[3] ($hide): $stderr"
+  done
+}
+
+@test "blockers: one string per defect passes, and a DR pass needs no list, with and without yq" {
+  local hide
+  mk_dr_blockers "$WD/bd-ok.md" fail '  blockers:
+    - "AC-3 fails: x"'
+  mk_dr_blockers "$WD/bd-flow.md" fail '  blockers: ["AC-3 fails: x", "missing test for y"]'
+  mk_dr_blockers "$WD/bd-go.md" pass -
   for hide in no yes; do
     _bd_run "$WD/bd-ok.md" "$hide"
     [ "$status" -eq 0 ] || fail "one string (hide yq: $hide): exit $status: $stderr"

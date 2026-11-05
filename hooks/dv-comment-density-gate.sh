@@ -186,7 +186,7 @@ run_gate() {
   # A landed file is the producer's to ship — the consumer never authored it, so
   # it cannot count as this agent's comment bloat. Subtracted from the untracked
   # half only; a staged/tracked path stays visible regardless. Scoped to this
-  # tree by its physical root (state-ledger.md § The landed set) so a
+  # tree by its physical root (skills/worktask/references/ledger-streams.md § The landed set) so a
   # same-named untracked file in a different tree is never hidden here. A
   # missing state file, an unresolvable root or a jq failure leaves nothing
   # subtracted.

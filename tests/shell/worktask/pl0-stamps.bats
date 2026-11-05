@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Contract tests for what /worktask Step 4 stamps on PL0 (commands/worktask.md):
+# Contract tests for what /worktask Step 4 stamps on PL0 (skills/worktask/references/workflow.md):
 #   - PL0's model/effort pair comes from model-matrix.sh --resolve, never a typed alias,
 #     and /megatask's per-issue PL0 stamp (commands/megatask.md Phase 2 Step 3) does the same;
 #   - that stamp rides a background general-purpose subagent running the corpflow:worktask
@@ -16,10 +16,10 @@
 # is guarded so an empty match fails instead of passing vacuously.
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
-WORKTASK_DOC="commands/worktask.md"
+WORKTASK_DOC="skills/worktask/references/workflow.md"
 MEGATASK_DOC="commands/megatask.md"
 PL0_DOC="skills/worktask/references/pl0-procedure.md"
-LEDGER_DOC="skills/shared/state-ledger.md"
+LEDGER_DOC="skills/worktask/references/state-ledger.md"
 PATCH_SCRIPT="skills/worktask/scripts/state-patch.sh"
 RESOLVER="skills/worktask/scripts/model-matrix.sh"
 ESTIMATE_DOC="skills/estimation-methodology/SKILL.md"
@@ -36,7 +36,7 @@ setup() {
 
 # section <file> <heading> — the heading line plus its body up to the next heading.
 section() {
-  awk -v h="$2" '$0 == h {f=1; print; next} f && /^#/ {exit} f {print}' "$PLUGIN_ROOT/$1"
+  awk -v h="$2" '$0 == h {f=1; print; next} f && /^#/ {exit} f {print}' "$(contract_source "$PLUGIN_ROOT/$1")"
 }
 
 @test "Medium and Moderate defaults include canonical FN and ST finalization" {
@@ -119,8 +119,8 @@ step4_payload() {
 
 @test "with_design: --with-design stamps the key the Designer gate reads" {
   local row reader
-  row="$(section "$WORKTASK_DOC" "#### Step 4 — option-flag stamping" \
-    | grep -F '`with_design: true`' | grep -F '`--with-design`')" || true
+  row="$(section "$WORKTASK_DOC" "#### Step 4 — metadata sources" \
+    | grep -F '`with_design`' | grep -F '`--with-design`')" || true
   [ -n "$row" ] || fail "Step 4 has no with_design row keyed to --with-design"
   reader="$(section "$PL0_DOC" "#### Designer Invocation" \
     | grep -o 'PL0\.metadata\.with_design == true')" || true
@@ -134,9 +134,9 @@ step4_payload() {
 }
 
 @test "with_design: the ledger doc names a writer, not an absent one" {
-  run grep -n 'No component stamps' "$PLUGIN_ROOT/$LEDGER_DOC"
+  run grep -n 'No component stamps' "$(contract_source "$PLUGIN_ROOT/$LEDGER_DOC")"
   assert_failure
-  grep -qE '^\| `with_design` \| `--with-design`' "$PLUGIN_ROOT/$LEDGER_DOC" \
+  grep -qE '^\| `with_design` \| `--with-design`' "$(contract_source "$PLUGIN_ROOT/$LEDGER_DOC")" \
     || fail "$LEDGER_DOC § PL0 option fields has no with_design row"
 }
 
@@ -159,12 +159,12 @@ stamp_gate() {
   [ "$(stamp_gate decision_gate)" = "auto" ] || fail "stamp decision_gate is not auto"
   [ "$(stamp_gate fn_gate)" = "bypass" ] || fail "stamp fn_gate is not bypass"
   # Each --auto value stamps the stamp's own value, so either source alone holds the gate.
-  table="$(section "$WORKTASK_DOC" "#### Step 4 — gate stamping")"
-  printf '%s\n' "$table" | grep -E '^\| `plan_gate: "bypass"` \|' | grep -qF 'contains `plan`' \
+  table="$(section "$WORKTASK_DOC" "#### Step 4 — metadata sources")"
+  printf '%s\n' "$table" | grep -E '^\| `plan_gate` \|' | grep -qF '`--auto=[plan]` / emergency: `bypass`' \
     || fail "Step 4 no longer maps --auto plan to plan_gate bypass"
-  printf '%s\n' "$table" | grep -E '^\| `fn_gate: "bypass"` \|' | grep -qF 'contains `finalization`' \
+  printf '%s\n' "$table" | grep -E '^\| `fn_gate` \|' | grep -qF '`--auto=[finalization]` / emergency: `bypass`' \
     || fail "Step 4 no longer maps --auto finalization to fn_gate bypass"
-  printf '%s\n' "$table" | grep -E '^\| `decision_gate: "auto"` \|' | grep -qF 'contains `decision`' \
+  printf '%s\n' "$table" | grep -E '^\| `decision_gate` \|' | grep -qF '`--auto=[decision]`: `auto`' \
     || fail "Step 4 no longer maps --auto decision to decision_gate auto"
 }
 
@@ -172,7 +172,7 @@ stamp_gate() {
   local payload stamp overlay rule
   rule="$(section "$WORKTASK_DOC" "#### Step 4 — the /megatask stamp")"
   [ -n "$rule" ] || fail "no § Step 4 — the /megatask stamp in $WORKTASK_DOC"
-  printf '%s' "$rule" | tr '\n' ' ' | grep -qF 'the stamp winning on every shared key' \
+  printf '%s' "$rule" | tr '\n' ' ' | grep -qF 'stamp wins on every shared key' \
     || fail "Step 4 no longer says the stamp wins over its defaults"
   payload="$(step4_payload)"
   [ -n "$payload" ] || fail "no task-meta PL0 payload under Step 4 of $WORKTASK_DOC"
@@ -220,6 +220,6 @@ stamp_gate() {
   printf '%s' "$mega" | grep -qF 'megatask never writes that PL0 itself' \
     || fail "$MEGATASK_DOC no longer rules out a pre-seed PL0 write"
   wt="$(section "$WORKTASK_DOC" "#### Step 4 — the /megatask stamp" | tr '\n' ' ')"
-  printf '%s' "$wt" | grep -qF 'megatask cannot write PL0 before Step 3a seeds the ledger' \
+  printf '%s' "$wt" | grep -qF 'The stamp exists only in the prompt until Step 3a seeds the ledger' \
     || fail "$WORKTASK_DOC § Step 4 — the /megatask stamp does not state the order"
 }

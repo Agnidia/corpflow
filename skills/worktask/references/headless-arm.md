@@ -1,10 +1,10 @@
 # Headless arm — Step 6 launch and replay
 
 Read this file only when `effort-route.sh` returns `route: "headless"`, which needs
-`CORPFLOW_HEADLESS_ROUTE=on`. The in-process route never enters it. Parent: `skills/worktask/SKILL.md
+`CORPFLOW_HEADLESS_ROUTE=on`. The in-process route never enters it. Parent: `skills/worktask/references/dispatch-agent.md
 § Step 6 — Agent() dispatch (inproc) or headless-dispatch.sh (headless)`; script contract:
 `skills/agent-coordination/references/headless-dispatch.md`. An unqualified `§` names a
-section of `skills/worktask/SKILL.md`.
+section of `skills/worktask/references/orchestration.md`.
 
 ## Headless launch
 

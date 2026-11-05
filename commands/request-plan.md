@@ -7,7 +7,7 @@ related:
   - skills/request-plan/SKILL.md
   - skills/estimation-methodology/SKILL.md
   - skills/shared/three-stage-planning.md
-  - commands/worktask.md
+  - skills/worktask/SKILL.md
   - commands/estimate.md
   - commands/product-requirements.md
 ---
@@ -50,10 +50,10 @@ Recommended next step (the single `/worktask` command line).
 
 1. Load the `request-plan` skill (`skills/request-plan/SKILL.md`) and follow its five steps. Done
    when the plan carries every section of `skills/request-plan/references/plan-template.md`, or,
-   under the `SKILL.md § 4` exception, cites where the asked-for thing already exists.
+   under the `skills/request-plan/SKILL.md#4-recommend-the-handoff` exception, cites where the asked-for thing already exists.
 2. Keep it lightweight. A heavier sibling command may be named alongside the handoff, never in
-   place of it — `SKILL.md § 4` holds the list and is the authority. Done when every sibling
+   place of it — `skills/request-plan/SKILL.md#4-recommend-the-handoff` holds the list and is the authority. Done when every sibling
    command the plan names sits in its Recommended next step section next to the `/worktask` line.
 3. End with a single ready-to-paste `/worktask` command line (PL0 dynamic sizing drops stages for
-   small tasks), with the one exception `SKILL.md § 4` states. XL work still gets its line, for
+   small tasks), with the one exception `skills/request-plan/SKILL.md#4-recommend-the-handoff` states. XL work still gets its line, for
    the first sub-task — `skills/request-plan/references/handoff.md § Escalation beats size`.

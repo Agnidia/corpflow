@@ -30,7 +30,7 @@ Optimize existing command definitions using prompt-engineering best practices.
 /optimize-command <command-file> [--focus <area>] [--dry-run] [--report]
 /optimize-command --all [--focus <area>] [--dry-run] [--report]
 
-/optimize-command commands/worktask.md
+/optimize-command commands/create-agent.md
 /optimize-command commands/estimate.md --focus options
 /optimize-command --all --dry-run
 /optimize-command commands/test-plan.md --focus examples --report

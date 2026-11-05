@@ -13539,6 +13539,1877 @@
           "without": []
         }
       }
+    },
+    {
+      "run_id": "live-codex-20261102T213202Z-5d14a20",
+      "timestamp_utc": "2026-11-02T21:32:09Z",
+      "mode": "live",
+      "git_sha": "5d14a20",
+      "budget_usd": 50.0,
+      "paths": {
+        "with": {
+          "tokens": {
+            "in": 576775,
+            "out": 114830,
+            "total": 691605,
+            "cache_read": 8372992,
+            "cache_creation": 0
+          },
+          "cost_usd": 2.76965582,
+          "wall_clock_s": 2555.9974,
+          "loc_produced": 1706,
+          "test_count": 25,
+          "coverage_pct": null,
+          "estimate_complexity_score": 0,
+          "stage_count": 10,
+          "pass_fail": "pass",
+          "app_path": "benchmark/workdirs/live-codex-20261102T213202Z-5d14a20/with",
+          "oracle": {
+            "built": true,
+            "cases_total": 42,
+            "cases_passed": 42,
+            "pass_rate": 1.0,
+            "tiers": {
+              "implied": {
+                "total": 9,
+                "passed": 9,
+                "pass_rate": 1.0
+              },
+              "specified": {
+                "total": 33,
+                "passed": 33,
+                "pass_rate": 1.0
+              }
+            },
+            "cases_digest": "sha256:8065259102d52025f62f1db5c5667d5f0fbc2fd5db461d72061a308eeb1fbf97"
+          }
+        },
+        "without": {
+          "tokens": {
+            "in": 368148,
+            "out": 73766,
+            "total": 441914,
+            "cache_read": 3456384,
+            "cache_creation": 0
+          },
+          "cost_usd": 1.5958681,
+          "wall_clock_s": 1609.6303,
+          "loc_produced": 1365,
+          "test_count": 23,
+          "coverage_pct": null,
+          "estimate_complexity_score": 0,
+          "stage_count": 10,
+          "pass_fail": "pass",
+          "app_path": "benchmark/workdirs/live-codex-20261102T213202Z-5d14a20/without",
+          "oracle": {
+            "built": true,
+            "cases_total": 42,
+            "cases_passed": 42,
+            "pass_rate": 1.0,
+            "tiers": {
+              "implied": {
+                "total": 9,
+                "passed": 9,
+                "pass_rate": 1.0
+              },
+              "specified": {
+                "total": 33,
+                "passed": 33,
+                "pass_rate": 1.0
+              }
+            },
+            "cases_digest": "sha256:8065259102d52025f62f1db5c5667d5f0fbc2fd5db461d72061a308eeb1fbf97"
+          }
+        }
+      },
+      "comparison": {
+        "loc_produced": {
+          "with": 1706,
+          "without": 1365,
+          "delta": 341
+        },
+        "test_count": {
+          "with": 25,
+          "without": 23,
+          "delta": 2
+        },
+        "coverage_pct": {
+          "with": null,
+          "without": null,
+          "delta": null
+        },
+        "wall_clock_s": {
+          "with": 2555.9974,
+          "without": 1609.6303,
+          "delta": 946.3671000000002
+        },
+        "estimate_complexity_score": {
+          "with": 0,
+          "without": 0,
+          "delta": 0
+        },
+        "stage_count": {
+          "with": 10,
+          "without": 10,
+          "delta": 0
+        },
+        "tokens_total": {
+          "with": 691605,
+          "without": 441914,
+          "delta": 249691
+        },
+        "cost_usd": {
+          "with": 2.76965582,
+          "without": 1.5958681,
+          "delta": 1.1737877200000002
+        }
+      },
+      "stages": [
+        {
+          "stage": "PL",
+          "fresh_in": 57070,
+          "cache_creation": 0,
+          "cache_read": 548864,
+          "out": 13838,
+          "cost_usd": 0.3074064,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 29
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "AR",
+          "fresh_in": 48579,
+          "cache_creation": 0,
+          "cache_read": 458368,
+          "out": 12649,
+          "cost_usd": 0.26948479999999997,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 15
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "TL",
+          "fresh_in": 30781,
+          "cache_creation": 0,
+          "cache_read": 105984,
+          "out": 1448,
+          "cost_usd": 0.043320199999999996,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 9
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "DV",
+          "fresh_in": 106092,
+          "cache_creation": 0,
+          "cache_read": 4961280,
+          "out": 60686,
+          "cost_usd": 1.315172,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 63
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "DR",
+          "fresh_in": 76599,
+          "cache_creation": 0,
+          "cache_read": 681344,
+          "out": 6427,
+          "cost_usd": 0.28560240000000003,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 73
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "SR",
+          "fresh_in": 75538,
+          "cache_creation": 0,
+          "cache_read": 709760,
+          "out": 10750,
+          "cost_usd": 0.329552,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 32
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "QA",
+          "fresh_in": 48056,
+          "cache_creation": 0,
+          "cache_read": 281216,
+          "out": 2563,
+          "cost_usd": 0.0749318,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 11
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "DC",
+          "fresh_in": 41201,
+          "cache_creation": 0,
+          "cache_read": 209792,
+          "out": 1790,
+          "cost_usd": 0.00711302,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 7
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "FN",
+          "fresh_in": 61820,
+          "cache_creation": 0,
+          "cache_read": 198528,
+          "out": 2244,
+          "cost_usd": 0.0829664,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 14
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "ST",
+          "fresh_in": 31039,
+          "cache_creation": 0,
+          "cache_read": 217856,
+          "out": 2435,
+          "cost_usd": 0.054106800000000004,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 12
+          },
+          "arm": "with"
+        },
+        {
+          "stage": "PL",
+          "fresh_in": 20823,
+          "cache_creation": 0,
+          "cache_read": 56448,
+          "out": 6048,
+          "cost_usd": 0.1077708,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 7
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "AR",
+          "fresh_in": 9680,
+          "cache_creation": 0,
+          "cache_read": 112128,
+          "out": 8131,
+          "cost_usd": 0.1118828,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 7
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "TL",
+          "fresh_in": 19078,
+          "cache_creation": 0,
+          "cache_read": 38912,
+          "out": 874,
+          "cost_usd": 0.0253936,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 4
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "DV",
+          "fresh_in": 94061,
+          "cache_creation": 0,
+          "cache_read": 2292352,
+          "out": 45316,
+          "cost_usd": 0.8705172,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 54
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "DR",
+          "fresh_in": 52950,
+          "cache_creation": 0,
+          "cache_read": 277888,
+          "out": 3169,
+          "cost_usd": 0.1653788,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 17
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "SR",
+          "fresh_in": 48836,
+          "cache_creation": 0,
+          "cache_read": 339584,
+          "out": 5296,
+          "cost_usd": 0.1845904,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 20
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "QA",
+          "fresh_in": 53174,
+          "cache_creation": 0,
+          "cache_read": 135040,
+          "out": 1466,
+          "cost_usd": 0.067256,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 9
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "DC",
+          "fresh_in": 26778,
+          "cache_creation": 0,
+          "cache_read": 88960,
+          "out": 1409,
+          "cost_usd": 0.0042718999999999995,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 6
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "FN",
+          "fresh_in": 23388,
+          "cache_creation": 0,
+          "cache_read": 58240,
+          "out": 1312,
+          "cost_usd": 0.03286,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 4
+          },
+          "arm": "without"
+        },
+        {
+          "stage": "ST",
+          "fresh_in": 19380,
+          "cache_creation": 0,
+          "cache_read": 56832,
+          "out": 745,
+          "cost_usd": 0.0259466,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 4
+          },
+          "arm": "without"
+        }
+      ],
+      "era": {
+        "harness": "python-3",
+        "provider": "codex",
+        "source_digest": "fed0235dcf56d385fae28759d764aca5297a32afe36a4f4c787b2e5fee9958e8",
+        "pricing": {
+          "id": "openai-standard-short-2026-11-02",
+          "source": "https://developers.openai.com/api/docs/pricing",
+          "verified_at": "2026-11-02",
+          "basis": "API-equivalent USD, standard tier, implicit caching, context limited to 200000 tokens",
+          "per_million": {
+            "gpt-6.1-sol": {
+              "input": 2.0,
+              "cached_input": 0.1,
+              "output": 10.0
+            },
+            "gpt-6.1-terra": {
+              "input": 1.0,
+              "cached_input": 0.05,
+              "output": 5.0
+            },
+            "gpt-6-luna": {
+              "input": 0.1,
+              "cached_input": 0.01,
+              "output": 0.5
+            },
+            "gpt-6-astra": {
+              "input": 10.0,
+              "cached_input": 1.0,
+              "output": 50.0
+            }
+          }
+        },
+        "prompt_contract": "scripted-cli-v4",
+        "model_pins": {
+          "PL": "gpt-6.1-sol",
+          "AR": "gpt-6.1-sol",
+          "TL": "gpt-6.1-terra",
+          "DV": "gpt-6.1-sol",
+          "DR": "gpt-6.1-sol",
+          "SR": "gpt-6.1-sol",
+          "QA": "gpt-6.1-terra",
+          "DC": "gpt-6-luna",
+          "FN": "gpt-6.1-terra",
+          "ST": "gpt-6.1-terra"
+        },
+        "cli_version": "codex-cli 0.166.0",
+        "plugin_version": "4.1.4",
+        "efforts": {
+          "PL": "high",
+          "AR": "high",
+          "TL": "medium",
+          "DV": "high",
+          "DR": "high",
+          "SR": "xhigh",
+          "QA": "medium",
+          "DC": "low",
+          "FN": "medium",
+          "ST": "low"
+        },
+        "authentication": "chatgpt",
+        "plugin_snapshot_digest": "971200b38c1db61207a308c5e7bcf3a13ff2a2a1f8e7c954b491330bf315afb6",
+        "plugin_loading": "isolated-skills-and-canonical-stage-role",
+        "context_window": 200000,
+        "nested_agents": "disabled-in-both-arms",
+        "transport_retries": "CLI defaults; emitted errors stop accounting",
+        "runtime_isolation": {
+          "with": {
+            "skill_count": 49,
+            "canonical_role": true,
+            "tools": [
+              "functions",
+              "clock"
+            ],
+            "restrictions_verified": true
+          },
+          "without": {
+            "skill_count": 0,
+            "canonical_role": false,
+            "tools": [
+              "functions",
+              "clock"
+            ],
+            "restrictions_verified": true
+          }
+        },
+        "workload_digest": "440e193b1cd6838216d6d209617b9e45e95c3c6e1cb2c2619011fdd81c329577",
+        "accounting": {
+          "without": {
+            "allowance_usd": 25.0,
+            "overshoot_usd": 0.0,
+            "stop_reason": null,
+            "attempts": [
+              {
+                "stage": "PL",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.1077708
+              },
+              {
+                "stage": "AR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.1118828
+              },
+              {
+                "stage": "TL",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.0253936
+              },
+              {
+                "stage": "DV",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.8705172
+              },
+              {
+                "stage": "DR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.1653788
+              },
+              {
+                "stage": "SR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.1845904
+              },
+              {
+                "stage": "QA",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.067256
+              },
+              {
+                "stage": "DC",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.0042718999999999995
+              },
+              {
+                "stage": "FN",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.03286
+              },
+              {
+                "stage": "ST",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.0259466
+              }
+            ],
+            "reliable": true,
+            "incomplete_stages": []
+          },
+          "with": {
+            "allowance_usd": 25.0,
+            "overshoot_usd": 0.0,
+            "stop_reason": null,
+            "attempts": [
+              {
+                "stage": "PL",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.3074064
+              },
+              {
+                "stage": "AR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.26948479999999997
+              },
+              {
+                "stage": "TL",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.043320199999999996
+              },
+              {
+                "stage": "DV",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 1.315172
+              },
+              {
+                "stage": "DR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.28560240000000003
+              },
+              {
+                "stage": "SR",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.329552
+              },
+              {
+                "stage": "QA",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.0749318
+              },
+              {
+                "stage": "DC",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.00711302
+              },
+              {
+                "stage": "FN",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.0829664
+              },
+              {
+                "stage": "ST",
+                "attempt": 1,
+                "status": "completed",
+                "cost_usd": 0.054106800000000004
+              }
+            ],
+            "reliable": true,
+            "incomplete_stages": []
+          }
+        }
+      }
+    },
+    {
+      "run_id": "live-20261105T132921Z-5c28c0e-joined-30983432",
+      "timestamp_utc": "2026-11-05T13:29:21Z",
+      "mode": "live",
+      "git_sha": "5c28c0e",
+      "budget_usd": 50.0,
+      "paths": {
+        "with": {
+          "tokens": {
+            "in": 21221,
+            "out": 230271,
+            "total": 251492,
+            "cache_read": 8809706,
+            "cache_creation": 629046
+          },
+          "cost_usd": 10.195080579999999,
+          "wall_clock_s": 2367.3837,
+          "loc_produced": 2776,
+          "test_count": 84,
+          "coverage_pct": null,
+          "estimate_complexity_score": 0,
+          "stage_count": 10,
+          "pass_fail": "pass",
+          "app_path": "benchmark/workdirs/live-20261105T132918Z-5c28c0e-with/with",
+          "oracle": {
+            "built": true,
+            "cases_total": 42,
+            "cases_passed": 42,
+            "pass_rate": 1.0,
+            "tiers": {
+              "implied": {
+                "total": 9,
+                "passed": 9,
+                "pass_rate": 1.0
+              },
+              "specified": {
+                "total": 33,
+                "passed": 33,
+                "pass_rate": 1.0
+              }
+            },
+            "cases_digest": "sha256:8065259102d52025f62f1db5c5667d5f0fbc2fd5db461d72061a308eeb1fbf97"
+          }
+        },
+        "without": {
+          "tokens": {
+            "in": 21117,
+            "out": 157959,
+            "total": 179076,
+            "cache_read": 3729626,
+            "cache_creation": 415130
+          },
+          "cost_usd": 6.41374432,
+          "wall_clock_s": 1537.1219,
+          "loc_produced": 2412,
+          "test_count": 81,
+          "coverage_pct": null,
+          "estimate_complexity_score": 0,
+          "stage_count": 10,
+          "pass_fail": "pass",
+          "app_path": "benchmark/workdirs/live-20261105T103832Z-5c28c0e-without/without",
+          "oracle": {
+            "built": true,
+            "cases_total": 42,
+            "cases_passed": 42,
+            "pass_rate": 1.0,
+            "tiers": {
+              "implied": {
+                "total": 9,
+                "passed": 9,
+                "pass_rate": 1.0
+              },
+              "specified": {
+                "total": 33,
+                "passed": 33,
+                "pass_rate": 1.0
+              }
+            },
+            "cases_digest": "sha256:8065259102d52025f62f1db5c5667d5f0fbc2fd5db461d72061a308eeb1fbf97"
+          }
+        }
+      },
+      "comparison": {
+        "loc_produced": {
+          "with": 2776,
+          "without": 2412,
+          "delta": 364
+        },
+        "test_count": {
+          "with": 84,
+          "without": 81,
+          "delta": 3
+        },
+        "coverage_pct": {
+          "with": null,
+          "without": null,
+          "delta": null
+        },
+        "wall_clock_s": {
+          "with": 2367.3837,
+          "without": 1537.1219,
+          "delta": 830.2617999999998
+        },
+        "estimate_complexity_score": {
+          "with": 0,
+          "without": 0,
+          "delta": 0
+        },
+        "stage_count": {
+          "with": 10,
+          "without": 10,
+          "delta": 0
+        },
+        "tokens_total": {
+          "with": 251492,
+          "without": 179076,
+          "delta": 72416
+        },
+        "cost_usd": {
+          "with": 10.195080579999999,
+          "without": 6.41374432,
+          "delta": 3.781336259999999
+        }
+      },
+      "stages": [
+        {
+          "stage": "PL",
+          "fresh_in": 2617,
+          "cache_creation": 64478,
+          "cache_read": 744396,
+          "out": 31924,
+          "cost_usd": 1.3030042000000004,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 23
+          },
+          "arm": "with",
+          "parent_fresh_in": 42,
+          "parent_cache_creation": 64478,
+          "parent_cache_read": 744396,
+          "parent_out": 31893,
+          "duration_s": 310.16342737500963,
+          "diagnostics": {
+            "tool_output_characters": 36761,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": 22053,
+            "handoff_characters": 1133,
+            "handoff_sizes": [
+              {
+                "path": "planning-0.md",
+                "available": true,
+                "characters": 22053,
+                "lines": 351,
+                "sha256": "b8349d1ba40dd66f433e10c6aeb213d561a22241759e5291d591b9d4af74573e",
+                "estimated_tokens": 4901,
+                "token_proxy": "whitespace words times 1.33; not provider usage",
+                "handoff": {
+                  "characters": 1133,
+                  "lines": 20,
+                  "estimated_tokens": 175
+                }
+              }
+            ],
+            "instruction_fingerprint": null,
+            "ledger_summary": {
+              "status_counts": {
+                "completed": 1,
+                "pending": 6
+              },
+              "contradictions": [],
+              "artifacts": [
+                {
+                  "path": "planning-0.md",
+                  "available": true,
+                  "characters": 22053,
+                  "lines": 351,
+                  "sha256": "b8349d1ba40dd66f433e10c6aeb213d561a22241759e5291d591b9d4af74573e",
+                  "estimated_tokens": 4901,
+                  "token_proxy": "whitespace words times 1.33; not provider usage",
+                  "handoff": {
+                    "characters": 1133,
+                    "lines": 20,
+                    "estimated_tokens": 175
+                  }
+                }
+              ],
+              "ledger_estimated_tokens": 763,
+              "approval": "not evaluated; diagnostics only"
+            },
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "AR",
+          "fresh_in": 2033,
+          "cache_creation": 69561,
+          "cache_read": 354311,
+          "out": 26764,
+          "cost_usd": 1.1624357,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 8
+          },
+          "arm": "with",
+          "parent_fresh_in": 18,
+          "parent_cache_creation": 69561,
+          "parent_cache_read": 354311,
+          "parent_out": 26740,
+          "duration_s": 250.73021591700672,
+          "diagnostics": {
+            "tool_output_characters": 42647,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": 18081,
+            "handoff_characters": 1498,
+            "handoff_sizes": [
+              {
+                "path": "architecture-0.md",
+                "available": true,
+                "characters": 18081,
+                "lines": 164,
+                "sha256": "58f61ee334fff06b6863341d4ee5d14d749014e7bbb35f481c3ab943a373f2dd",
+                "estimated_tokens": 3217,
+                "token_proxy": "whitespace words times 1.33; not provider usage",
+                "handoff": {
+                  "characters": 1498,
+                  "lines": 19,
+                  "estimated_tokens": 219
+                }
+              }
+            ],
+            "instruction_fingerprint": null,
+            "ledger_summary": {
+              "status_counts": {
+                "completed": 2,
+                "pending": 5
+              },
+              "contradictions": [],
+              "artifacts": [
+                {
+                  "path": "architecture-0.md",
+                  "available": true,
+                  "characters": 18081,
+                  "lines": 164,
+                  "sha256": "58f61ee334fff06b6863341d4ee5d14d749014e7bbb35f481c3ab943a373f2dd",
+                  "estimated_tokens": 3217,
+                  "token_proxy": "whitespace words times 1.33; not provider usage",
+                  "handoff": {
+                    "characters": 1498,
+                    "lines": 19,
+                    "estimated_tokens": 219
+                  }
+                }
+              ],
+              "ledger_estimated_tokens": 1036,
+              "approval": "not evaluated; diagnostics only"
+            },
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "TL",
+          "fresh_in": 1904,
+          "cache_creation": 23395,
+          "cache_read": 68268,
+          "out": 4898,
+          "cost_usd": 0.14929219999999999,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 4
+          },
+          "arm": "with",
+          "parent_fresh_in": 10,
+          "parent_cache_creation": 23395,
+          "parent_cache_read": 68268,
+          "parent_out": 4866,
+          "duration_s": 44.765514124999754,
+          "diagnostics": {
+            "tool_output_characters": 10925,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": 5982,
+            "handoff_characters": 941,
+            "handoff_sizes": [
+              {
+                "path": "coordination-0.md",
+                "available": true,
+                "characters": 5982,
+                "lines": 77,
+                "sha256": "9517810729307277047f9f4326a770e51649c7b6969a55a94da1655c503960f2",
+                "estimated_tokens": 1062,
+                "token_proxy": "whitespace words times 1.33; not provider usage",
+                "handoff": {
+                  "characters": 941,
+                  "lines": 18,
+                  "estimated_tokens": 151
+                }
+              }
+            ],
+            "instruction_fingerprint": null,
+            "ledger_summary": {
+              "status_counts": {
+                "completed": 3,
+                "pending": 5
+              },
+              "contradictions": [],
+              "artifacts": [
+                {
+                  "path": "coordination-0.md",
+                  "available": true,
+                  "characters": 5982,
+                  "lines": 77,
+                  "sha256": "9517810729307277047f9f4326a770e51649c7b6969a55a94da1655c503960f2",
+                  "estimated_tokens": 1062,
+                  "token_proxy": "whitespace words times 1.33; not provider usage",
+                  "handoff": {
+                    "characters": 941,
+                    "lines": 18,
+                    "estimated_tokens": 151
+                  }
+                }
+              ],
+              "ledger_estimated_tokens": 1138,
+              "approval": "not evaluated; diagnostics only"
+            },
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "DV",
+          "fresh_in": 2879,
+          "cache_creation": 205620,
+          "cache_read": 6153192,
+          "out": 121154,
+          "cost_usd": 5.298724499999999,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 47
+          },
+          "arm": "with",
+          "parent_fresh_in": 88,
+          "parent_cache_creation": 205620,
+          "parent_cache_read": 6153192,
+          "parent_out": 121124,
+          "duration_s": 1258.6483588750125,
+          "diagnostics": {
+            "tool_output_characters": 100545,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": 24356,
+            "handoff_characters": 1611,
+            "handoff_sizes": [
+              {
+                "path": "development-0.md",
+                "available": true,
+                "characters": 24356,
+                "lines": 255,
+                "sha256": "d53a082381ddab66dae2a95af2d567b8021d7416a137b7e6942e8942e942cd5e",
+                "estimated_tokens": 4519,
+                "token_proxy": "whitespace words times 1.33; not provider usage",
+                "handoff": {
+                  "characters": 1611,
+                  "lines": 34,
+                  "estimated_tokens": 203
+                }
+              }
+            ],
+            "instruction_fingerprint": null,
+            "ledger_summary": {
+              "status_counts": {
+                "completed": 4,
+                "pending": 4
+              },
+              "contradictions": [],
+              "artifacts": [
+                {
+                  "path": "development-0.md",
+                  "available": true,
+                  "characters": 24356,
+                  "lines": 255,
+                  "sha256": "d53a082381ddab66dae2a95af2d567b8021d7416a137b7e6942e8942e942cd5e",
+                  "estimated_tokens": 4519,
+                  "token_proxy": "whitespace words times 1.33; not provider usage",
+                  "handoff": {
+                    "characters": 1611,
+                    "lines": 34,
+                    "estimated_tokens": 203
+                  }
+                }
+              ],
+              "ledger_estimated_tokens": 1578,
+              "approval": "not evaluated; diagnostics only"
+            },
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "DR",
+          "fresh_in": 2150,
+          "cache_creation": 69783,
+          "cache_read": 524244,
+          "out": 11493,
+          "cost_usd": 0.8927237,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 13
+          },
+          "arm": "with",
+          "parent_fresh_in": 26,
+          "parent_cache_creation": 69783,
+          "parent_cache_read": 524244,
+          "parent_out": 11464,
+          "duration_s": 130.84576879200176,
+          "diagnostics": {
+            "tool_output_characters": 97503,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": 6715,
+            "handoff_characters": 875,
+            "handoff_sizes": [
+              {
+                "path": "developer-review-0.md",
+                "available": true,
+                "characters": 6715,
+                "lines": 83,
+                "sha256": "8da1b8b61490fe87869f13613ccac151deef1b96ff6923565d405bc36097fc11",
+                "estimated_tokens": 1254,
+                "token_proxy": "whitespace words times 1.33; not provider usage",
+                "handoff": {
+                  "characters": 875,
+                  "lines": 15,
+                  "estimated_tokens": 143
+                }
+              }
+            ],
+            "instruction_fingerprint": null,
+            "ledger_summary": {
+              "status_counts": {
+                "completed": 5,
+                "pending": 3
+              },
+              "contradictions": [],
+              "artifacts": [
+                {
+                  "path": "developer-review-0.md",
+                  "available": true,
+                  "characters": 6715,
+                  "lines": 83,
+                  "sha256": "8da1b8b61490fe87869f13613ccac151deef1b96ff6923565d405bc36097fc11",
+                  "estimated_tokens": 1254,
+                  "token_proxy": "whitespace words times 1.33; not provider usage",
+                  "handoff": {
+                    "characters": 875,
+                    "lines": 15,
+                    "estimated_tokens": 143
+                  }
+                }
+              ],
+              "ledger_estimated_tokens": 1689,
+              "approval": "not evaluated; diagnostics only"
+            },
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "SR",
+          "fresh_in": 2048,
+          "cache_creation": 61443,
+          "cache_read": 433946,
+          "out": 15172,
+          "cost_usd": 0.8815841,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 14
+          },
+          "arm": "with",
+          "parent_fresh_in": 24,
+          "parent_cache_creation": 61443,
+          "parent_cache_read": 433946,
+          "parent_out": 15147,
+          "duration_s": 161.6368857500056,
+          "diagnostics": {
+            "tool_output_characters": 73657,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": 4732,
+            "handoff_characters": 710,
+            "handoff_sizes": [
+              {
+                "path": "security-review-0.md",
+                "available": true,
+                "characters": 4732,
+                "lines": 67,
+                "sha256": "8aa51cc4954666850004824637a95e1b05e8d38490f06d092d0131a0b27e458b",
+                "estimated_tokens": 868,
+                "token_proxy": "whitespace words times 1.33; not provider usage",
+                "handoff": {
+                  "characters": 710,
+                  "lines": 13,
+                  "estimated_tokens": 118
+                }
+              }
+            ],
+            "instruction_fingerprint": null,
+            "ledger_summary": {
+              "status_counts": {
+                "completed": 6,
+                "pending": 3
+              },
+              "contradictions": [],
+              "artifacts": [
+                {
+                  "path": "security-review-0.md",
+                  "available": true,
+                  "characters": 4732,
+                  "lines": 67,
+                  "sha256": "8aa51cc4954666850004824637a95e1b05e8d38490f06d092d0131a0b27e458b",
+                  "estimated_tokens": 868,
+                  "token_proxy": "whitespace words times 1.33; not provider usage",
+                  "handoff": {
+                    "characters": 710,
+                    "lines": 13,
+                    "estimated_tokens": 118
+                  }
+                }
+              ],
+              "ledger_estimated_tokens": 1828,
+              "approval": "not evaluated; diagnostics only"
+            },
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "QA",
+          "fresh_in": 2127,
+          "cache_creation": 27945,
+          "cache_read": 98992,
+          "out": 2006,
+          "cost_usd": 0.14173339999999998,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 4
+          },
+          "arm": "with",
+          "parent_fresh_in": 10,
+          "parent_cache_creation": 27945,
+          "parent_cache_read": 98992,
+          "parent_out": 1981,
+          "duration_s": 94.24731612499454,
+          "diagnostics": {
+            "tool_output_characters": 8271,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": null,
+            "handoff_characters": null,
+            "handoff_sizes": [],
+            "instruction_fingerprint": null,
+            "ledger_summary": {
+              "status_counts": {
+                "completed": 6,
+                "in_progress": 1,
+                "pending": 2
+              },
+              "contradictions": [],
+              "artifacts": [],
+              "ledger_estimated_tokens": 1828,
+              "approval": "not evaluated; diagnostics only"
+            },
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "DC",
+          "fresh_in": 1832,
+          "cache_creation": 43106,
+          "cache_read": 208078,
+          "out": 9583,
+          "cost_usd": 0.01567668,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 11
+          },
+          "arm": "with",
+          "parent_fresh_in": 16,
+          "parent_cache_creation": 43106,
+          "parent_cache_read": 208078,
+          "parent_out": 9555,
+          "duration_s": 54.43848983399221,
+          "diagnostics": {
+            "tool_output_characters": 52402,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": 3472,
+            "handoff_characters": 694,
+            "handoff_sizes": [
+              {
+                "path": "documentation-0.md",
+                "available": true,
+                "characters": 3472,
+                "lines": 52,
+                "sha256": "e819afc664458ed2ccab13c336ea3149db06bdbfb55a4a09017bf1e555e557d9",
+                "estimated_tokens": 603,
+                "token_proxy": "whitespace words times 1.33; not provider usage",
+                "handoff": {
+                  "characters": 694,
+                  "lines": 11,
+                  "estimated_tokens": 123
+                }
+              }
+            ],
+            "instruction_fingerprint": null,
+            "ledger_summary": {
+              "status_counts": {
+                "completed": 7,
+                "in_progress": 1,
+                "pending": 2
+              },
+              "contradictions": [],
+              "artifacts": [
+                {
+                  "path": "documentation-0.md",
+                  "available": true,
+                  "characters": 3472,
+                  "lines": 52,
+                  "sha256": "e819afc664458ed2ccab13c336ea3149db06bdbfb55a4a09017bf1e555e557d9",
+                  "estimated_tokens": 603,
+                  "token_proxy": "whitespace words times 1.33; not provider usage",
+                  "handoff": {
+                    "characters": 694,
+                    "lines": 11,
+                    "estimated_tokens": 123
+                  }
+                }
+              ],
+              "ledger_estimated_tokens": 1875,
+              "approval": "not evaluated; diagnostics only"
+            },
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "FN",
+          "fresh_in": 1833,
+          "cache_creation": 26813,
+          "cache_read": 104719,
+          "out": 3704,
+          "cost_usd": 0.15467550000000002,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 5
+          },
+          "arm": "with",
+          "parent_fresh_in": 12,
+          "parent_cache_creation": 26813,
+          "parent_cache_read": 104719,
+          "parent_out": 3673,
+          "duration_s": 31.281244625002728,
+          "diagnostics": {
+            "tool_output_characters": 13633,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": 4092,
+            "handoff_characters": 439,
+            "handoff_sizes": [
+              {
+                "path": "complete-summary-0.md",
+                "available": true,
+                "characters": 4092,
+                "lines": 91,
+                "sha256": "dbdd915d119c898f1436842be6f757ff02192311272e5502b330ba13e0a5392d",
+                "estimated_tokens": 827,
+                "token_proxy": "whitespace words times 1.33; not provider usage",
+                "handoff": {
+                  "characters": 439,
+                  "lines": 10,
+                  "estimated_tokens": 75
+                }
+              }
+            ],
+            "instruction_fingerprint": null,
+            "ledger_summary": {
+              "status_counts": {
+                "completed": 8,
+                "in_progress": 1,
+                "pending": 1
+              },
+              "contradictions": [],
+              "artifacts": [
+                {
+                  "path": "complete-summary-0.md",
+                  "available": true,
+                  "characters": 4092,
+                  "lines": 91,
+                  "sha256": "dbdd915d119c898f1436842be6f757ff02192311272e5502b330ba13e0a5392d",
+                  "estimated_tokens": 827,
+                  "token_proxy": "whitespace words times 1.33; not provider usage",
+                  "handoff": {
+                    "characters": 439,
+                    "lines": 10,
+                    "estimated_tokens": 75
+                  }
+                }
+              ],
+              "ledger_estimated_tokens": 1913,
+              "approval": "not evaluated; diagnostics only"
+            },
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "ST",
+          "fresh_in": 1798,
+          "cache_creation": 36902,
+          "cache_read": 119560,
+          "out": 3573,
+          "cost_usd": 0.19523060000000003,
+          "coverage": {
+            "agents": [],
+            "skills": [
+              "corpflow:self-improvement"
+            ],
+            "commands": [],
+            "tool_calls": 5
+          },
+          "arm": "with",
+          "parent_fresh_in": 12,
+          "parent_cache_creation": 36902,
+          "parent_cache_read": 119560,
+          "parent_out": 3545,
+          "duration_s": 30.626476207995438,
+          "diagnostics": {
+            "tool_output_characters": 14543,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": 2980,
+            "handoff_characters": 385,
+            "handoff_sizes": [
+              {
+                "path": "retrospective-0.md",
+                "available": true,
+                "characters": 2980,
+                "lines": 62,
+                "sha256": "5bf97efe21b74586ec909efab66c55785ddc734302314983a9fd5b656b743b7b",
+                "estimated_tokens": 650,
+                "token_proxy": "whitespace words times 1.33; not provider usage",
+                "handoff": {
+                  "characters": 385,
+                  "lines": 9,
+                  "estimated_tokens": 59
+                }
+              }
+            ],
+            "instruction_fingerprint": null,
+            "ledger_summary": {
+              "status_counts": {
+                "completed": 9,
+                "in_progress": 1
+              },
+              "contradictions": [],
+              "artifacts": [
+                {
+                  "path": "retrospective-0.md",
+                  "available": true,
+                  "characters": 2980,
+                  "lines": 62,
+                  "sha256": "5bf97efe21b74586ec909efab66c55785ddc734302314983a9fd5b656b743b7b",
+                  "estimated_tokens": 650,
+                  "token_proxy": "whitespace words times 1.33; not provider usage",
+                  "handoff": {
+                    "characters": 385,
+                    "lines": 9,
+                    "estimated_tokens": 59
+                  }
+                }
+              ],
+              "ledger_estimated_tokens": 1975,
+              "approval": "not evaluated; diagnostics only"
+            },
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "PL",
+          "fresh_in": 2583,
+          "cache_creation": 29856,
+          "cache_read": 72031,
+          "out": 20434,
+          "cost_usd": 0.6561982000000001,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 3
+          },
+          "arm": "without",
+          "parent_fresh_in": 8,
+          "parent_cache_creation": 29856,
+          "parent_cache_read": 72031,
+          "parent_out": 20125,
+          "duration_s": 192.95573941600742,
+          "diagnostics": {
+            "tool_output_characters": 943,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": null,
+            "handoff_characters": null,
+            "handoff_sizes": null,
+            "instruction_fingerprint": null,
+            "ledger_summary": null,
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "AR",
+          "fresh_in": 2025,
+          "cache_creation": 55944,
+          "cache_read": 187720,
+          "out": 36513,
+          "cost_usd": 1.215188,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 4
+          },
+          "arm": "without",
+          "parent_fresh_in": 10,
+          "parent_cache_creation": 55944,
+          "parent_cache_read": 187720,
+          "parent_out": 36492,
+          "duration_s": 346.1192309589969,
+          "diagnostics": {
+            "tool_output_characters": 27457,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": null,
+            "handoff_characters": null,
+            "handoff_sizes": null,
+            "instruction_fingerprint": null,
+            "ledger_summary": null,
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "TL",
+          "fresh_in": 1900,
+          "cache_creation": 30514,
+          "cache_read": 61669,
+          "out": 3059,
+          "cost_usd": 0.1587673,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 3
+          },
+          "arm": "without",
+          "parent_fresh_in": 6,
+          "parent_cache_creation": 30514,
+          "parent_cache_read": 61669,
+          "parent_out": 3033,
+          "duration_s": 25.18108358400059,
+          "diagnostics": {
+            "tool_output_characters": 42138,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": null,
+            "handoff_characters": null,
+            "handoff_sizes": null,
+            "instruction_fingerprint": null,
+            "ledger_summary": null,
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "DV",
+          "fresh_in": 2851,
+          "cache_creation": 131325,
+          "cache_read": 2495090,
+          "out": 70856,
+          "cost_usd": 2.9667111,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 29
+          },
+          "arm": "without",
+          "parent_fresh_in": 60,
+          "parent_cache_creation": 131325,
+          "parent_cache_read": 2495090,
+          "parent_out": 70828,
+          "duration_s": 653.6147462500085,
+          "diagnostics": {
+            "tool_output_characters": 102647,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": null,
+            "handoff_characters": null,
+            "handoff_sizes": null,
+            "instruction_fingerprint": null,
+            "ledger_summary": null,
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "DR",
+          "fresh_in": 2140,
+          "cache_creation": 53295,
+          "cache_read": 272280,
+          "out": 7289,
+          "cost_usd": 0.6263069,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 9
+          },
+          "arm": "without",
+          "parent_fresh_in": 16,
+          "parent_cache_creation": 53295,
+          "parent_cache_read": 272280,
+          "parent_out": 7260,
+          "duration_s": 90.14105008399929,
+          "diagnostics": {
+            "tool_output_characters": 89519,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": null,
+            "handoff_characters": null,
+            "handoff_sizes": null,
+            "instruction_fingerprint": null,
+            "ledger_summary": null,
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "SR",
+          "fresh_in": 2036,
+          "cache_creation": 40414,
+          "cache_read": 172652,
+          "out": 8480,
+          "cost_usd": 0.5272053,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 7
+          },
+          "arm": "without",
+          "parent_fresh_in": 12,
+          "parent_cache_creation": 40414,
+          "parent_cache_read": 172652,
+          "parent_out": 8455,
+          "duration_s": 89.97057370800758,
+          "diagnostics": {
+            "tool_output_characters": 58758,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": null,
+            "handoff_characters": null,
+            "handoff_sizes": null,
+            "instruction_fingerprint": null,
+            "ledger_summary": null,
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "QA",
+          "fresh_in": 2125,
+          "cache_creation": 14085,
+          "cache_read": 71249,
+          "out": 1618,
+          "cost_usd": 0.0796351,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 3
+          },
+          "arm": "without",
+          "parent_fresh_in": 8,
+          "parent_cache_creation": 14085,
+          "parent_cache_read": 71249,
+          "parent_out": 1593,
+          "duration_s": 44.035926124997786,
+          "diagnostics": {
+            "tool_output_characters": 9531,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": null,
+            "handoff_characters": null,
+            "handoff_sizes": null,
+            "instruction_fingerprint": null,
+            "ledger_summary": null,
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "DC",
+          "fresh_in": 1830,
+          "cache_creation": 31642,
+          "cache_read": 199952,
+          "out": 5648,
+          "cost_usd": 0.011334920000000002,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 9
+          },
+          "arm": "without",
+          "parent_fresh_in": 14,
+          "parent_cache_creation": 31642,
+          "parent_cache_read": 199952,
+          "parent_out": 5620,
+          "duration_s": 31.88903741700051,
+          "diagnostics": {
+            "tool_output_characters": 36532,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": null,
+            "handoff_characters": null,
+            "handoff_sizes": null,
+            "instruction_fingerprint": null,
+            "ledger_summary": null,
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "FN",
+          "fresh_in": 1833,
+          "cache_creation": 16264,
+          "cache_read": 128873,
+          "out": 2420,
+          "cost_usd": 0.1020549,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 5
+          },
+          "arm": "without",
+          "parent_fresh_in": 12,
+          "parent_cache_creation": 16264,
+          "parent_cache_read": 128873,
+          "parent_out": 2389,
+          "duration_s": 38.44220791700354,
+          "diagnostics": {
+            "tool_output_characters": 13891,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": null,
+            "handoff_characters": null,
+            "handoff_sizes": null,
+            "instruction_fingerprint": null,
+            "ledger_summary": null,
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        },
+        {
+          "stage": "ST",
+          "fresh_in": 1794,
+          "cache_creation": 11791,
+          "cache_read": 68110,
+          "out": 1642,
+          "cost_usd": 0.07034259999999999,
+          "coverage": {
+            "agents": [],
+            "skills": [],
+            "commands": [],
+            "tool_calls": 3
+          },
+          "arm": "without",
+          "parent_fresh_in": 8,
+          "parent_cache_creation": 11791,
+          "parent_cache_read": 68110,
+          "parent_out": 1616,
+          "duration_s": 24.772336083988193,
+          "diagnostics": {
+            "tool_output_characters": 6595,
+            "tool_output_unit": "Unicode characters; not tokens",
+            "environment_failure_count": 0,
+            "environment_failure_repetitions": 0,
+            "environment_failures": [],
+            "truncation_count": 0,
+            "artifact_characters": null,
+            "handoff_characters": null,
+            "handoff_sizes": null,
+            "instruction_fingerprint": null,
+            "ledger_summary": null,
+            "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+          }
+        }
+      ],
+      "era": {
+        "harness": "python-3",
+        "provider": "claude",
+        "source_digest": "35d061bf207c7fa7e98a83e191423b9a267c9d96030590b17b3efa873f1e6cd0",
+        "pricing": {
+          "basis": "CLI-reported USD",
+          "source": "result.total_cost_usd"
+        },
+        "prompt_contract": "scripted-cli-v5",
+        "model_pins": {
+          "PL": "claude-opus-5-5",
+          "AR": "claude-opus-5-5",
+          "TL": "claude-sonnet-5-5",
+          "DV": "claude-opus-5-5",
+          "DR": "claude-opus-5-5",
+          "SR": "claude-opus-5-5",
+          "QA": "claude-sonnet-5-5",
+          "DC": "claude-haiku-5-5",
+          "FN": "claude-sonnet-5-5",
+          "ST": "claude-sonnet-5-5"
+        },
+        "cli_version": "2.1.318 (Claude Code)",
+        "plugin_version": "4.1.4",
+        "plugin_path": "/Volumes/internal/Projects/igrsoft/ai-agents/corpflow",
+        "plugins_with": [
+          "corpflow@4.1.4",
+          "apple-developer@1.31.0"
+        ],
+        "config_leaks": {
+          "without": [],
+          "with": []
+        },
+        "plugins_without": []
+      },
+      "joined_from": {
+        "with": {
+          "run_id": "live-20261105T132918Z-5c28c0e-with",
+          "timestamp_utc": "2026-11-05T13:29:21Z"
+        },
+        "without": {
+          "run_id": "live-20261105T103832Z-5c28c0e-without",
+          "timestamp_utc": "2026-11-05T10:38:42Z"
+        },
+        "observed_gap_s": 10239
+      }
     }
   ]
 }

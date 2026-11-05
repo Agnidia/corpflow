@@ -16,12 +16,18 @@
 # results/runs/live-arm/ under an arm-suffixed run id and is NEVER rotated into
 # history.json. Join two of them into a paired record with:
 #     harness/bin/bench-pair --a <with.json> --b <without.json> --out <joined.json>
+# A paired run (claude or codex) also writes each graded arm to results/runs/live-arm/
+# <run_id>-<arm>.json (never rotated), so a WITHOUT arm survives a kill of the WITH
+# arm; resume with --arm with --budget <per-arm share> and join the two. A claude run
+# also probes both arms' plugin sets before the first paid stage and exits 5 on a
+# mismatch, rotating nothing.
 #
 # Usage:
 #   benchmark/run-benchmark.sh                                  # deterministic
 #   benchmark/run-benchmark.sh --live [--budget U] [--stages PL,AR,DV]
 #                              [--without-arm real|skip]
 #                              [--arm with|without|both]
+#                              [--provider claude|codex]
 #                              [--wait-on-limit|--no-wait-on-limit]
 #
 # Wall-clock note: a ttt-template warm-up build happens BEFORE any timing; per-arm
@@ -40,9 +46,12 @@ STAGES=""
 WITHOUT_ARM=""
 ARM=""
 WAIT_ON_LIMIT=""
+PROVIDER="claude"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --provider) PROVIDER="${2:?--provider needs claude or codex}"; shift 2 ;;
+    --provider=*) PROVIDER="${1#*=}"; shift ;;
     --live)     LIVE=1; MODE="live"; shift ;;
     --budget)   BUDGET="${2:?--budget needs a USD value}"; shift 2 ;;
     --budget=*) BUDGET="${1#*=}"; shift ;;
@@ -58,6 +67,11 @@ while [ "$#" -gt 0 ]; do
     *) echo "run-benchmark.sh: unknown arg '$1'" >&2; exit 64 ;;
   esac
 done
+
+case "$PROVIDER" in
+  claude|codex) ;;
+  *) echo "run-benchmark.sh: --provider must be claude or codex" >&2; exit 64 ;;
+esac
 
 if [ -n "$STAGES" ] && [ "$LIVE" != "1" ]; then
   echo "run-benchmark.sh: --stages requires --live" >&2; exit 64
@@ -110,6 +124,9 @@ case "$ARM" in
 esac
 
 RUN_ID="${MODE}-${RUN_TS}-${GIT_SHA}"
+if [ "$LIVE" = "1" ] && [ "$PROVIDER" = "codex" ]; then
+  RUN_ID="${MODE}-codex-${RUN_TS}-${GIT_SHA}"
+fi
 RECORD_SUBDIR="$MODE"
 if [ -n "$SINGLE_ARM" ]; then
   # Arm records live apart from paired ones so the analyzer's newest-in-live/
@@ -152,7 +169,7 @@ if [ "$LIVE" = "1" ]; then
   # FROZEN SEAM: exactly this argv (+ optional --stages / --without-arm / --arm
   # passthrough).
   set +e
-  live_args=(--workdir "$RUN_ID" --budget "$BUDGET" --record "$RECORD_PATH")
+  live_args=(--workdir "$RUN_ID" --budget "$BUDGET" --record "$RECORD_PATH" --provider "$PROVIDER")
   [ -n "$STAGES" ] && live_args+=(--stages "$STAGES")
   [ -n "$WITHOUT_ARM" ] && live_args+=(--without-arm "$WITHOUT_ARM")
   [ -n "$ARM" ] && live_args+=(--arm "$ARM")
@@ -234,6 +251,15 @@ if python3 "$HARNESS_BIN/bench-report" --history "$HISTORY" \
   note "result.html regenerated for $RUN_ID."
 else
   note "WARNING: result.html regeneration failed; $RECORD_PATH is still on disk."
+fi
+
+if [ "$LIVE" = "1" ] && [ -f "$RECORD_PATH" ]; then
+  python3 "$HARNESS_BIN/bench-report" --run "$RECORD_PATH" \
+    --out "${RECORD_PATH%.json}.html" --plugin-root "$PLUGIN_ROOT" \
+    || note "WARNING: run-specific report failed; record remains on disk."
+  python3 "$HARNESS_BIN/bench-analyze" --run "$RECORD_PATH" \
+    --out "${RECORD_PATH%.json}.md" \
+    || note "WARNING: run-specific analysis failed; record remains on disk."
 fi
 
 [ -n "${DEFERRED_FAIL:-}" ] && fail "$DEFERRED_FAIL"

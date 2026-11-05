@@ -39,7 +39,7 @@ _DEFAULT_BASE_REF = "master"
 # (argv, env, cwd) -> object with .exit_code / .stderr. Injected by tests.
 SeedRunner = Callable[[list, dict, str], Any]
 
-# Step 3 of commands/worktask.md.
+# Step 3 of skills/worktask/references/workflow.md.
 _CONTEXT_SUBDIRS = ("designs", "images", "errors", "logs")
 
 # seed-state.sh exits: 0 seeded, 3 a ledger is already there (byte-unchanged).
@@ -184,7 +184,7 @@ def seed_stage(stage: str, arm_cwd: str, plugin_root: str,
     if isinstance(pl0, dict):
         meta = pl0.get("metadata") if isinstance(pl0.get("metadata"), dict) else {}
         if meta.get("approved") not in _APPROVED:
-            # The unattended plan-gate carrier (commands/worktask.md § Plan gate bypass
+            # The unattended plan-gate carrier (skills/worktask/references/workflow.md § Plan gate bypass
             # path): "auto", no audit row. "user" and approval_received are reserved
             # for a human's answer, which no harness run has.
             call("PL0 approved=auto", ["--task-meta", "PL0", "--set", '{"approved":"auto"}'])

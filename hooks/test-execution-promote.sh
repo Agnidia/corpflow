@@ -75,7 +75,7 @@ evidence_bundle_basename() {
   case "$_base" in *[!A-Za-z0-9._-]*) return 1 ;; esac
   [ "${#_base}" -le "$EVIDENCE_BASENAME_MAX" ] || return 1
   # `*.log` is deliberately absent: DV writes `.context/logs/build-*.log` for BUILD
-  # verification (skills/shared/stage-contracts.md § DV), and admitting it here cited
+  # verification (skills/worktask/references/stage-contracts.md § DV), and admitting it here cited
   # a build as a test result at the one rung nothing downstream re-checks. A results
   # shape is a format a runner emits for RESULTS; a log is a transcript of anything.
   case "$_base" in

@@ -18,7 +18,7 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 
 - Label every quality gate in `coordination-N.md` must-fix or nice-to-have.
 - DO NOT execute tests — stage-scoped authority, canonical in
-  `skills/shared/testing-strategy.md § Test-Execution Authority`. Build-only verification
+  `skills/worktask/references/testing-strategy.md § Test-Execution Authority`. Build-only verification
   (`/<plugin>:build-test --no-test`) stays permitted; need runtime evidence → record
   `requests_test_evidence: <what and why>` in this stage's artifact.
 - When planning a sprint, take capacity from actual availability, not last sprint's velocity.
@@ -55,7 +55,7 @@ opinion. Nothing downgrades mid-run.
 
 ## Worktask Integration
 
-**Stage**: TL (Team Lead, 3/11) — pipeline context: `skills/shared/worktask-stage-context.md`.
+**Stage**: TL (Team Lead, 3/11) — pipeline context: `skills/worktask/references/worktask-stage-context.md`.
 
 TL work: review the Architecture-stage design; coordinate the implementation approach; decide intra-issue DV parallelism (§ DV Task Splitting Protocol); record blockers/dependencies in the ledger; allocate resources and define quality gates. Approve the approach once § Completion Verification passes; the stage then hands off to Development.
 
@@ -65,7 +65,7 @@ Read `.context/state.json` before allocating work; identify blockers and unresol
 
 ### DV Task Splitting Protocol
 
-TL is the sole owner of the intra-issue async decision: whether one DV0 splits into DV streams (DV0, DV1, DV2…). The orchestrator assigns separate trees for concurrent streams in an unpinned session and serializes streams on the assigned tree in a pinned session (`handoff-protocol.md § Pinning a row's tree`). This is orthogonal to the megatask cross-issue track count (`parallel_tracks`), orchestrator-derived at megatask init — TL never sets it.
+TL is the sole owner of the intra-issue async decision: whether one DV0 splits into DV streams (DV0, DV1, DV2…). The orchestrator assigns separate trees for concurrent streams in an unpinned session and serializes streams on the assigned tree in a pinned session (`skills/worktask/references/contracts/artifact-map.md § Pinning a row's tree`). This is orthogonal to the megatask cross-issue track count (`parallel_tracks`), orchestrator-derived at megatask init — TL never sets it.
 
 | Split when | Keep a single DV0 when |
 |---|---|
@@ -83,7 +83,7 @@ TL is the sole owner of the intra-issue async decision: whether one DV0 splits i
 3. Read `tasks.DV0` and `tasks.DR0` from the ledger — the stage ids are the keys
 4. Narrow DV0's description and subject to the primary stream's scope and stamp its slug and artifact. Slugs are
    kebab, unique within the run, assigned here, and never changed once stamped
-   (`handoff-protocol.md § Artifact naming (S1)`):
+   (`skills/worktask/references/contracts/artifact-map.md § Artifact naming (S1)`):
    ```bash
    bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --task-meta DV0 --set '{"description":"{primary stream scope}",
      "subject":"{primary stream subject}","stream":"{primary-slug}","artifact":".context/development-{N}-{primary-slug}.md"}'
@@ -104,7 +104,7 @@ TL is the sole owner of the intra-issue async decision: whether one DV0 splits i
 
 The clone is what keeps the row valid: `--task-create` refuses a row missing `effort`, `isolation`, `base_ref`, `requires_screenshots` or `workspace_path`, and it carries forward the agent PL0 already resolved rather than re-routing the stream through a dispatcher agent.
 
-`$STREAM_SCOPE` is that stream's scope, file ownership, interface contracts and acceptance criteria. `$STREAM_SUBJECT` is that stream's one-line title, distinct from every DV row's, and `--task-create` refuses a repeat with exit 2. Leave `workspace_path` as DV0's cloned path; TL never creates a worktree. The orchestrator re-pins a parallel stream to its own worktree at dispatch, so whether a stream gets its own tree follows from the `blocked_by` edges you wire in Steps 6-8 (rule: `skills/worktask/references/handoff-protocol.md § Pinning a row's tree`).
+`$STREAM_SCOPE` is that stream's scope, file ownership, interface contracts and acceptance criteria. `$STREAM_SUBJECT` is that stream's one-line title, distinct from every DV row's, and `--task-create` refuses a repeat with exit 2. Leave `workspace_path` as DV0's cloned path; TL never creates a worktree. The orchestrator re-pins a parallel stream to its own worktree at dispatch, so whether a stream gets its own tree follows from the `blocked_by` edges you wire in Steps 6-8 (rule: `skills/worktask/references/contracts/artifact-map.md § Pinning a row's tree`).
 
 ##### Step 5 declarations
 
@@ -127,7 +127,7 @@ A file one stream writes and another reads is declared on both rows, inside the 
 
 #### File Ownership Rules
 
-Streams own disjoint file sets — none modifies another's files. Define interface contracts (shared types, protocols, APIs) at every ownership boundary. A contract is the interface block other streams reference (`skills/shared/plan-content.md § Step kinds`): signatures and types, with each stream's DV writing its own bodies. A contract file one stream produces for another is declared `produces`/`consumes` (Step 5 declarations) with the consumer blocked on its producer (Step 6), and landing it into the consumer's tree is automatic (`skills/worktask/references/handoff-protocol.md § Landing consumed artifacts`).
+Streams own disjoint file sets — none modifies another's files. Define interface contracts (shared types, protocols, APIs) at every ownership boundary. A contract is the interface block other streams reference (`skills/shared/plan-content.md § Step kinds`): signatures and types, with each stream's DV writing its own bodies. A contract file one stream produces for another is declared `produces`/`consumes` (Step 5 declarations) with the consumer blocked on its producer (Step 6), and landing it into the consumer's tree is automatic (`skills/worktask/references/contracts/artifact-landing.md § Landing consumed artifacts`).
 
 #### Divergence the file lists hide
 
@@ -185,11 +185,14 @@ Before marking TL stage complete, verify:
 
 ## Handoff Protocol
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read stage-contracts.md in the steady path. Per-stage frontmatter template (paste verbatim at artifact top): `stage-contracts.md#tpl-tl`. Prev→this label: `AR→TL`, or `PL→TL` when AR was excluded — pick from the `tasks` keys present in `.context/state.json`.
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-tl.md` before writing the artifact.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+Frontmatter template: `skills/worktask/assets/templates/template-tl.md#tpl-tl`. Prev→this label: `AR→TL`, or `PL→TL` when AR was excluded — pick from the `tasks` keys present in `.context/state.json`.
+
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 ### Skip-exploration short-circuit
 
@@ -197,11 +200,11 @@ When `task.metadata.skip_exploration === true`, treat `metadata.exploration_anch
 
 ### State Patch — REQUIRED before return
 
-Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage TL --prev <PREV>`, `<PREV>` = `AR` when AR ran, `PL` when AR was excluded. It atomically patches `tasks.TL0` plus the corresponding `AR→TL` / `PL→TL` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage TL --prev <PREV>`, `<PREV>` = `AR` when AR ran, `PL` when AR was excluded. It atomically patches `tasks.TL0` plus the corresponding `AR→TL` / `PL→TL` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
-Pass `--facts` in the same call to union this stage's facts into `state.json → facts.*` — the channel downstream stages read first, and its only scripted writer. Your sweep stub is not derived from the frontmatter; this is its second transport:
+Pass `--facts` in the same call to union this stage's facts into `state.json → facts.*` — the first channel downstream stages read. Your sweep stub is not derived from the frontmatter; this is its second transport:
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage TL --prev <PREV> --facts '{
@@ -209,7 +212,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage TL --p
   "open_questions": [{"id":"sw-TL0-1","class":"decision","ref":"coordination-0.md#elicitation-sweep","blocks_next_stage":false}]}' --digest
 ```
 
-Omit it and the stub reaches only the frontmatter, never the FN gate's render: the question is never asked. Union by `.id`, last writer wins. Canonical: `handoff-protocol.md#facts-union`.
+Omit it and the stub reaches only the frontmatter, never the FN gate's render: the question is never asked. Union by `.id`, last writer wins. Canonical: `skills/worktask/references/contracts/facts-merge.md#facts-union`.
 
 `--digest` prints the rows it wrote — that is the confirmation; never `cat`/`jq` `state.json` afterwards.
 

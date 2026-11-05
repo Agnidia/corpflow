@@ -20,7 +20,7 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 - Write prose per `skills/shared/writing-style.md` (ASD-STE100-derived).
 - Document each fact once and link to it from everywhere else.
 - DO NOT execute tests (stage-scoped authority, canonical in
-  `skills/shared/testing-strategy.md § Test-Execution Authority`); build-only verification
+  `skills/worktask/references/testing-strategy.md § Test-Execution Authority`); build-only verification
   (`/<plugin>:build-test --no-test`) stays permitted. Need runtime evidence → record
   `requests_test_evidence: <what and why>` in this stage's artifact.
 
@@ -86,11 +86,11 @@ Same four parts — summary, parameters, returns, throws/raises — in every lan
 
 ## Worktask Integration
 
-**Stage**: DC (Documentation, 8/11) — see `skills/shared/worktask-stage-context.md` for pipeline
-context. **State ledger**: Stage DC, Owner: technical-writer — see `skills/shared/state-ledger.md`.
+**Stage**: DC (Documentation, 8/11) — see `skills/worktask/references/worktask-stage-context.md` for pipeline
+context. **State ledger**: Stage DC, Owner: technical-writer — see `skills/worktask/references/state-ledger.md`.
 
 ### DC Stage (Documentation)
-- **DC0**: Read `state.json` facts + the `handoff:` frontmatter of every DV artifact (`refs.dev[]`, or the ledger per `skills/worktask/references/handoff-protocol.md § Iterating the DV tasks`) and, when AR ran, `architecture-N.md` (frontmatter-first, ≤200 tokens each) to discover documentation needing updates; deep-read a full body only when its frontmatter `next_stage_focus`/`verdict` flags a section (or `retry_count > 0`).
+- **DC0**: Read `state.json` facts + the `handoff:` frontmatter of every DV artifact (`refs.dev[]`, or the ledger per `skills/worktask/references/contracts/artifact-map.md § Iterating the DV tasks`) and, when AR ran, `architecture-N.md` (frontmatter-first, ≤200 tokens each) to discover documentation needing updates; deep-read a full body only when its frontmatter `next_stage_focus`/`verdict` flags a section (or `retry_count > 0`).
 - **DC1**: Update only the docs DC0 flagged (code docs, README, CLAUDE.md, ARCHITECTURE), documenting only what exists in the assigned tree(s): `task.metadata.workspace_path` plus each worktree the dispatch names. Stop when every flagged doc matches the diff; an unflagged stale doc goes under `## follow-ups`
 - **DC2**: Run the option-existence gate over every doc DC1 wrote or edited, until it exits 0 or only correction findings remain (§ Option-existence gate (DC2))
 - **DC3**: `documentation-N.md` summary written
@@ -122,7 +122,7 @@ Take the findings in stdout order. For each one, the first arm that matches wins
 2. An upstream task's handoff `files_touched` lists the doc. Leave the line. Return `verdict: blocked` with `blocked_on: {kind: correction, detail: {target_task, finding, evidence_ref, severity}, resume_with: artifact_path}`, where `target_task` is the latest such task (`DV0`), `finding` is the stderr line verbatim, `evidence_ref` is `<doc>:<line>`, and `severity` is `blocking`.
 3. Neither. The line predates this run: fix it as in arm 1 and name it in `documentation-N.md`.
 
-`blocked_on` carries one finding, the first arm-2 finding. List every finding with its arm in `documentation-N.md`. Worked example: `stage-contracts.md#tpl-dc`.
+`blocked_on` carries one finding, the first arm-2 finding. List every finding with its arm in `documentation-N.md`. Worked example: `skills/worktask/assets/templates/template-dc.md#tpl-dc`.
 
 #### DC2 — runtime paths stop rule
 
@@ -142,12 +142,12 @@ A vendored doc describes its upstream package, not this tree. Add `--exclude <tr
 
 ### Diff-Only Read Rule (DC)
 
-Cheapest-first when only the delta is needed to update a doc reference: frontmatter-first, then diff-only via `git diff <base>..HEAD -- <path>` when `state.json → facts.files_read` lists the path, else anchor-scoped `Read`. Full reads stay available when those are insufficient; absent `facts.files_read` → normal reads. Canonical: `stage-contracts.md#diff-only-read`.
+Cheapest-first when only the delta is needed to update a doc reference: frontmatter-first, then diff-only via `git diff <base>..HEAD -- <path>` when `state.json → facts.files_read` lists the path, else anchor-scoped `Read`. Full reads stay available when those are insufficient; absent `facts.files_read` → normal reads. Canonical: `skills/worktask/references/contracts/stage-inputs.md#diff-only-read`.
 
 ### Version-ordering check
 
 When the worktask touches a version (release, tag, or `version:`/`CHANGELOG`/`MEMORY.md` change),
-run PL0's check (`skills/worktask/references/pl0-procedure.md § Version Bump Planning`) again:
+run PL0's check (`skills/worktask/references/planning-verification.md § Version Bump Planning`) again:
 `max_released_version` is the greater of the highest git tag and the `MEMORY.md` release-history
 max, and only `proposed_version < max_released_version` is an anomaly. An equal version is not:
 `version-bump-from-git.sh` returns `none` for a range with nothing release-worthy, and that
@@ -197,7 +197,7 @@ directly.
 
 ## Completion Verification
 
-On top of `skills/shared/stage-contracts.md § Completion Verification`, before marking DC complete:
+On top of `skills/worktask/references/stage-contracts.md § Completion Verification`, before marking DC complete:
 - [ ] § Version-ordering check done when a version is in scope
 - [ ] README updated if the public API changed; all new public APIs documented
 - [ ] Code comments compact per `skills/shared/code-documentation.md` (non-obvious WHY/contract only)
@@ -205,15 +205,18 @@ On top of `skills/shared/stage-contracts.md § Completion Verification`, before 
 
 ## Handoff Protocol
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read stage-contracts.md in the steady path. Per-stage frontmatter template (paste verbatim at artifact top): `stage-contracts.md#tpl-dc`. Prev→this label: `QA→DC`.
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-dc.md` before writing the artifact.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+Frontmatter template: `skills/worktask/assets/templates/template-dc.md#tpl-dc`. Prev→this label: `QA→DC`.
+
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 ### State Patch — REQUIRED before return
 
-Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage DC --prev QA` to atomically patch `tasks.DC0` + the `QA→DC` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage DC --prev QA` to atomically patch `tasks.DC0` + the `QA→DC` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
@@ -225,7 +228,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage DC --p
   "open_questions": [{"id":"sw-DC0-1","class":"decision","ref":"documentation-0.md#elicitation-sweep","blocks_next_stage":false}]}' --digest
 ```
 
-`files_modified` unions on the path string, first-seen order kept, so it never clobbers DV's entries and a re-run is byte-identical. Omitting it loses the file silently. Canonical rule: `handoff-protocol.md#facts-union`. `--digest` prints the rows it wrote — that is the confirmation; never `cat`/`jq` `state.json` afterwards.
+`files_modified` unions on the path string, first-seen order kept, so it never clobbers DV's entries and a re-run is byte-identical. Omitting it loses the file silently. Canonical rule: `skills/worktask/references/contracts/facts-merge.md#facts-union`. `--digest` prints the rows it wrote — that is the confirmation; never `cat`/`jq` `state.json` afterwards.
 
 #### Mandatory Close (DC)
 

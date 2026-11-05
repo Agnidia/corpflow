@@ -19,7 +19,7 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 
 - Judge each criterion from the artifacts § Step 1 names; when they cannot settle one, mark it PARTIAL and name the missing evidence.
 - DO NOT execute tests (stage-scoped authority, canonical in
-  `skills/shared/testing-strategy.md § Test-Execution Authority`); build-only verification
+  `skills/worktask/references/testing-strategy.md § Test-Execution Authority`); build-only verification
   (`/<plugin>:build-test --no-test`) stays permitted. Need runtime evidence → record
   `requests_test_evidence: <what and why>` in this stage's artifact.
 - DO NOT approve work that harms users, however strong its return: the harm alone is a reject reason.
@@ -44,7 +44,7 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 
 ## Worktask Integration
 
-**Stage**: ST (Stakeholder, 11/11) — final acceptance review of completed work: validate the business requirements are met, then approve for release or reject with the unmet criteria. Pipeline context: `skills/shared/worktask-stage-context.md`. **State ledger**: Stage ST, Owner: stakeholder — see `skills/shared/state-ledger.md`.
+**Stage**: ST (Stakeholder, 11/11) — final acceptance review of completed work: validate the business requirements are met, then approve for release or reject with the unmet criteria. Pipeline context: `skills/worktask/references/worktask-stage-context.md`. **State ledger**: Stage ST, Owner: stakeholder — see `skills/worktask/references/state-ledger.md`.
 
 ## Ad-hoc Business Requests
 
@@ -64,14 +64,14 @@ Read `state.json` facts first. Then, with N from `task.metadata.run_index`:
 
 Mark each `<plan_file>` criterion PASS, PARTIAL, or FAIL against the implementation; for PARTIAL/FAIL document the specific gap.
 
-When `state.json → metadata.ci` is `"disabled"`, a criterion whose only gap is a missing CI run is not PARTIAL: record the flag in its line instead (`skills/shared/state-ledger.md § CI field`).
+When `state.json → metadata.ci` is `"disabled"`, a criterion whose only gap is a missing CI run is not PARTIAL: record the flag in its line instead (`skills/worktask/references/contracts/ledger-status.md § CI field`).
 
 ### Step 3: Decision
 
 `retrospective-N.md` takes the H2 set in § Artifact anchors: the decision and each criterion's PASS/PARTIAL/FAIL under `## decision`; business value, what went well and what to improve as H3s under `## learnings`; every carried item under `## followups`.
 
 - **All PASS** → `verdict: approve`; write retrospective-N.md.
-- **Any PARTIAL or FAIL** → `verdict: reject`, with one `blockers:` entry per unmet criterion saying what is missing. The orchestrator sends a reject back to the one DV stream every blocker names, or to every DV row ST depends on when they name none or several (`skills/worktask/scripts/loopback-targets.sh`), injects `blockers:` into their prompt and re-runs every stage after them, ST included (`skills/worktask/SKILL.md § Step 7 — loop-back arm`).
+- **Any PARTIAL or FAIL** → `verdict: reject`, with one `blockers:` entry per unmet criterion saying what is missing. The orchestrator sends a reject back to the one DV stream every blocker names, or to every DV row ST depends on when they name none or several (`skills/worktask/scripts/loopback-targets.sh`), injects `blockers:` into their prompt and re-runs every stage after them, ST included (`skills/worktask/references/retry-routing.md § Step 7 — loop-back arm`).
 
 ### Step 4: Self-Improvement Retrospective
 
@@ -81,24 +81,27 @@ After ST completes, the orchestrator routes approved proposals: `judgement` item
 
 ## Completion Verification
 
-On top of `skills/shared/stage-contracts.md § Completion Verification`, before marking ST complete:
+On top of `skills/worktask/references/stage-contracts.md § Completion Verification`, before marking ST complete:
 - [ ] `retrospective-N.md ## decision` marks every `<plan_file>` acceptance criterion PASS, PARTIAL or FAIL, with the gap stated for each PARTIAL/FAIL
 - [ ] `retrospective-N.md` frontmatter carries one `verdict`: `approve`, or `reject` with one `blockers:` entry per unmet criterion
 - [ ] Step 4 ran: `.context/learnings.md` written, or the "no-changes" result noted under `retrospective-N.md ## Self-Improvement`
 
 ## Handoff Protocol
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read stage-contracts.md in the steady path. Per-stage frontmatter template (paste verbatim at artifact top): `stage-contracts.md#tpl-st`. Prev→this label: `FN→ST` (or `RE→ST`/`DC→ST`/`QA→ST`, from the latest that ran, when FN did not run).
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-st.md` before writing the artifact.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+
+Frontmatter template: `skills/worktask/assets/templates/template-st.md#tpl-st`. Prev→this label: `FN→ST` (or `RE→ST`/`DC→ST`/`QA→ST`, from the latest that ran, when FN did not run).
+
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
 ST treats every `escalate` item as a recommendation only and never resolves it, in prose or in the ledger; the user answers it at its checkpoint.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 ### State Patch — REQUIRED before return
 
-Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage ST --prev <PREV>` (`<PREV>` = the first of `FN`, `RE`, `DC`, `QA` whose `tasks` row exists and is not `skipped`) to atomically patch `tasks.ST0` + that `<PREV>→ST` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage ST --prev <PREV>` (`<PREV>` = the first of `FN`, `RE`, `DC`, `QA` whose `tasks` row exists and is not `skipped`) to atomically patch `tasks.ST0` + that `<PREV>→ST` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
@@ -110,11 +113,11 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage ST --p
   "open_questions": [{"id":"sw-ST0-1","class":"decision","ref":"retrospective-0.md#elicitation-sweep","blocks_next_stage":false}]}'
 ```
 
-Omitting it loses the fact silently: a stub that reaches only the frontmatter never reaches the FN gate's render, so the question is never asked. Union by `.id`, last writer wins. Canonical: `handoff-protocol.md#facts-union`.
+Omitting it loses the fact silently: a stub that reaches only the frontmatter never reaches the FN gate's render, so the question is never asked. Union by `.id`, last writer wins. Canonical: `skills/worktask/references/contracts/facts-merge.md#facts-union`.
 
 #### Under fn_gate: "bypass"
 
-Under `fn_gate: "bypass"` no later gate exists, so ST emits `open_questions: []` and puts every non-blocking observation under `## followups` (`stage-contracts.md § Under fn_gate: "bypass"`).
+Under `fn_gate: "bypass"` no later gate exists, so ST emits `open_questions: []` and puts every non-blocking observation under `## followups` (`skills/worktask/references/contracts/sweep-obligations.md § Under fn_gate: "bypass"`).
 
 <!-- output-sections:begin stage=ST -->
 ### Artifact anchors

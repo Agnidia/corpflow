@@ -59,9 +59,12 @@ class Subprocess:
                 text=True,
                 timeout=timeout,
             )
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
             # rc 124 (shell/coreutils `timeout` convention); never leak the prompt.
-            return Subprocess(124, "", f"timed out after {timeout}s")
+            output = exc.stdout or ""
+            if isinstance(output, bytes):
+                output = output.decode("utf-8", "replace")
+            return Subprocess(124, output, f"timed out after {timeout}s")
         except (OSError, ValueError) as exc:
             return Subprocess(127, "", f"spawn failed: {exc}")
         return Subprocess(r.returncode, r.stdout, r.stderr)

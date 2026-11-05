@@ -106,7 +106,7 @@ Runs on every agent regardless of `--focus`; findings land in Findings by Area. 
 
 #### Body doctrine — the model-conditioned rows
 
-These three resolve the model from `skills/shared/stage-codes.md § Agent Model Matrix`.
+These three resolve the model from `skills/worktask/references/stage-codes.md § Agent Model Matrix`.
 
 | Check | Finding when | Fix line states |
 |---|---|---|
@@ -125,7 +125,7 @@ A model-conditioned finding is subject to the two guards in `commands/prompt-aud
 
 ### Model Selection
 
-Evaluate model fit against the canonical cost tiers and stage→model mapping: `skills/shared/model-selection.md`, `skills/shared/stage-codes.md`.
+Evaluate model fit against the canonical cost tiers and stage→model mapping: `skills/shared/model-selection.md`, `skills/worktask/references/stage-codes.md`.
 
 ### Frontmatter Audit
 
@@ -142,8 +142,8 @@ Runs on every agent regardless of `--focus`; findings block on the Must Apply ti
 
 | Field | Audit Rule | Severity |
 |-------|------------|----------|
-| `model` | Must be absent — model selection stays a per-dispatch `Agent()` argument (`skills/shared/stage-codes.md § Model alias notes`). Flag a `model:` key in any definition frontmatter as P0; fix is deletion. | P0 |
-| `effort` | Required, equal to the agent's Effort cell in `skills/shared/stage-codes.md § Agent Model Matrix` (`§ Static effort and dispatch overrides`; `agent-effort-frontmatter.bats` holds the parity). Missing or unequal is P0; fix is the matrix value. | P0 |
+| `model` | Must be absent — model selection stays a per-dispatch `Agent()` argument (`skills/worktask/references/stage-codes.md § Model alias notes`). Flag a `model:` key in any definition frontmatter as P0; fix is deletion. | P0 |
+| `effort` | Required, equal to the agent's Effort cell in `skills/worktask/references/stage-codes.md § Agent Model Matrix` (`§ Static effort and dispatch overrides`; `agent-effort-frontmatter.bats` holds the parity). Missing or unequal is P0; fix is the matrix value. | P0 |
 
 #### Frontmatter audit — tools (P1)
 

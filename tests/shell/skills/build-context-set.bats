@@ -79,9 +79,9 @@ JSON
   assert_output "agents/developer.md"
 }
 
-@test "source 1: embedded_commands entries resolve to commands/<name>.md" {
-  mkdir -p "$WD/commands"
-  : > "$WD/commands/worktask.md"
+@test "source 1: embedded_commands entries resolve to a canonical skill entry" {
+  mkdir -p "$WD/skills/worktask"
+  : > "$WD/skills/worktask/SKILL.md"
   cat > "$WD/tasks.json" <<'JSON'
 {"version":2,"tasks":{
   "DV0":{"status":"completed","metadata":{"agent":"corpflow:developer","embedded_commands":"corpflow:worktask"}}
@@ -94,7 +94,7 @@ JSON
   # Each qualified ref probes agents/, commands/ and skills/; only the
   # spellings that exist on disk survive the filter.
   assert_output "agents/developer.md
-commands/worktask.md"
+skills/worktask/SKILL.md"
 }
 
 # --- source 2: CONTEXT_DIR trailers ------------------------------------------

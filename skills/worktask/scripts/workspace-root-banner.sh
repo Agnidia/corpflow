@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # @description workspace-root-banner.sh — the WORKSPACE_ROOT line injected into a stage
-#   prompt, resolved per ledger task (handoff-protocol.md § DV fan-out — ledger tasks).
+#   prompt, resolved per ledger task (skills/worktask/references/contracts/artifact-map.md § DV fan-out — ledger tasks).
 #
 #   A stream row's tree is tasks.<ID>.metadata.workspace_path, never the run-level
 #   metadata: the row is authoritative and the orchestrator root is only the fallback.

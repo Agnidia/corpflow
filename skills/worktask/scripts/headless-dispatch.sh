@@ -163,7 +163,7 @@ fi
 
 # --- parent-mode normalization, moved ahead of the ledger self-read below: a row with no
 # permission_mode of its own (the common shape — PL0 stamps it only on SR/FN under
-# --secure/--full, state-ledger.md:212) inherits this ALREADY-capped value instead of being
+# --secure/--full, skills/worktask/references/contracts/ledger-streams.md#dispatch-writer-rules) inherits this ALREADY-capped value instead of being
 # refused outright (b10). ---
 if [ -n "$PARENT_MODE" ]; then
   [ "$PARENT_MODE" = "default" ] && PARENT_MODE="manual"

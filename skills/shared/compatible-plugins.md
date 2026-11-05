@@ -34,7 +34,7 @@ Entry aliases resolve to qualified `plugin:agent` targets in
 | `ai-engineer` | **own set** + `build-test` (documented exception) |
 
 The integration surface is each plugin's root `CORPFLOW.md`
-(`skills/cross-plugin-handoff/references/plugin-contract.md § A.4`).
+(`skills/cross-plugin-handoff/references/plugin-contract.md#4-a-root-corpflowmd`).
 
 Apple extras: `analyze-issue`, `analyze-localization`, `gen-mock-api`, `fix-security-hardening`,
 `review-swiftui`, `review-uikit`, `review-appkit`.

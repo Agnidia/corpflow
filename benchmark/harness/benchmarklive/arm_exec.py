@@ -50,6 +50,10 @@ class ArmResult:
     plugins: Optional[list] = None          # every plugin the CLI reported, name@version; None if unobserved
     config_leaks: Optional[list] = None     # plugin-cache prefixes read outside the config dir; None if unscanned
     usage_limit: Optional[UsageLimitHit] = None   # set when a stage could not run for the account limit
+    stop_reason: Optional[str] = None
+    attempts: list = field(default_factory=list)
+    overshoot_usd: float = 0.0
+    completed_stages: list = field(default_factory=list)
 
 
 class Dispatching(Protocol):
@@ -58,8 +62,7 @@ class Dispatching(Protocol):
 
 
 class DispatchFailure(Exception):
-    """A stage's ``claude -p`` failed. ``stdout`` is the FULL output, never truncated:
-    the usage-limit classifier and the ``.failed.jsonl`` capture read it from here."""
+    """A failed stage's complete output, retained for accounting and diagnosis."""
 
     def __init__(self, message: str = "", *, stdout: str = "", stderr: str = "",
                  returncode: Optional[int] = None) -> None:
@@ -70,7 +73,7 @@ class DispatchFailure(Exception):
 
 
 class SubprocessDispatcher:
-    """Production dispatcher: shell out to headless `claude -p`, prompt on stdin."""
+    """Run a provider CLI with stdin prompts and retain failure captures."""
 
     def __init__(self, workdir: Optional[str] = None, timeout: Optional[float] = STAGE_TIMEOUT_S,
                  env: Optional[dict] = None) -> None:
@@ -88,7 +91,7 @@ class SubprocessDispatcher:
             # The tail: the failure (a synthetic message, the result event) is emitted last.
             out_snippet = r.stdout.strip()[-400:]
             raise DispatchFailure(
-                f"claude -p failed (rc={r.exit_code}) for argv {argv[:6]}…"
+                f"{argv[0]} dispatch failed (rc={r.exit_code})"
                 + (f" stderr: {snippet}" if snippet else "")
                 + (f" stdout tail: {out_snippet}" if out_snippet else ""),
                 stdout=r.stdout, stderr=r.stderr, returncode=r.exit_code,

@@ -22,7 +22,7 @@ Every `skills/`, `commands/` and `hooks/` path here is relative to the corpflow 
 
 ### Test-Execution Prohibitions (DR)
 
-- DO NOT execute tests. DR is read-only; execution authority is stage-scoped to DV (Executed subset) and QA (full Selected + regression) — canonical: `skills/shared/testing-strategy.md § Test-Execution Authority`. Need runtime evidence → record `requests_test_evidence: <what and why>` in this stage's artifact. The Bash allow-list blocks direct execution, and `hooks/test-execution-gate.sh` is the mechanical backstop.
+- DO NOT execute tests. DR is read-only; execution authority is stage-scoped to DV (Executed subset) and QA (full Selected + regression) — canonical: `skills/worktask/references/testing-strategy.md § Test-Execution Authority`. Need runtime evidence → record `requests_test_evidence: <what and why>` in this stage's artifact. The Bash allow-list blocks direct execution, and `hooks/test-execution-gate.sh` is the mechanical backstop.
 - DO NOT verify a fix works at runtime — DR reviews code, QA verifies runtime; verification needs beyond static review become findings for QA. Compile-only checks stay permitted, requested from the platform's `/<plugin>:build-test --no-test` (plugin per `skills/shared/compatible-plugins.md § Registry`); this agent holds no toolchain.
 
 ### Mid-run escalation
@@ -56,7 +56,7 @@ opinion. Nothing downgrades mid-run.
 
 ## Worktask Integration
 
-Stage owner DR (Developer Review, 5/11); support agent TC (Technical Review, on-demand). Pipeline context: `skills/shared/worktask-stage-context.md`.
+Stage owner DR (Developer Review, 5/11); support agent TC (Technical Review, on-demand). Pipeline context: `skills/worktask/references/worktask-stage-context.md`.
 
 ### DR Stage Owner
 
@@ -64,7 +64,7 @@ Run the review per § DR runbook, the steady-path digest of `commands/tech-code-
 
 #### Reading the DV tasks
 
-DV is one or more ledger tasks, each with its own artifact and tree. Take the artifacts from `refs.dev[]` in your dispatch, or from the ledger per `skills/worktask/references/handoff-protocol.md § Iterating the DV tasks`, and run every check below once per DV task, naming its task id in `§ Findings`. "The DV artifact" below means each of them in turn; "the DV tree" is that row's `metadata.workspace_path`, or the orchestrator root when unset.
+DV is one or more ledger tasks, each with its own artifact and tree. Take the artifacts from `refs.dev[]` in your dispatch, or from the ledger per `skills/worktask/references/contracts/artifact-map.md § Iterating the DV tasks`, and run every check below once per DV task, naming its task id in `§ Findings`. "The DV artifact" below means each of them in turn; "the DV tree" is that row's `metadata.workspace_path`, or the orchestrator root when unset.
 
 #### Reading the DV diffs — fetch and process
 
@@ -80,7 +80,7 @@ A rework round that adds scope (a `## rework-N` section appearing in a DV artifa
 
 ##### No untracked files outside the landed set
 
-Every `?` path from `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/stream-diff.sh --task <DVk> --format names` must be in that DV tree's landed set (`skills/shared/state-ledger.md § The landed set`):
+Every `?` path from `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/stream-diff.sh --task <DVk> --format names` must be in that DV tree's landed set (`skills/worktask/references/contracts/ledger-streams.md § The landed set`):
 
 ```bash
 jq -r --arg root "<DV tree>" '[(.tasks // {})[] | .metadata | select(any(.landed_roots // [] | arrays | .[]; . == $root)) | .landed_paths // [] | arrays | .[] | strings | select(test("\\A[A-Za-z0-9._@+/-]+\\z"))] | unique | .[]' .context/state.json
@@ -126,7 +126,7 @@ Every rejection, undeclared-deviation fails included, cites a resolvable ref: an
 
 #### Test-Scope Check (advisory)
 
-Confirm each DV artifact's `§ Decisions` records the resolved `test_mode` and that its logged test invocations carry the platform's selection flag (`skills/shared/test-selection-syntax.md § Platform handlers`). A missing `dv_test_scope_enforced` audit row for a DV task's dispatch means the injection loop was bypassed. Record either gap in `§ Findings`, never as `verdict: fail` — the orchestrator writes that row, so a stale plugin cache would otherwise block a blameless DV (`skills/worktask/SKILL.md` Step 4.8a).
+Confirm each DV artifact's `§ Decisions` records the resolved `test_mode` and that its logged test invocations carry the platform's selection flag (`skills/shared/test-selection-syntax.md § Platform handlers`). A missing `dv_test_scope_enforced` audit row for a DV task's dispatch means the injection loop was bypassed. Record either gap in `§ Findings`, never as `verdict: fail` — the orchestrator writes that row, so a stale plugin cache would otherwise block a blameless DV (`skills/worktask/references/orchestration.md` Step 4.8a).
 
 #### Visual Evidence Review
 
@@ -165,9 +165,11 @@ hand-edits, or retypes a rejected return into shape.
 - At `-a1` the orchestrator re-dispatches the consultant once with that line, then re-runs DR on the
   `-a2` path. A block at `-a2` is final.
 
+Every `verdict: fail` lists each blocking defect under `handoff.blockers`, one nonblank string per defect, citing repo-relative paths. The re-dispatched DV brief carries this list as its remediation; detail belongs in `developer-review-N.md#findings`.
+
 ### DR runbook
 
-Steady-path digest of `commands/tech-code-review.md` (surface depth) and `skills/shared/stage-contracts.md#tpl-dr`; both stay canonical and win any disagreement. The § DR Stage Owner checks still run. Read the command file only for `--depth deep`, `--pr`, `--ethics` or a dependency-manifest change (its § Dependency Upgrade Review); never Read `stage-contracts.md` or `skills/agent-coordination/references/audit-actions.md`.
+Steady-path digest of `commands/tech-code-review.md` (surface depth) and `skills/worktask/assets/templates/template-dr.md#tpl-dr`; both stay canonical and win any disagreement. The § DR Stage Owner checks still run. Read the command file only for `--depth deep`, `--pr`, `--ethics` or a dependency-manifest change (its § Dependency Upgrade Review); never Read `stage-contracts.md` or `skills/agent-coordination/references/audit-actions.md`.
 
 #### DR runbook — inputs
 
@@ -190,13 +192,14 @@ Per hunk: what it should do; the main path plus one error, empty, boundary or co
 
 - `## verdict`: `Decision: changes-requested` (verdict `fail`) on any open P0/P1, else `Decision: pass`; `Coverage: N files, M hunks reviewed`; one `Source: task=… stream=… source=… reason=…` line per stream-diff block. A re-review keeps each earlier P0/P1 open until fixed or answered. Its scope is the fixed findings plus the rework diff, not a second broad pass: a new P1 or P2 outside the rework diff becomes a `## follow-ups` item, never a new rework round; only a new P0 reopens the review.
 
-#### DR runbook — frontmatter, verbatim from `#tpl-dr`
+#### DR runbook — frontmatter, generated by `skills/worktask/scripts/sync-runbooks.py --write` from `#tpl-dr`
 
 ```yaml
 ---
 handoff:
   stage: DR
   verdict: pass                # pass / fail
+  blockers: []  # required on fail; one string per defect
   summary: "<N files reviewed. M findings, all addressed / K blockers remain>"
   key_decisions:
     - { id: dr1, summary: "<finding or approval>", anchor: "developer-review-N.md#findings" }
@@ -225,7 +228,7 @@ Bash serves only: atomic `.context/state.json` writes (`mv -f`, `sync`, `cat`); 
 
 ### Diff-Only Read Rule (DR)
 
-Cheapest-first when only verdict/decisions/refs or the delta is needed: (1) frontmatter-first — read an upstream artifact's `handoff:` block, not the whole file; (2) diff-only — when `state.json → facts.files_read` lists a source path, use `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/stream-diff.sh --caller DR<N> -- <path>`, not `Read`; (3) anchor-scoped — `Read` one `## anchor` range. Full reads stay available when these are insufficient (document why in `§ Findings`; `offset`/`limit` above 200 lines). Absent `facts.files_read` → normal reads. Canonical: `stage-contracts.md#diff-only-read`.
+Cheapest-first when only verdict/decisions/refs or the delta is needed: (1) frontmatter-first — read an upstream artifact's `handoff:` block, not the whole file; (2) diff-only — when `state.json → facts.files_read` lists a source path, use `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/stream-diff.sh --caller DR<N> -- <path>`, not `Read`; (3) anchor-scoped — `Read` one `## anchor` range. Full reads stay available when these are insufficient (document why in `§ Findings`; `offset`/`limit` above 200 lines). Absent `facts.files_read` → normal reads. Canonical: `skills/worktask/references/contracts/stage-inputs.md#diff-only-read`.
 
 ### Support Agent Pattern
 
@@ -273,15 +276,18 @@ Before marking DR complete, verify (supplement to `stage-contracts.md § Complet
 
 ## Handoff Protocol
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read it in the steady path. Per-stage frontmatter template (paste verbatim at artifact top): `stage-contracts.md#tpl-dr`, inlined in § DR runbook. Prev→this label: `DV→DR`.
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-dr.md` before writing the artifact.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+Frontmatter template: `skills/worktask/assets/templates/template-dr.md#tpl-dr`, inlined in § DR runbook. Prev→this label: `DV→DR`.
+
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 ### State Patch — REQUIRED before return
 
-Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage DR --prev DV`: it atomically patches `tasks.DR0` + the `DV→DR` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter. Exit 3 means the artifact is not on disk — write it and re-run, never continue as if the ledger were patched. If the tool cannot run, don't skip silently: apply the Edit-direct fallback `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage DR --prev DV`: it atomically patches `tasks.DR0` + the `DV→DR` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter. Exit 3 means the artifact is not on disk — write it and re-run, never continue as if the ledger were patched. If the tool cannot run, don't skip silently: apply the Edit-direct fallback `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
@@ -293,7 +299,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage DR --p
   "open_questions": [{"id":"sw-DR0-1","class":"decision","ref":"developer-review-0.md#elicitation-sweep","blocks_next_stage":false}]}'
 ```
 
-Union by `.id` (last writer wins, newest at the tail): never clobbers an upstream stage's entries, and a re-run is byte-identical. Omitting it loses the finding silently. Canonical: `handoff-protocol.md#facts-union`.
+Union by `.id` (last writer wins, newest at the tail): never clobbers an upstream stage's entries, and a re-run is byte-identical. Omitting it loses the finding silently. Canonical: `skills/worktask/references/contracts/facts-merge.md#facts-union`.
 
 <!-- output-sections:begin stage=DR -->
 ### Artifact anchors

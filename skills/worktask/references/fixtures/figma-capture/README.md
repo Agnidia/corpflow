@@ -1,6 +1,6 @@
 # Figma Per-Frame Capture Fixtures
 
-Spec fixtures for the PL-stage Figma Capture Workflow (`skills/worktask/references/pl0-procedure.md
+Spec fixtures for the PL-stage Figma Capture Workflow (`skills/worktask/references/planning-design.md
 § Figma Design Capture`). These describe **expected inputs → outputs** for the
 prompt workflow — they are NOT executable application tests. QA validates the PM's
 behavior against the assertions in each fixture.

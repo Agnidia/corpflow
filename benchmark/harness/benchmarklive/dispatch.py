@@ -1,35 +1,11 @@
-"""Live paired-arm dispatch adapter.
-
-Runs PL→AR→TL→DV→DR→SR→QA→DC→FN→ST one stage per headless ``claude -p``, summing
-REAL tokens/cost, budget-gated, credential-gated. Real dispatch hides behind the
-Dispatching protocol; tests inject fakes so NO real LLM call / spend happens. Exit
-codes: 0 ok / 2 pre-flight decline / 3 no credential / 4 running-tally breach or
-degradation (partial record written FIRST, D6) / 5 an arm's loaded plugins broke its
-contract: WITH loaded a corpflow tree other than the one under test, WITHOUT loaded
-any plugin, or either arm read a plugin cache outside the config dir (partial record
-written, never rotated into history) / 6 a stage hit the account usage limit and waiting
-was off or over its cap (partial record written; the reset time is in the message) /
-1 the WITH arm's ledger could not be seeded (nothing dispatched).
-
-Paired arms (U3/U4): the WITHOUT arm no longer runs a single-shot baseline — both
-arms execute the SAME ordered 10-stage prompt sequence over the SAME shared prompt
-bytes, differing ONLY by ``--agent`` binding, ``--plugin-dir`` and the sibling plugins (WITH)
-vs bare (WITHOUT) and by cwd (``<workdir root>/<id>/{with,without}/``, outside the repo and each its own git
-repo; see ``workdirs``). Both run against one
-isolated config dir (``isolation``); the WITHOUT arm must load zero plugins. ``without_arm="skip"`` (the mechanism default
-and every ``--stages`` subset) runs the WITH arm alone and keeps the WITHOUT
-placeholder byte-stable for every pre-existing caller.
-
-Orchestration only: the stage contract lives in stage_table, argv in settings_argv,
-telemetry in stage_usage, arm types and the dispatch seam in arm_exec, and record
-shapes in records. Every one of their names stays reachable as ``dispatch.<name>``.
-"""
+"""Shared live orchestration for provider-isolated, budgeted benchmark arms."""
 
 from __future__ import annotations
 
 import functools
 import os
 import sys
+import subprocess
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
@@ -47,6 +23,8 @@ from . import plugin_load
 from . import preamble
 from . import usage_limit
 from . import workdirs
+from .diagnostics import capture_diagnostics, merge_diagnostics
+from .providers.claude import preflight
 
 # Re-export shim: callers and tests address these as ``dispatch.<name>``.
 from .arm_exec import (  # noqa: F401
@@ -65,6 +43,7 @@ from .records import (  # noqa: F401
     _arm_verdict,
     _oracle_conforms,
     _stage_attributions,
+    arm_record_path,
     build_arm_record,
     build_live_record,
 )
@@ -156,16 +135,54 @@ def assemble_prompts(prompts_dir: str, stages: list, state_json_text: str,
     return out
 
 
+def _attempt_tokens(parsed):
+    return {key: getattr(parsed, field, None) for key, field in (
+        ("fresh_in", "input_tokens"), ("cache_read", "cache_read"),
+        ("cache_creation", "cache_creation"), ("out", "output_tokens"))}
+
+
+def _instruction_fingerprint(provider, arm, stage):
+    if provider is None or arm != "with":
+        return None
+    try:
+        return provider.instruction_set(stage)["fingerprint"]
+    except (AttributeError, KeyError, TypeError, ValueError, OSError):
+        return None
+
+
+def _record_configuration_block(arm, stage, attempts, captures_dir, workdir, reason, duration):
+    import json
+    attempt = sum(item["stage"] == stage for item in attempts) + 1 if attempts is not None else 1
+    evidence = {"stage": stage, "operation": "prepare and verify stage configuration", "reason": str(reason),
+                "required_recovery": "Restore the canonical role, skills, filesystem, and network restrictions before resuming this stage.",
+                "provider_invoked": False}
+    folder = captures_dir or (os.path.join(workdir, ".context/logs") if workdir else None)
+    path = os.path.join(folder, f"{arm}-{stage}.attempt-{attempt}.verification.json") if folder else None
+    if path is not None:
+        try:
+            os.makedirs(folder, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(evidence, handle, indent=2)
+                handle.write("\n")
+        except OSError:
+            path = None
+    if attempts is not None:
+        attempts.append({"stage": stage, "attempt": attempt, "status": "blocked", "cost_usd": None,
+                         "duration_s": duration, "provider_invoked": False, "reason": str(reason),
+                         "required_recovery": evidence["required_recovery"], "evidence_ref": path})
+
+
 def _dispatch_stage(dispatcher: Dispatching, argv: list, prompt_text: str, arm: str,
                     stage: str, captures_dir: Optional[str],
                     tally: "budget_mod.RunningTally",
                     limit_policy: Optional[usage_limit.LimitPolicy], estimate: float,
-                    interrupted: list, validate_attempt: Callable[[str], bool]) -> tuple:
+                    interrupted: list, validate_attempt: Callable[[str], bool],
+                    provider_adapter=None, attempts=None, workdir=None) -> tuple:
     """Dispatch one stage; returns ``(stdout, seconds)`` or ``(None, 0)`` when stopped.
 
     ``stdout`` and ``seconds`` are the attempt that succeeded. A failure is always persisted
     in full. One that is the account's usage limit is waited out and the SAME stage
-    re-dispatched; its wall time is excluded, but the spend it reported is real and the
+    re-dispatched; quota waiting is excluded, but failed-attempt duration and spend are retained. The
     re-dispatch builds on its files, so its parsed usage is appended to the caller's
     ``interrupted`` list, and its cost is charged to the tally at once. Every retry is
     budget-gated, and an interrupted attempt must pass ``validate_attempt`` before waiting.
@@ -173,20 +190,81 @@ def _dispatch_stage(dispatcher: Dispatching, argv: list, prompt_text: str, arm: 
     ``UsageLimitHit`` without losing the caller's interrupted usage.
     """
     while tally.can_afford(estimate):
+        attempt = (sum(a["stage"] == stage for a in attempts) + 1
+                   if attempts is not None else 1)
         timer = Timer()
         timer.start()
+        if (provider_adapter is not None and isinstance(dispatcher, SubprocessDispatcher)
+                and getattr(provider_adapter, "snapshot", None) is not None):
+            try:
+                provider_adapter.verify_stage(arm, stage)
+            except (ValueError, OSError, subprocess.SubprocessError) as exc:
+                _record_configuration_block(arm, stage, attempts, captures_dir, workdir, exc, timer.elapsed)
+                return None, 0
         try:
             return dispatcher.run(argv, prompt_text), timer.elapsed
         except DispatchFailure as exc:
+            failed_duration = timer.elapsed
+            diagnostic = capture_diagnostics(exc.stdout, workdir, stage,
+                                               _instruction_fingerprint(provider_adapter, arm, stage))
             persist_failed_capture(captures_dir, arm, stage, exc.stdout)
+            if captures_dir is not None:
+                import json
+                _write_capture(captures_dir, f"{arm}-{stage}.attempt-{attempt}.diagnostics.json",
+                               json.dumps({"status": "failed", "duration_s": failed_duration,
+                                           "cost_usd": None, "diagnostics": diagnostic,
+                                           **_attempt_tokens(None)}))
+                _write_capture(captures_dir, f"{arm}-{stage}.attempt-{attempt}.failed.jsonl", exc.stdout)
+            if provider_adapter is not None:
+                try:
+                    parsed = provider_adapter.parse(exc.stdout, stage)
+                except ValueError:
+                    parsed = None
+                tally.add(parsed.cost_usd if parsed else None)
+                if captures_dir is not None:
+                    _write_capture(captures_dir, f"{arm}-{stage}.attempt-{attempt}.diagnostics.json",
+                                   json.dumps({"status": "failed", "duration_s": failed_duration,
+                                               "cost_usd": parsed.cost_usd if parsed else None,
+                                               "diagnostics": diagnostic, **_attempt_tokens(parsed)}))
+                if parsed is not None:
+                    parsed.duration_s = failed_duration
+                    parsed.diagnostics = diagnostic
+                    interrupted.append(parsed)
+                if attempts is not None:
+                    attempts.append({"stage": stage, "attempt": attempt, "status": "failed",
+                                     "cost_usd": parsed.cost_usd if parsed else None,
+                                     "duration_s": failed_duration, "diagnostics": diagnostic,
+                                     **_attempt_tokens(parsed)})
+                policy = limit_policy or usage_limit.LimitPolicy(wait=False)
+                try:
+                    limit = provider_adapter.detect_limit(exc.stdout, policy.now())
+                except ValueError:
+                    limit = None
+                if (parsed is None or limit is None or not validate_attempt(exc.stdout)
+                        or not tally.can_afford(estimate)):
+                    break
+                policy.wait_out(limit, f"{arm} {stage}")
+                continue
             policy = limit_policy or usage_limit.LimitPolicy(wait=False)
             limit = usage_limit.detect(exc.stdout, policy.now())
-            if limit is None:
-                raise
             parsed = capture_mod.parse(exc.stdout)
             tally.add(parsed.cost_usd if parsed is not None else None)
+            if captures_dir is not None:
+                _write_capture(captures_dir, f"{arm}-{stage}.attempt-{attempt}.diagnostics.json",
+                               json.dumps({"status": "failed", "duration_s": failed_duration,
+                                           "cost_usd": parsed.cost_usd if parsed else None,
+                                           "diagnostics": diagnostic, **_attempt_tokens(parsed)}))
             if parsed is not None:
+                parsed.duration_s = failed_duration
+                parsed.diagnostics = diagnostic
                 interrupted.append(parsed)
+            if attempts is not None:
+                attempts.append({"stage": stage, "attempt": attempt, "status": "failed",
+                                 "cost_usd": parsed.cost_usd if parsed else None,
+                                 "duration_s": failed_duration, "diagnostics": diagnostic,
+                                 **_attempt_tokens(parsed)})
+            if limit is None:
+                raise
             if not validate_attempt(exc.stdout) or not tally.can_afford(estimate):
                 break
             policy.wait_out(limit, f"{arm} {stage}")
@@ -205,6 +283,8 @@ def fold_interrupted(usage: StageUsage, interrupted: list) -> None:
     reported nothing still shows what the interrupted attempt spent.
     """
     for parsed in interrupted:
+        usage.duration_s += getattr(parsed, "duration_s", 0.0)
+        usage.diagnostics = merge_diagnostics(usage.diagnostics, getattr(parsed, "diagnostics", None))
         for name in _FOLDED_FIELDS:
             extra = getattr(parsed, name, None)
             if extra is None:
@@ -251,7 +331,8 @@ def run_arm(arm: ArmSpec, prompts_by_stage: dict, dispatcher: Dispatching,
             now_fn: Optional[Callable[[], float]] = None,
             ledger_seeder: Optional[Callable[[str], None]] = None,
             config_dir: Optional[str] = None,
-            limit_policy: Optional[usage_limit.LimitPolicy] = None) -> ArmResult:
+            limit_policy: Optional[usage_limit.LimitPolicy] = None,
+            provider_adapter=None) -> ArmResult:
     """Dispatch one arm's ordered stage sequence under its own running-tally gate.
 
     Both arms call this with identical ``prompts_by_stage``; only ``arm.bind_agent``,
@@ -269,52 +350,116 @@ def run_arm(arm: ArmSpec, prompts_by_stage: dict, dispatcher: Dispatching,
     """
     result = ArmResult(name=arm.name)
     for stage in stages:
-        estimate = budget_mod.estimate_stage_cost(estimate_calc_path, stage=stage,
-                                                  runner=estimate_runner)
+        estimate = (provider_adapter.estimate(stage) if provider_adapter is not None else
+                    budget_mod.estimate_stage_cost(estimate_calc_path, stage=stage,
+                                                  runner=estimate_runner))
         if not tally.can_afford(estimate):
             result.partial = True
+            result.stop_reason = "stage admission budget exhausted"
             break
         prompt_text = prompts_by_stage[stage]
         if ledger_seeder is not None:
             ledger_seeder(stage)
-        argv = build_arm_stage_argv(stage, bind_agent=arm.bind_agent,
-                                    capture_mode=capture_mode, settings_path=settings_path,
-                                    plugin_dir=arm.plugin_dir,
-                                    enabled_plugins=arm.enabled_plugins)
+        configuration_timer = Timer()
+        configuration_timer.start()
+        try:
+            if provider_adapter is not None and getattr(provider_adapter, "snapshot", None) is not None:
+                prompt_text = provider_adapter.compose_prompt(arm, stage, prompt_text)
+            argv = (provider_adapter.build_argv(arm, stage) if provider_adapter is not None else
+                    build_arm_stage_argv(stage, bind_agent=arm.bind_agent,
+                                        capture_mode=capture_mode, settings_path=settings_path,
+                                        plugin_dir=arm.plugin_dir,
+                                        enabled_plugins=arm.enabled_plugins))
+        except (ValueError, OSError, subprocess.SubprocessError) as exc:
+            _record_configuration_block(arm.name, stage, result.attempts, captures_dir, arm.cwd, exc, configuration_timer.elapsed)
+            result.partial = True
+            result.stop_reason = "configuration verification blocked"
+            if persist_partial is not None:
+                persist_partial(result)
+            break
         interrupted = []
         validate_attempt = functools.partial(
             _check_stage_isolation, arm=arm, result=result, stage=stage,
             capture_mode=capture_mode, config_dir=config_dir)
+        if provider_adapter is not None:
+            def validate_attempt(_stdout):
+                try:
+                    provider_adapter.validate_snapshot()
+                except ValueError as exc:
+                    result.plugin_error = str(exc)
+                    result.partial = True
+                    return False
+                return True
         # A throw here propagates with prior stages' partial ALREADY on disk (OI-2).
         try:
             stdout, elapsed = _dispatch_stage(
                 dispatcher, argv, prompt_text, arm.name, stage, captures_dir, tally,
-                limit_policy, estimate, interrupted, validate_attempt)
+                limit_policy, estimate, interrupted, validate_attempt,
+                provider_adapter=provider_adapter, attempts=result.attempts, workdir=arm.cwd)
         except usage_limit.UsageLimitHit as hit:
             result.usage_limit = hit
             stdout = None
+        except DispatchFailure:
+            if interrupted:
+                usage = StageUsage(capture_layer=1)
+                fold_interrupted(usage, interrupted)
+                result.usages.append((stage, usage))
+            result.partial = True
+            result.stop_reason = "dispatch failed"
+            if persist_partial is not None:
+                persist_partial(result)
+            raise
         if stdout is None:
             if any(parsed.has_usage for parsed in interrupted):
                 usage = StageUsage(capture_layer=1)
                 fold_interrupted(usage, interrupted)
                 result.usages.append((stage, usage))
             result.partial = True
+            configuration_blocked = bool(result.attempts and result.attempts[-1].get("status") == "blocked")
+            result.stop_reason = ("configuration verification blocked" if configuration_blocked else
+                                  "attempt accounting unreliable" if not tally.reliable else
+                                  "stage failed or retry budget exhausted")
+            result.overshoot_usd = max(0.0, tally.spent_usd - tally.budget)
             if persist_partial is not None:
                 persist_partial(result)
             break
         persist_capture(captures_dir, arm.name, stage, stdout)
-        usage = capture_stage_usage(stdout, arm.audit_path, stage, now_fn=now_fn)
+        if provider_adapter is not None:
+            try:
+                usage = provider_adapter.usage(stdout, stage)
+            except ValueError:
+                usage = StageUsage()
+                result.stop_reason = "terminal token accounting unreliable"
+            result.attempts.append({"stage": stage, "attempt":
+                                    sum(a["stage"] == stage for a in result.attempts) + 1,
+                                    "status": "completed", "cost_usd": usage.cost_usd})
+        else:
+            usage = capture_stage_usage(stdout, arm.audit_path, stage, now_fn=now_fn)
         usage.duration_s = elapsed
+        usage.diagnostics = capture_diagnostics(stdout, arm.cwd, stage,
+                                                _instruction_fingerprint(provider_adapter, arm.name, stage))
+        if provider_adapter is not None:
+            result.attempts[-1].update({"duration_s": elapsed, "diagnostics": usage.diagnostics,
+                                       **_attempt_tokens(usage)})
         # The tally already holds the interrupted attempts' cost; charge only this one.
         tally.add(usage.cost_usd)
+        result.overshoot_usd = max(0.0, tally.spent_usd - tally.budget)
         fold_interrupted(usage, interrupted)
         result.usages.append((stage, usage))
         result.dispatched += 1
+        if provider_adapter is not None and usage.cost_usd is not None:
+            result.completed_stages.append(stage)
         if usage.capture_layer is None:
             result.partial = True
         validate_attempt(stdout)
         if persist_partial is not None:
             persist_partial(result)
+        if provider_adapter is not None and (not tally.reliable or result.overshoot_usd > 0):
+            result.partial = True
+            result.stop_reason = result.stop_reason or "running stage exceeded arm allowance"
+            if persist_partial is not None:
+                persist_partial(result)
+            break
         if result.plugin_error is not None:
             break
         if stage == "DV" and not dv_produced_swift(arm.cwd):
@@ -381,7 +526,7 @@ def _run_goal(prompts_dir: str, stages: list) -> str:
     return ""
 
 
-def dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
+def _dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
              dispatcher: Optional[Dispatching] = None, env: Optional[dict] = None,
              estimate_runner: Optional[Callable[[list], str]] = None,
              prompts_dir: Optional[str] = None, stages: Optional[list] = None,
@@ -397,7 +542,11 @@ def dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
              workdir_root: Optional[str] = None,
              git_runner: Optional[workdirs.GitRunner] = None,
              wait_on_limit: bool = False,
-             limit_policy: Optional[usage_limit.LimitPolicy] = None) -> int:
+             limit_policy: Optional[usage_limit.LimitPolicy] = None,
+             provider_adapter=None,
+             preflight_runner: Optional[preflight.ProbeRunner] = None,
+             arm_record_dir: Optional[str] = None,
+             grader: Optional[Callable] = None) -> int:
     """Run the live pipeline end-to-end and write the BenchmarkRecord.
 
     ``config_dir`` (else ``BENCH_CONFIG_DIR``, else ``~/.claude-eval``) is the
@@ -418,6 +567,11 @@ def dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
     it is derived from ``without_arm`` so every pre-existing caller keeps its exact
     behaviour. A single-arm selection records only its own arm and gets the whole
     budget — there is no second arm to reserve half for.
+
+    Claude runs probe both arms' plugin sets first and refuse with rc 5 on any mismatch
+    (``preflight_runner``; production uses the real CLI only when ``dispatcher`` is None).
+    Each arm is measured and graded as soon as it stops; a paired run also writes it to
+    ``arm_record_dir`` as a single-arm record that survives a kill of the next arm.
     """
     from . import credentials  # local import keeps credentials optional at import time
 
@@ -433,7 +587,8 @@ def dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
     settings_path = settings_path_for(benchmark_dir)
     # Fail closed: headless dispatch runs under bypassPermissions, so a missing
     # deny-list would run fail-open. Refuse BEFORE any dispatch (SR-M1).
-    require_settings(settings_path)
+    if provider_adapter is None:
+        require_settings(settings_path)
     captures_dir = os.path.join(workdir_path, "captures")
     if selection is None:
         selection = baseline_mod.resolve_arm_selection(
@@ -461,15 +616,33 @@ def dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
     run_id = workdir
     timestamp_utc = now_iso()
     git_sha = git_sha_runner(plugin_root) if git_sha_runner else git_sha7(plugin_root)
-    config_dir = isolation.resolve_config_dir(config_dir, env)
-    child_env = isolation.claude_env(config_dir)
-    with_dispatcher = dispatcher or SubprocessDispatcher(workdir=with_spec.cwd, env=child_env)
-    without_dispatcher = dispatcher or SubprocessDispatcher(workdir=without_spec.cwd, env=child_env)
+    provider_era = None
+    if provider_adapter is not None:
+        try:
+            provider_adapter.prepare(arms_root, env, config_dir, cli_login_runner)
+        except ValueError as exc:
+            warn(str(exc))
+            return 3
+        from .providers.codex.adapter import CodexDispatcher
+        with_spec.plugin_dir = str(provider_adapter.snapshot)
+        if dispatcher is None:
+            provider_adapter.verify_runtime({"with": with_spec, "without": without_spec})
+        with_dispatcher = dispatcher or CodexDispatcher(
+            workdir=with_spec.cwd, env=provider_adapter.env("with"))
+        without_dispatcher = dispatcher or CodexDispatcher(
+            workdir=without_spec.cwd, env=provider_adapter.env("without"))
+        provider_era = provider_adapter.metadata()
+    else:
+        config_dir = isolation.resolve_config_dir(config_dir, env)
+        child_env = isolation.claude_env(config_dir)
+        with_dispatcher = dispatcher or SubprocessDispatcher(workdir=with_spec.cwd, env=child_env)
+        without_dispatcher = dispatcher or SubprocessDispatcher(workdir=without_spec.cwd, env=child_env)
 
     # 1. Credential probe — before ANY dispatch.
     try:
-        credentials.require_credential(env=env, cli_login_runner=cli_login_runner,
-                                       config_dir=config_dir)
+        if provider_adapter is None:
+            credentials.require_credential(env=env, cli_login_runner=cli_login_runner,
+                                           config_dir=config_dir)
     except credentials.CredentialError as e:
         warn(str(e))
         return 3
@@ -477,11 +650,27 @@ def dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
     # 2. Pre-flight budget gate. Every selected arm runs the same stage list.
     arms = len(selection.dispatch)
     try:
-        budget_mod.assert_preflight_within_budget(
-            budget, stages, estimate_calc, arms=arms, runner=estimate_runner)
+        if provider_adapter is None:
+            budget_mod.assert_preflight_within_budget(
+                budget, stages, estimate_calc, arms=arms, runner=estimate_runner)
+        elif sum(provider_adapter.estimate(s) for s in stages) * arms > budget:
+            raise budget_mod.BudgetExceeded("Codex pre-flight projection exceeds allowance")
     except budget_mod.BudgetExceeded as e:
         warn(str(e))
         return 2
+
+    # Both configurations, whatever the selection: a subset or one-arm run still
+    # certifies the baseline before anything is paid for.
+    if provider_adapter is None:
+        runner = preflight_runner or (preflight.default_probe_runner if dispatcher is None
+                                      else None)
+        if runner is not None:
+            verdicts = preflight.run_preflight((without_spec, with_spec), settings_path,
+                                               child_env, runner)
+            for verdict in verdicts:
+                warn(preflight.describe(verdict))
+            if not all(v.ok for v in verdicts):
+                return 5
 
     record_dir = os.path.dirname(record_path)
     if record_dir:
@@ -492,7 +681,8 @@ def dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
     if "with" in selection.dispatch:
         try:
             outcome = ledger_seed.seed_run(
-                with_spec.cwd, plugin_root, run_id,
+                with_spec.cwd, (str(provider_adapter.snapshot)
+                                if provider_adapter is not None else plugin_root), run_id,
                 _run_goal(prompts, stages), runner=seed_runner)
         except ledger_seed.LedgerSeedError as exc:
             warn(f"live run refused: {exc}; nothing was dispatched")
@@ -503,6 +693,10 @@ def dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
     state_json_text = read_state_json_text(workdir_path)
     prompts_by_stage = assemble_prompts(prompts, stages, state_json_text, run_id,
                                         ".context/planning-0.md")
+    if provider_adapter is not None:
+        prompts_by_stage = {s: p.replace("corpflow staged worktask", "staged task")
+                            for s, p in prompts_by_stage.items()}
+        provider_era["workload_digest"] = workload_fingerprint(prompts, stages, state_json_text, run_id)
     # An equal share per selected arm, not one shared purse: the arm dispatched first
     # would otherwise spend the run and leave the second truncated, and a comparison
     # between a complete arm and a starved one measures the budget, not the agent.
@@ -513,7 +707,7 @@ def dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
     results: dict = {}
     apps: dict = {}
 
-    def _compose(partial: bool) -> BenchmarkRecord:
+    def _base_record(partial: bool) -> BenchmarkRecord:
         arm_plugins = {n: r.plugins for n, r in results.items() if r.plugins is not None}
         leaks = {n: r.config_leaks for n, r in results.items() if r.config_leaks is not None}
         if selection.record_shape == baseline_mod.SHAPE_ARM:
@@ -534,15 +728,66 @@ def dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
             with_partial=with_res.partial, plugin=with_res.plugin, arm_plugins=arm_plugins,
             config_leaks=leaks)
 
+    def _stamp_era(record: BenchmarkRecord, arm_results: dict, names) -> BenchmarkRecord:
+        if provider_era is not None:
+            record.era.update(provider_era)
+            record.era["accounting"] = {
+                n: {"allowance_usd": per_arm_budget, "overshoot_usd": r.overshoot_usd,
+                    "stop_reason": r.stop_reason, "attempts": r.attempts,
+                    "reliable": r.stop_reason not in (
+                        "attempt accounting unreliable", "terminal token accounting unreliable"),
+                    "incomplete_stages": [s for s in stages
+                                          if s not in r.completed_stages]}
+                for n, r in arm_results.items()}
+            for n in names:
+                record.era["accounting"].setdefault(
+                    n, {"allowance_usd": per_arm_budget, "overshoot_usd": 0.0,
+                        "stop_reason": "not started", "attempts": [],
+                        "incomplete_stages": list(stages)})
+        elif any(r.attempts for r in arm_results.values()):
+            record.era["accounting"] = {name: {"attempts": result.attempts}
+                                        for name, result in arm_results.items() if result.attempts}
+        return record
+
+    def _compose(partial: bool) -> BenchmarkRecord:
+        return _stamp_era(_base_record(partial), results, selection.dispatch)
+
     def _flush(partial: bool) -> None:
         write_record(_compose(partial), record_path)
 
-    if capture_mode != CAPTURE_STREAM_JSON:
+    # Only a run carrying both arms has an arm worth splitting out; a stage-subset WITH
+    # run would otherwise pair with a full-pipeline WITHOUT arm.
+    split_arms = (arm_record_dir is not None
+                  and selection.record_shape == baseline_mod.SHAPE_PAIRED
+                  and set(selection.dispatch) == {"with", "without"})
+
+    def _write_arm_record(name: str) -> Optional[str]:
+        """Persist one finished arm in the ``--arm`` shape; a write fault only warns."""
+        res = results[name]
+        path = arm_record_path(arm_record_dir, run_id, name)
+        record = build_arm_record(
+            f"{run_id}-{name}", timestamp_utc, git_sha, per_arm_budget, name, res.usages,
+            res.dispatched, arm_partial=res.partial, app=apps.get(name), plugin=res.plugin,
+            arm_plugins={name: res.plugins} if res.plugins is not None else {},
+            config_leaks={name: res.config_leaks} if res.config_leaks is not None else {})
+        try:
+            os.makedirs(arm_record_dir, exist_ok=True)
+            write_record(_stamp_era(record, {name: res}, (name,)), path)
+        except OSError as exc:
+            warn(f"{name} arm record not written to {path}: {exc}")
+            return None
+        warn(f"{name} arm graded; arm record at {path}")
+        return path
+
+    if provider_adapter is None and capture_mode != CAPTURE_STREAM_JSON:
         warn("plugin load unverified: --capture json emits no system/init event, so "
              "era.plugin_path and era.plugins_* are not stamped and the baseline's "
              "zero-plugin claim is unchecked; use stream-json")
 
     for name in selection.dispatch:
+        if provider_adapter is not None:
+            results[name] = ArmResult(name=name)
+            _flush(partial=True)
         def _persist(res: ArmResult, _name: str = name) -> None:
             # OI-2: a budget breach returns an ArmResult, but a throw mid-arm returns
             # nothing, so completed stages only survive if flushed here.
@@ -551,47 +796,90 @@ def dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
 
         results[name] = run_arm(
             specs[name], prompts_by_stage, dispatchers[name],
-            budget_mod.RunningTally(per_arm_budget), estimate_calc, stages,
+            budget_mod.RunningTally(per_arm_budget, strict=provider_adapter is not None),
+            estimate_calc, stages,
             estimate_runner=estimate_runner, capture_mode=capture_mode,
             settings_path=settings_path, captures_dir=captures_dir,
             persist_partial=_persist, now_fn=now_fn, config_dir=config_dir,
-            limit_policy=policy,
+            limit_policy=policy, provider_adapter=provider_adapter,
             ledger_seeder=(functools.partial(ledger_seed.seed_stage, arm_cwd=specs[name].cwd,
-                                             plugin_root=plugin_root, warn=warn,
+                                             plugin_root=(str(provider_adapter.snapshot)
+                                                          if provider_adapter is not None
+                                                          else plugin_root), warn=warn,
                                              runner=seed_runner)
                            if name == "with" else None))
         # Flush as each arm completes so a later arm's breach cannot lose it.
         _flush(partial=True)
-        if results[name].usage_limit is not None:
-            warn(f"live run stopped: {name} arm hit the usage limit: "
-                 f"{usage_limit.describe(results[name].usage_limit)}; partial record at "
-                 f"{record_path}; completed stages are kept, rerun after the reset")
-            return 6
         if results[name].plugin_error is not None:
             # Return before measuring: a wrong-tree run must not spend oracle build time
-            # or reach the caller's history rotation, which keys off a zero exit.
+            # or reach the caller's history rotation, which keys off a zero exit. Checked
+            # before the usage limit so a contaminated arm is never graded.
             warn(f"live run refused: {name} arm broke its plugin contract: "
                  f"{results[name].plugin_error}; partial record at {record_path} "
                  "is not a measurement of this commit")
             return 5
-
-    # Every dispatched arm is measured and graded, including a single-arm run: an arm
-    # with no oracle payload carries no quality signal to compare against.
-    for name in selection.dispatch:
+        # Graded before the next arm starts, partial or not: a kill during the next arm
+        # must not cost this one its oracle score. Dispatch timers have stopped, so
+        # grading stays out of wall_clock_s.
         apps[name] = _measure_arm(
-            specs[name].cwd, plugin_root, results[name].dispatched, warn,
+            specs[name].cwd, plugin_root, results[name].dispatched, warn, grader=grader,
             app_path=baseline_mod.genlib.relative_path(
                 os.path.join(workdir_path, name), plugin_root))
+        _flush(partial=True)
+        arm_path = _write_arm_record(name) if split_arms else None
+        if results[name].usage_limit is not None:
+            warn(f"live run stopped: {name} arm hit the usage limit: "
+                 f"{usage_limit.describe(results[name].usage_limit)}; partial record at "
+                 f"{record_path}"
+                 + (f", graded arm record at {arm_path}" if arm_path else "")
+                 + "; completed stages are kept, rerun after the reset")
+            return 6
+        if provider_adapter is not None and results[name].stop_reason in (
+                "attempt accounting unreliable", "terminal token accounting unreliable", "configuration verification blocked"):
+            warn(f"live run stopped: {name} {results[name].stop_reason}; partial saved at {record_path}")
+            break
 
     # Scoped to the arms that actually dispatched, so an arm that never ran cannot
     # raise the flag on the arm that did.
-    final_partial = any(results[name].partial for name in selection.dispatch)
+    final_partial = (len(results) != len(selection.dispatch)
+                     or any(r.partial for r in results.values()))
 
     write_record(_compose(final_partial), record_path)
 
     if final_partial:
-        dispatched = sum(results[name].dispatched for name in selection.dispatch)
+        dispatched = sum(r.dispatched for r in results.values())
         warn(f"live run partial: {dispatched}/{len(stages) * arms} stages across "
              f"{'+'.join(selection.dispatch)}; record written to {record_path}")
         return 4
     return 0
+
+
+def workload_fingerprint(prompts_dir, stages, state_text="", run_id="<run_id>"):
+    import hashlib
+    prompts = assemble_prompts(prompts_dir, stages, state_text, run_id, ".context/planning-0.md")
+    normalized = {stage: text.replace("corpflow staged worktask", "staged task")
+                  .replace(run_id, "<run_id>") for stage, text in prompts.items()}
+    return hashlib.sha256(json_prompts(normalized).encode()).hexdigest()
+
+
+def json_prompts(prompts):
+    import json
+    return json.dumps(prompts, sort_keys=True)
+
+
+def dispatch(*args, provider="claude", **kwargs):
+    import math
+    allowance = kwargs.get("budget") if "budget" in kwargs else args[1]
+    if not math.isfinite(allowance) or allowance <= 0:
+        raise ValueError("budget must be finite and positive")
+    if provider not in ("claude", "codex"):
+        raise ValueError("provider must be claude or codex")
+    if provider == "claude":
+        return _dispatch(*args, **kwargs)
+    from .providers.codex.adapter import Provider
+    benchmark_dir = kwargs.get("benchmark_dir") or args[3]
+    adapter = Provider(os.path.dirname(benchmark_dir))
+    try:
+        return _dispatch(*args, provider_adapter=adapter, **kwargs)
+    finally:
+        adapter.close()

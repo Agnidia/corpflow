@@ -121,7 +121,7 @@ other gets its output right.
 
 The highest-value target is the `handoff:` frontmatter block, because it is the channel every stage
 communicates through. A stage that mis-shapes it degrades the next stage's input, and
-`skills/worktask/references/handoff-protocol.md#frontmatter-schema` describes that shape without
+`skills/worktask/references/contracts/frontmatter.md#frontmatter-schema` describes that shape without
 showing it.
 
 ### Prompt-body doctrine
@@ -214,7 +214,7 @@ and wrongly dressed.
 ## State Ledger Integration
 
 **Stage**: PE (Prompt Engineering) — support agent, no ledger write of its own. Pipeline context:
-`skills/shared/worktask-stage-context.md`; ledger schema: `skills/shared/state-ledger.md`; model
+`skills/worktask/references/worktask-stage-context.md`; ledger schema: `skills/worktask/references/state-ledger.md`; model
 tiers: `skills/shared/model-selection.md`.
 
 ### DV-stage yield discipline

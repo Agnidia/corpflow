@@ -35,21 +35,21 @@ Given no path, a sibling searched the disk for its contract and loaded another c
 
 ### Model discipline block
 
-The same prompt carries section `[4b]`, the model discipline block for `task.metadata.model`, copied verbatim from `skills/shared/model-prompting.md` (`handoff-protocol.md#cache-prefix`). The sibling cannot tell which model it was dispatched on, so the delegating stage supplies the block.
+The same prompt carries section `[4b]`, the model discipline block for `task.metadata.model`, copied verbatim from `skills/shared/model-prompting.md` (`skills/worktask/references/contracts/prompt-layout.md#cache-prefix`). The sibling cannot tell which model it was dispatched on, so the delegating stage supplies the block.
 
 ## Frontmatter Schema
 
-A cross-plugin agent that takes over a stage uses the full schema in `skills/worktask/references/handoff-protocol.md#frontmatter-schema`. It binds every dev plugin in `skills/shared/compatible-plugins.md` plus the support plugins (`debugging-toolkit:*`, `security-scanning:*`).
+A cross-plugin agent that takes over a stage uses the full schema in `skills/worktask/references/contracts/frontmatter.md#frontmatter-schema`. It binds every dev plugin in `skills/shared/compatible-plugins.md` plus the support plugins (`debugging-toolkit:*`, `security-scanning:*`).
 
 - The artifact opens with `---\nhandoff:\n`.
-- Per-stage required fields per `handoff-protocol.md § Per-stage required-field matrix` — DV `files_touched`; DR/SR `key_decisions`; PL/AR `key_decisions + next_stage_focus`.
-- `state.json` is patched per `handoff-protocol.md#atomic-write`, or not at all — the SubagentStop hook repairs it from the frontmatter.
+- Per-stage required fields per `skills/worktask/references/contracts/required-fields.md § Per-stage required-field matrix` — DV `files_touched`; DR/SR `key_decisions`; PL/AR `key_decisions + next_stage_focus`.
+- `state.json` is patched per `skills/worktask/references/contracts/ledger-writes.md#atomic-write`, or not at all — the SubagentStop hook repairs it from the frontmatter.
 
-The annotated DV block and per-stage deltas a sibling follows: `templates/CORPFLOW.md § Handoff frontmatter`. corpflow's own per-stage templates: `skills/shared/stage-contracts.md § Per-Stage Frontmatter Templates`.
+The annotated DV block and per-stage deltas a sibling follows: `templates/CORPFLOW.md § Handoff frontmatter`. corpflow's own per-stage templates: `skills/worktask/references/contracts/template-rules.md § Per-Stage Frontmatter Templates`.
 
 ### error_file derivation
 
-`.context/errors/<basename>.md`, where basename is the last `:`-separated segment of the agent id (`apple-developer:ios-developer` → `ios-developer.md`). Collision join rule: `skills/shared/state-ledger.md § error_file derivation`; the prefix policy that prevents collisions: `compatible-plugins.md § Naming`.
+`.context/errors/<basename>.md`, where basename is the last `:`-separated segment of the agent id (`apple-developer:ios-developer` → `ios-developer.md`). Collision join rule: `skills/worktask/references/contracts/metadata-artifacts.md § error_file derivation`; the prefix policy that prevents collisions: `compatible-plugins.md § Naming`.
 
 ### Build evidence defaults
 
@@ -145,13 +145,13 @@ Implement the following for the corpflow worktask DV stage:
 
 ### Return Protocol
 
-The external agent marks its task completed, writes the artifact its own DV row names (`metadata.artifact`; `skills/worktask/references/handoff-protocol.md § DV fan-out — ledger tasks`), and returns the summary shape in `templates/CORPFLOW.md § What you return` for the next stage.
+The external agent marks its task completed, writes the artifact its own DV row names (`metadata.artifact`; `skills/worktask/references/contracts/artifact-map.md § DV fan-out — ledger tasks`), and returns the summary shape in `templates/CORPFLOW.md § What you return` for the next stage.
 
 ## Direct Orchestrator Dispatch
 
 The orchestrator loop dispatches `metadata.agent` directly, always in fully-qualified `plugin:agent` form (`corpflow:developer`, `apple-developer:ios-developer`), so the same syntax routes a stage to any installed plugin.
 
-PL0 routes a stage straight to a sibling when the task sits entirely within one plugin's domain and needs no corpflow routing: it seeds the row with the sibling id in `agent` plus every field in `skills/worktask/references/pl0-procedure.md § Downstream propagation`. `error_file` derives from the id when absent, and stage continuity rides on the handoff schema above.
+PL0 routes a stage straight to a sibling when the task sits entirely within one plugin's domain and needs no corpflow routing: it seeds the row with the sibling id in `agent` plus every field in `skills/worktask/references/planning-sizing.md § Downstream propagation`. `error_file` derives from the id when absent, and stage continuity rides on the handoff schema above.
 
 ### Skill Name Resolution
 

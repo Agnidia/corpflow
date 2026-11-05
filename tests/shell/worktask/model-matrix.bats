@@ -80,11 +80,12 @@ SCRIPT="skills/worktask/scripts/model-matrix.sh"
   command -v jq > /dev/null 2>&1 || skip "jq not available"
   # A shadow plugin tree whose stage-codes.md has the heading but zero rows (R3's shape).
   local tree="${BATS_TEST_TMPDIR}/tree"
-  mkdir -p "$tree/skills/shared/lib" "$tree/skills/worktask/scripts" "$tree/agents"
+  mkdir -p "$tree/skills/shared/lib" "$tree/skills/worktask/scripts" \
+    "$tree/skills/worktask/references" "$tree/agents"
   cp "$PLUGIN_ROOT"/skills/worktask/scripts/{model-matrix.sh,model-matrix-lib.sh,effort-ladder.sh} \
     "$tree/skills/worktask/scripts/"
   cp "$PLUGIN_ROOT/skills/shared/lib/state-read-lib.sh" "$tree/skills/shared/lib/"
-  printf '## Agent Model Matrix\n\n| Agent | Model | Effort |\n' > "$tree/skills/shared/stage-codes.md"
+  printf '## Agent Model Matrix\n\n| Agent | Model | Effort |\n' > "$tree/skills/worktask/references/stage-codes.md"
   CONTEXT_DIR="$BATS_TEST_TMPDIR" run bash "$tree/skills/worktask/scripts/model-matrix.sh" --resolved-json
   assert_failure 3
   refute_output --partial '{}'

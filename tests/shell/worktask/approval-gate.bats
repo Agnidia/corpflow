@@ -1,8 +1,8 @@
 #!/usr/bin/env bats
 # Contract tests for the plan-approval carrier PL0.metadata.approved: the three
-# stamp sites in commands/worktask.md, the batch seed in commands/megatask.md,
+# stamp sites in skills/worktask/references/workflow.md, the batch seed in commands/megatask.md,
 # the readers in agents/developer.md and agents/product-manager.md, and the
-# schema entry in skills/shared/state-ledger.md.
+# schema entry in skills/worktask/references/state-ledger.md.
 #
 # LIMITATION, stated so green is not over-read: the approval check is behaviour
 # of an agent, not of a script, so nothing here executes it. What is proven is
@@ -16,12 +16,12 @@
 # nothing.
 load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
-WORKTASK_DOC="commands/worktask.md"
+WORKTASK_DOC="skills/worktask/references/workflow.md"
 AUTO_DECISION_DOC="skills/worktask/references/auto-decision.md"
 MEGATASK_DOC="commands/megatask.md"
 DEVELOPER_DOC="agents/developer.md"
 PRODUCT_MANAGER_DOC="agents/product-manager.md"
-STATE_LEDGER_DOC="skills/shared/state-ledger.md"
+STATE_LEDGER_DOC="skills/worktask/references/state-ledger.md"
 PATCH_SCRIPT="skills/worktask/scripts/state-patch.sh"
 
 # Arms are delimited by literal prose anchors rather than line numbers: line
@@ -52,7 +52,7 @@ setup() {
 # arm_text <file> <begin-re> <end-re> — the half-open [begin, end) slice, so the
 # arms stay disjoint where one arm's end anchor is the next arm's begin anchor.
 arm_text() {
-  local file="$PLUGIN_ROOT/$1" begin="$2" end="$3" b rel
+  local file="$(contract_source "$PLUGIN_ROOT/$1")" begin="$2" end="$3" b rel
   b="$(grep -n -m1 -E "$begin" "$file" | cut -d: -f1)" || true
   [ -n "$b" ] || return 1
   rel="$(tail -n "+$((b + 1))" "$file" | grep -n -m1 -E "$end" | cut -d: -f1)" || true
@@ -70,7 +70,7 @@ extract_reader_set() {
 
 # S — the enum the ledger schema declares.
 extract_schema_set() {
-  awk '/"approved": \{/{f=1} f{print} f&&/\]/{exit}' "$PLUGIN_ROOT/$STATE_LEDGER_DOC" \
+  awk '/"approved": \{/{f=1} f{print} f&&/\]/{exit}' "$(contract_source "$PLUGIN_ROOT/$STATE_LEDGER_DOC")" \
     | sed -n 's/.*"enum": \[\([^]]*\)\].*/\1/p'
 }
 

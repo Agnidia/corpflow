@@ -41,7 +41,7 @@ ship a documented exception — `ai-engineer` is the precedent — recorded in t
 ### 3. Handoff schema
 
 Agents taking over a stage adopt the **full** frontmatter schema from
-`skills/worktask/references/handoff-protocol.md § frontmatter-schema` (per-stage required fields,
+`skills/worktask/references/contracts/frontmatter.md § frontmatter-schema` (per-stage required fields,
 `state.json` patching). Artifacts land in `.context/`; error narratives in
 `.context/errors/<agent-basename>.md`. Findings-bearing consultations (SR, DR) end their return with
 one `consultant-return.v1` object (`skills/cross-plugin-handoff/references/consultant-return-v1.md`),
@@ -103,7 +103,7 @@ Each heading is taken from the project-root file when it has it, else from the u
 
 Template and creation instructions: `../templates/PROJECT-CORPFLOW.md` and
 `routing-matrix.md § Project override`. Resolution happens once at worktask init and
-persists as `state.routing` (`skills/worktask/SKILL.md § Validation check 12`).
+persists as `state.routing` (`skills/worktask/references/orchestration.md § Validation check 12`).
 
 An override replaces a platform's plugin wholesale and must still satisfy § A: it gets the
 same dispatch injection and owes the same handoff schema.
@@ -213,7 +213,7 @@ their own `SKILL.md` are listed in `skills[]`.
 
    Expected: no output.
 3. Confirm the replacement's command set covers every command the old one was invoked with — including
-   embedded commands in `commands/worktask.md` and stage templates.
+   embedded commands in `skills/worktask/references/workflow.md` and stage templates.
 4. Bump MINOR: a replacement changes behavior for every worktask on that platform, so it belongs in
    the CHANGELOG even though no corpflow command changed.
 

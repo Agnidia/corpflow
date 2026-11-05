@@ -45,7 +45,7 @@ lock, the atomic write, and the disk guard.
 
 > corpflow does **not** use Claude Code's `TaskCreate`/`TaskUpdate`/`TaskGet`/`TaskList` tools.
 > No current model (Opus 5.5, Sonnet 5.5, Haiku 5.5 or Fable 5.x) is offered them, so the ledger is the one
-> mechanism that works on every stage. See `skills/shared/state-ledger.md`.
+> mechanism that works on every stage. See `skills/worktask/references/state-ledger.md`.
 
 ## Installation
 

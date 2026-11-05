@@ -2,13 +2,8 @@
 # attachments-preseed.sh — renders the two Conductor-convention attachments
 # (`.context/attachments/PR instructions.md` and `Review request.md`).
 #
-# Both templates are read at run time from
-# skills/worktask/references/conductor-attachments.md (§ Template — `PR
-# instructions.md`, § Template — `Review request.md`); the placeholder tokens
-# are the ones its § Data sources table defines. There is no copy here to keep
-# in sync — this script is Writer 1 (orchestrator pre-gate,
-# skills/worktask/references/fn-gate.md) and the FN agent's Writer 2 renders
-# from the same document.
+# Both writers read attachments-pr-template.md and attachments-review-template.md
+# from skills/worktask/assets/templates/. Placeholder sources: attachments-sources.md.
 #
 # Usage:
 #   attachments-preseed.sh [--workdir DIR] [--worktask-id ID] [--branch NAME]
@@ -143,7 +138,7 @@ if [[ -z "$BRANCH" ]]; then
   BRANCH="${BRANCH:-HEAD}"
 fi
 
-# Base-branch resolution order is conductor-attachments.md § Git & branch state,
+# Base-branch resolution order is skills/worktask/references/attachments-sources.md § Git & branch state,
 # highest first. There is deliberately NO literal fallback: an unresolved base
 # would silently target the wrong branch in the rendered `gh pr create` command.
 if [[ -z "$BASE_BRANCH" ]]; then
@@ -163,7 +158,7 @@ if [[ -z "$BASE_BRANCH" ]] && [[ "$MODE" != "self-test" ]]; then
 fi
 
 if [[ -z "$COMMIT_TYPE" ]]; then
-  # conductor-attachments.md § Plan, issue & verdict fields: the type comes from
+  # skills/worktask/references/attachments-sources.md § Plan, issue & verdict fields: the type comes from
   # facts.goal via branch-lib's derive_type, NOT from the plan file.
   GOAL="$(json_str "$STATE" '.facts.goal')"
   if [[ -n "$GOAL" && -r "$SELF_DIR/branch-lib.sh" ]]; then
@@ -257,13 +252,6 @@ substitute() {
 }
 
 
-# The two templates are read from the reference document at run time rather than
-# carried as a copy here: a copy can drift from the document silently, and the
-# FN agent's own renderer reads the same document. Fail-closed on absence — a
-# half-rendered attachment sends that agent through truncated instructions,
-# which is worse than no attachment at all.
-TEMPLATE_DOC="$SELF_DIR/../references/conductor-attachments.md"
-
 # Out-parameter of load_template. Not a return value: command substitution eats
 # trailing newlines, and the byte-equivalence contract depends on them.
 TEMPLATE_BODY=""
@@ -279,8 +267,13 @@ broken_install() {
 # the emission rule the document states for itself. A trailing blank line at the
 # end of a part is therefore load-bearing.
 load_template() {
-  local name="$1"
-  [[ -r "$TEMPLATE_DOC" ]] || broken_install "template document not readable: $TEMPLATE_DOC"
+  local name="$1" template_doc
+  case "$name" in
+    'PR instructions.md') template_doc="$SELF_DIR/../assets/templates/attachments-pr-template.md" ;;
+    'Review request.md') template_doc="$SELF_DIR/../assets/templates/attachments-review-template.md" ;;
+    *) broken_install "unknown template: $name" ;;
+  esac
+  [[ -r "$template_doc" ]] || broken_install "template document not readable: $template_doc"
   TEMPLATE_BODY="$(awk -v want="## Template — \`$name\`" '
     $0 == want { inblk = 1; next }
     # Template bodies carry their own `## ` headings, so the end-of-section
@@ -289,7 +282,7 @@ load_template() {
     inblk && /^~~~markdown$/ { fence = 1; next }
     inblk && fence && /^~~~$/ { fence = 0; next }
     inblk && fence { print }
-  ' "$TEMPLATE_DOC"; printf 'X')"
+  ' "$template_doc"; printf 'X')"
   TEMPLATE_BODY="${TEMPLATE_BODY%X}"
   [[ -n "${TEMPLATE_BODY//[[:space:]]/}" ]] \
     || broken_install "template section is empty or missing: $name"

@@ -89,7 +89,7 @@ Continuing the same order, after Consistency Checks:
 - `--severity` filters which findings appear; the Summary counts stay unfiltered.
 - Group identical findings across files into a single numbered entry listing the files.
 - Skill-manifest findings share the same numbered Critical/Warnings lists and the same `<file>:<line>` locators; the Summary carries a Skills row.
-- Model-Conditioned Findings are a view, not a second list: every row there is also a numbered entry under Critical or Warnings, shown next to the asset's resolved model (`skills/shared/stage-codes.md § Agent Model Matrix`), which the numbered lists do not carry.
+- Model-Conditioned Findings are a view, not a second list: every row there is also a numbered entry under Critical or Warnings, shown next to the asset's resolved model (`skills/worktask/references/stage-codes.md § Agent Model Matrix`), which the numbered lists do not carry.
 
 ## Audit Rules
 
@@ -97,13 +97,13 @@ Continuing the same order, after Consistency Checks:
 
 1. Valid YAML frontmatter (name, description, `effort:`) with no `model:` key. Flag a `model:` key;
    Fix: delete it, model stays a per-dispatch `Agent()` argument
-   (`skills/shared/stage-codes.md § Model alias notes`). Flag a missing `effort:`, or one unequal
+   (`skills/worktask/references/stage-codes.md § Model alias notes`). Flag a missing `effort:`, or one unequal
    to the agent's matrix Effort cell; Fix: the matrix value
    (`stage-codes.md § Static effort and dispatch overrides`)
-2. Resolved model (matrix, not frontmatter) appropriate for task complexity
+2. Resolved model matches task complexity
 3. Clear purpose statement
 4. No capability overlap with other agents
-5. Worktask stage integration documented, and every stage code referenced still exists in `skills/shared/stage-codes.md` (removed/renamed stages are a critical finding)
+5. Worktask stage integration documented, and every stage code referenced still exists in `skills/worktask/references/stage-codes.md` (removed/renamed stages are a critical finding)
 6. Example interactions provided
 7. `description` follows the trigger-first grammar (G1-G7) and the guidance form matches the failure class — both normative in `agents/prompt-engineer.md § Description grammar` and `§ Form to failure`
 8. Body passes § Body Rules
@@ -132,9 +132,6 @@ Confirm each candidate with the doctrine's branching test. A candidate reached o
 branches is a disclosure finding: report `<file>:<line>`, the span in lines, the branch that
 reaches it, and a Fix line naming the reference file it belongs behind. A candidate every run
 executes end to end is correctly inline.
-
-Example: `skills/worktask/SKILL.md § Orchestrator Execution Loop` is reached branch-wise
-(auto-decision path, megatask mode, screenshot gate), so it is a disclosure finding.
 
 #### Body rule 2 — completion criteria
 
@@ -235,7 +232,7 @@ downgrade cannot tell earned emphasis from inflated.
 ### Planning-Stage Rules
 
 These run on planning-stage assets only: an agent that owns PL, AR or TL in
-`skills/shared/stage-codes.md` (when agents are in scope) and the planning skill
+`skills/worktask/references/stage-codes.md` (when agents are in scope) and the planning skill
 `skills/request-plan/SKILL.md` (when skills are in scope). They also read one file outside every
 loaded class, `skills/worktask/references/pl0-procedure.md`, together with
 `agents/product-manager.md`.

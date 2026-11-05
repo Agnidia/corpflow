@@ -1,6 +1,6 @@
 # Autonomy preflight (Step 2a-pre)
 
-Read from `commands/worktask.md § Step 2a-pre` when the resolved `--auto` contains `plan` or
+Read from `skills/worktask/references/workflow.md § Step 2a-pre` when the resolved `--auto` contains `plan` or
 `finalization`. A run without either value skips this file.
 
 ## Step 2a-pre — Autonomy preflight (unattended runs)

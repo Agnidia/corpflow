@@ -93,3 +93,16 @@ def assemble_stage_prompt(stage: str, worktask_id: str, plan_file: str,
         f"{MARK_CONTRACT_STAGE}\n{contract}\n"
         f"{MARK_TASK}\n{task_body}\n"
     )
+
+
+def assemble_canonical_stage_prompt(prompt: str, instruction_set: dict, ledger_digest: str) -> str:
+    """Use the production composer's canonical sections only in the WITH arm."""
+    header_body = prompt.split(MARK_HEADER + "\n", 1)[1].split(MARK_STATE, 1)[0].rstrip("\n")
+    task_body = prompt.split(MARK_TASK + "\n", 1)[1].rstrip("\n")
+    return (
+        f"{MARK_CONTRACT}\n{instruction_set['contract_reminder']}\n"
+        f"{MARK_HEADER}\n{header_body}\n"
+        f"{MARK_STATE}\n{ledger_digest.rstrip()}\n"
+        f"{MARK_CONTRACT_STAGE}\n{instruction_set['stage_contract'].rstrip()}\n"
+        f"{MARK_TASK}\n{task_body}\n"
+    )

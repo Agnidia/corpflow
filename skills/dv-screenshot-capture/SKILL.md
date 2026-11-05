@@ -466,7 +466,7 @@ The live hook always exits 0 and carries a block as `decision: block` JSON with 
 | All adapters fail including `cli_fallback` | `ok: false`; stdout `error=tool_missing` (exit 2) or `error=render_failed` (exit 3, a tool ran, no usable PNG) | No image is written: a placeholder passes an existence check while proving nothing. Audit `screenshot_capture_failed`; all tools absent adds a tool_missing row. DV reports a failed capture. |
 | Size budget exceeded after pngquant | `oversize_unquantizable` | Move to the oversize/ subdirectory, link-only in `screenshots-<TASK_ID>.md`. Continue. |
 | 5-cap reached | `screenshot_count_exceeded` | Stop further captures. Audit row. Continue. |
-| `Skill()` invocation itself fails | DV catches exception | Escalate per `commands/worktask.md § Error Handling`. Append to `.context/errors/developer.md` (classification: `transient` for retry; `logic` for escalate to AR). Never treat as success. |
+| `Skill()` invocation fails | DV catches exception | Follow `../worktask/references/workflow.md § Error Handling`. Append to `.context/errors/developer.md` (classification: `transient` for retry; `logic` for escalate to AR). Never treat as success. |
 
 ## Redaction
 

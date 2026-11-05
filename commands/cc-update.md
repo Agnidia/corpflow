@@ -13,8 +13,8 @@ related:
   - skills/agent-coordination/references/headless-dispatch.md
   - skills/agent-coordination/references/hook-monitoring.md
   - skills/cross-plugin-handoff/SKILL.md
-  - skills/shared/stage-codes.md
-  - skills/shared/state-ledger.md
+  - skills/worktask/references/stage-codes.md
+  - skills/worktask/references/state-ledger.md
   - skills/worktask/references/handoff-protocol.md
   - skills/worktask/references/resume.md
 ---
@@ -40,7 +40,7 @@ them on; `--worktask-impact-only` only narrows the output.
 | `--dry-run` | — | Preview proposed changes; write nothing (default: off) |
 | `--memory-only` | — | MEMORY.md tracking only; skips file analysis (default: off) |
 | `--agent <name>` | agent file basename (e.g. `developer`) | Restrict to one agent file (default: every agent in scope) |
-| `--command <name>` | command file basename (e.g. `worktask`) | Restrict to one command file (default: every command in scope) |
+| `--command <name>` | command file basename (e.g. `prompt-audit`) | Restrict to one command file (default: every command in scope) |
 
 ### Override options
 
@@ -57,7 +57,7 @@ them on; `--worktask-impact-only` only narrows the output.
 /cc-update 2.1.77 --notes https://github.com/anthropics/claude-code/releases/tag/v2.1.77
 /cc-update 2.1.77 --dry-run                    # preview impact first
 /cc-update 2.1.77 --memory-only                # after manual agent edits
-/cc-update 2.1.77 --agent developer            # one file; --command worktask for a command
+/cc-update 2.1.77 --agent developer            # one file; --command prompt-audit for a command
 /cc-update 2.1.77 --scope agents --notes "New Elicitation hook; agents inherit model"
 /cc-update 2.1.70 --force                      # older than the recorded min version
 /cc-update 2.1.260 --dry-run --notes "claude agents run gains --idle-timeout <s>"   # ledger preview
@@ -191,7 +191,7 @@ it to the owning doc, emit `## Communication Surfaces`, and close the standing r
 | Surface | Keywords | Owning files |
 |---------|----------|--------------|
 | **Cross-session** | SendMessage, ListAgents, notify_when_idle, crossSessionInbound, dialogExpiry, refused/dropped/oversized/burst_limited/held, session list truncated, inbox socket, Desktop routing, `claude agents`/`attach`/`logs`/`stop`/`rm`, Notification push, @-mention | `agent-coordination/references/cross-session-messaging.md § Cross-session reach & SendMessage authority`, `worktask/references/resume.md § Reattach rows` + `§ Reply routing`, `worktask/scripts/stale-check.sh` |
-| **Cross-agent** | `Agent(name:)`, teammate, background subagent reply, maxTurns partial, CLAUDE_CODE_SUBAGENT_MODEL, fallback model, spawn depth, idle notification | `agent-coordination/SKILL.md`, `worktask/SKILL.md § Step 6.5`, `shared/model-selection.md` |
+| **Cross-agent** | `Agent(name:)`, teammate, background subagent reply, maxTurns partial, CLAUDE_CODE_SUBAGENT_MODEL, fallback model, spawn depth, idle notification | `agent-coordination/SKILL.md`, `skills/worktask/references/completion-merge.md#step-65`, `shared/model-selection.md` |
 
 ### Comms — cross-plugin surface
 
@@ -215,7 +215,7 @@ becomes sub-rows `1a`/`1b` rather than a "partially confirmed" status, so the ba
 
 1. `claude agents --json` key baseline — run `claude agents --json | jq 'first | keys'` and diff against `headless-dispatch.md § Schema Versioning Watch`; teammate row `kind` and own-name key are open. Evidence names the build observed (`claude --version`), which may differ from `<version>`.
 2. Background-task notification ID key (`hook-monitoring.md`, defensive coalesce).
-3. `launchAck.partial` maxTurns flag name (`worktask/SKILL.md § Step 6.5`).
+3. `launchAck.partial` maxTurns flag name (`skills/worktask/references/completion-merge.md#step-65`).
 4. `PreModelSwitch` / `SessionStart`-resume payload field names (`hook-monitoring.md`, `hooks/model-switch-gate.sh` header CONFIRMED/ASSUMED split).
 
 ### Comms — sibling follow-ups
@@ -229,8 +229,8 @@ template anchor that changed.
 
 Every new CLI flag, agent-frontmatter key, tool parameter, or `claude agents --json` row key is a
 candidate for the workflow state: the `task.metadata` → `claude -p --agent` flag bridge
-(`headless-dispatch.md § Translation Table`), the `task.metadata` schema (`shared/state-ledger.md`),
-`facts.dispatched_agents[]` and `facts.capabilities{}` (`handoff-protocol.md § state-json-schema`),
+(`headless-dispatch.md § Translation Table`), the `task.metadata` schema (`skills/worktask/references/state-ledger.md`),
+`facts.dispatched_agents[]` and `facts.capabilities{}` (`skills/worktask/references/contracts/ledger-root.md § state-json-schema`),
 and the megatask `orchestrator.json` / `workspace.json` (`megatask/references/schemas.md`). Decide
 once per candidate and emit `## Ledger Field Review`.
 

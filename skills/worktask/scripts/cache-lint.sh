@@ -8,7 +8,7 @@
 #      Reads a prompt-log.jsonl (one prompt per line, schema:
 #        {"worktask_id": "...", "stage": "...", "prompt": "..."}
 #      where `prompt` contains the marker tags named in
-#      handoff-protocol.md#cache-prefix as section delimiters:
+#      skills/worktask/references/contracts/prompt-layout.md#cache-prefix as section delimiters:
 #      <<<contract-reminder>>>, <<<worktask-header>>>, <<<state-json>>>,
 #      <<<stage-contract>>>, <<<model-discipline>>>, <<<task-description>>>,
 #      <<<retry-hints>>>, <<<stage-banners>>>.
@@ -30,7 +30,7 @@
 #      Every log line whose prompt carries the <<<state-json>>> marker gets
 #      section [3] checked unconditionally (no opt-in field): the first
 #      non-empty line must be `ledger: .context/state.json`, all six digest
-#      keys must appear in handoff-protocol.md#cache-prefix order, and an
+#      keys must appear in skills/worktask/references/contracts/prompt-layout.md#cache-prefix order, and an
 #      embedded ledger (a line opening with `{`, or a `"tasks"`/`"facts"`
 #      token) is rejected. A line with no [3] section at all is skipped.
 #
@@ -41,7 +41,7 @@
 #   2. Anchor lint:
 #        cache-lint.sh --anchor-lint <artifact.md>
 #      Verifies the artifact's H2 headings match the per-stage allow-list
-#      from skills/worktask/references/handoff-protocol.md#anchor-allow-list.
+#      from skills/worktask/references/contracts/artifact-anchors.md#anchor-allow-list.
 #      Stage is read from the artifact's `handoff:` frontmatter block (yq when
 #      it parses it; awk subset fallback when yq is absent OR errors).
 #      Exits 1 on missing/extra anchors.
@@ -53,10 +53,10 @@
 #        - Inside it, there is exactly one fenced ```yaml block.
 #        - That block contains a `handoff:` mapping with a `stage:` value.
 #        - The `stage:` value matches the canonical agent→stage mapping.
-#        - The block is ≤30 lines (per handoff-protocol.md#frontmatter-schema).
+#        - The block is ≤30 lines (per skills/worktask/references/contracts/frontmatter.md#frontmatter-schema).
 #      Drift-detection guard: catches "someone re-inlined boilerplate" or
 #      changed the per-stage frontmatter template inconsistently between
-#      agents and `skills/shared/stage-contracts.md § Per-Stage Frontmatter
+#      agents and `skills/worktask/references/stage-contracts.md § Per-Stage Frontmatter
 #      Templates`. Exits 1 on any failure; lists every offending agent.
 #
 #   4. Filename lint:
@@ -96,8 +96,8 @@
 #        cache-lint.sh --self-test   (alias: --selftest)
 #      Runs all modes against built-in fixtures (tempdir). Exits 0 on pass.
 #
-# Reference: skills/worktask/references/handoff-protocol.md#cache-prefix
-#            skills/shared/stage-contracts.md#per-stage-frontmatter-templates
+# Reference: skills/worktask/references/contracts/prompt-layout.md#cache-prefix
+#            skills/worktask/references/contracts/template-rules.md#per-stage-frontmatter-templates
 
 set -euo pipefail
 
@@ -108,12 +108,12 @@ usage() {
 
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { usage; }
 
-# ---------- Anchor allow-list (mirrors handoff-protocol.md#anchor-allow-list) ----------
+# ---------- Anchor allow-list (mirrors skills/worktask/references/contracts/artifact-anchors.md#anchor-allow-list) ----------
 # POSIX-compatible lookup (bash 3.2 has no associative arrays).
 # One row per stage: <code> <agent-basename> <canonical-artifact-basename> <anchors…>.
 #
 # One row, not four parallel case tables: a new stage otherwise stayed half-added and nothing
-# could report which table was missed. Anchors mirror handoff-protocol.md#anchor-allow-list,
+# could report which table was missed. Anchors mirror skills/worktask/references/contracts/artifact-anchors.md#anchor-allow-list,
 # basenames its #stage-artifact-map, agents stage-contracts.md § Per-Stage Frontmatter
 # Templates; UNIVERSAL_ANCHORS and OPTIONAL_ANCHOR_RE add the stage-independent obligations.
 _STAGE_TABLE='PL product-manager planning requirements acceptance-criteria scope out-of-scope risks complexity stages summary
@@ -650,7 +650,7 @@ ledger_digest_lint() {
 
 # ---------- Forbidden-token scanner ----------
 # Scans ONE section's text for the seven forbidden-token classes named in
-# handoff-protocol.md#cache-prefix (mirrored verbatim in
+# skills/worktask/references/contracts/prompt-layout.md#cache-prefix (mirrored verbatim in
 # coordination-0.md#shared-snippets so no second taxonomy is ever invented):
 #   timestamp / ENV expansion / UUID / $RANDOM / retry-counter / mtime /
 #   agent-specific-name-beyond-worktask_id.
@@ -949,11 +949,11 @@ frontmatter_template_lint() {
       # bash 3.2 has no ${var,,} — lowercase via tr for the anchor slug.
       local stage_lc
       stage_lc=$(printf '%s' "$stage_expected" | tr '[:upper:]' '[:lower:]')
-      if grep -qE "stage-contracts\.md#tpl-${stage_lc}\b" <<< "$section_body"; then
+      if grep -qE "(stage-contracts\.md|assets/templates/template-${stage_lc}\.md)#tpl-${stage_lc}\b" <<< "$section_body"; then
         echo "frontmatter-template-lint: $agent (stage=$stage_expected, pointer-only) ok"
         continue
       fi
-      echo "frontmatter-template-lint: $agent FAIL: no inline yaml block AND no stage-contracts.md#tpl-$stage_expected pointer found in Handoff Protocol" >&2
+      echo "frontmatter-template-lint: $agent FAIL: no inline yaml block AND no skills/worktask/assets/templates/template-${stage_lc}.md#tpl-${stage_lc} pointer found in Handoff Protocol" >&2
       rc=1; continue
     fi
 
@@ -988,7 +988,7 @@ frontmatter_template_lint() {
 
     nlines=$(printf '%s\n' "$body" | wc -l | tr -d ' ')
     if (( nlines > 30 )); then
-      echo "frontmatter-template-lint: $agent FAIL: yaml block has $nlines lines (limit 30 per handoff-protocol.md#frontmatter-schema)" >&2
+      echo "frontmatter-template-lint: $agent FAIL: yaml block has $nlines lines (limit 30 per skills/worktask/references/contracts/frontmatter.md#frontmatter-schema)" >&2
       rc=1; continue
     fi
 

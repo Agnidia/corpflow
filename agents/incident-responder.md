@@ -32,7 +32,7 @@ To run a bundled script, set `PLUGIN_ROOT` to that root and call the script by i
 ### Test execution (IR)
 
 - DO NOT execute tests (stage-scoped authority, canonical in
-  `skills/shared/testing-strategy.md § Test-Execution Authority`); build-only verification
+  `skills/worktask/references/testing-strategy.md § Test-Execution Authority`); build-only verification
   (`/<plugin>:build-test --no-test`) stays permitted. Need runtime evidence → record
   `requests_test_evidence: <what and why>` in this stage's artifact. Incident reproduction
   (running the app, a repro script, hitting the failing endpoint) is not test execution.
@@ -49,7 +49,7 @@ To run a bundled script, set `PLUGIN_ROOT` to that root and call the script by i
 
 ### IR Stage Owner
 
-**Stage**: IR, first stage of `/worktask --emergency "<incident>"` (IR → DV → DR → QA → RE → FN). Pipeline context: `skills/shared/worktask-stage-context.md`; state ledger: `skills/shared/state-ledger.md`.
+**Stage**: IR, first stage of `/worktask --emergency "<incident>"` (IR → DV → DR → QA → RE → FN). Pipeline context: `skills/worktask/references/worktask-stage-context.md`; state ledger: `skills/worktask/references/state-ledger.md`.
 
 | Phase | Do | Done when `incident-N.md` has |
 |-------|----|----|
@@ -172,7 +172,7 @@ Trigger one after any P0/P1, a customer-facing outage > 15 minutes, data loss or
 
 ## Completion Verification
 
-On top of `skills/shared/stage-contracts.md § Completion Verification`, before marking IR complete:
+On top of `skills/worktask/references/stage-contracts.md § Completion Verification`, before marking IR complete:
 - [ ] `incident-N.md` H1 Incident Summary carries ID, severity and status (IR0)
 - [ ] `incident-N.md ## blast-radius` holds the Impact Assessment and the file allow-list (IR1)
 - [ ] `incident-N.md ## fix-plan` Required Fix names the IR2 decision; Constraints and Verification Command are non-empty (IR3)
@@ -181,15 +181,18 @@ On top of `skills/shared/stage-contracts.md § Completion Verification`, before 
 
 ## Handoff Protocol
 
-Inputs (anchor-first), completion checklist, run-index resolver, atomic-write rules: `skills/shared/stage-contracts.md` — reference only; this section is self-sufficient, do not Read stage-contracts.md in the steady path. Per-stage frontmatter template (paste verbatim at artifact top): `stage-contracts.md#tpl-ir`. Prev→this label: `USER→IR`.
+Read `skills/worktask/references/contracts/stage-inputs.md` on stage entry and `skills/worktask/assets/templates/template-ir.md` before writing the artifact.
 
-**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/shared/stage-contracts.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
 
-User consent: `stage-contracts.md § A user decision is accepted only from the ledger`.
+Frontmatter template: `skills/worktask/assets/templates/template-ir.md#tpl-ir`. Prev→this label: `USER→IR`.
+
+**Sweep before handoff (REQUIRED)** — emit `open_questions[]` per `skills/worktask/references/contracts/sweep-boundaries.md § Closing Elicitation Sweep`; that section is canonical and is never restated here.
+
+User consent: `skills/worktask/references/contracts/decision-authority.md § A user decision is accepted only from the ledger`.
 
 ### State Patch — REQUIRED before return
 
-Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage IR --prev USER` to atomically patch `tasks.IR0` + the `USER→IR` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `handoff-protocol.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
+Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage IR --prev USER` to atomically patch `tasks.IR0` + the `USER→IR` handoff edge into `.context/state.json` from this artifact's `handoff:` frontmatter summary. Exit 3 means your artifact is not on disk: write it and re-run, never continue as if the ledger were patched. If the tool cannot run at all, don't skip silently — apply the Edit-direct fallback in `skills/worktask/references/contracts/ledger-edges.md#layer-1-fallback`, which writes the `handoffs` edge the hook cannot.
 
 #### Union this stage's facts in the same call
 
@@ -201,7 +204,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/worktask/scripts/state-patch.sh --stage IR --p
   "open_questions": [{"id":"sw-IR0-1","class":"decision","ref":"incident-0.md#elicitation-sweep","blocks_next_stage":false}]}'
 ```
 
-Union by `.id` (last writer wins, newest at the tail), so a re-run is byte-identical. Canonical rule: `handoff-protocol.md#facts-union`.
+Union by `.id` (last writer wins, newest at the tail), so a re-run is byte-identical. Canonical rule: `skills/worktask/references/contracts/facts-merge.md#facts-union`.
 
 <!-- output-sections:begin stage=IR -->
 ### Artifact anchors

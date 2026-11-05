@@ -20,7 +20,7 @@ S3_REFS='.tasks | to_entries
   | sort_by(.key | ltrimstr("DV") | tonumber)
   | .[] | ((.value.artifact // .value.metadata.artifact // empty) | split("/") | last) + "#files-changed"'
 
-# The pin rule of handoff-protocol.md § Pinning a row's tree, as data: prints every DV row id
+# The pin rule of skills/worktask/references/contracts/artifact-map.md § Pinning a row's tree, as data: prints every DV row id
 # that carries metadata.stream and shares its workspace_path with another DV row when neither
 # reaches the other through blocked_by, transitively. Ledgers are acyclic, so recurse ends.
 PIN_RULE='.tasks as $t
@@ -63,12 +63,12 @@ write_dr() {
 
 @test "AC2: no downstream contract template or I/O row names a bare development-N.md" {
   cd "$PLUGIN_ROOT"
-  run bash -c "awk '/^### #tpl-(dr|sr|qa|dc|re) /{f=1} /^### #tpl-(fn|st|ir|et|pl|ar|tl|dv) /{f=0} f' skills/shared/stage-contracts.md"
+  run bash -c "awk '/^### #tpl-(dr|sr|qa|dc|re) /{f=1} /^### #tpl-(fn|st|ir|et|pl|ar|tl|dv) /{f=0} f' '$(contract_source "$PLUGIN_ROOT/skills/worktask/references/stage-contracts.md")'"
   assert_success
   [[ "$output" == *"#tpl-re"* ]] || fail "template slice is empty; the heading shape moved"
   run bash -c "printf '%s\n' \"\$1\" | grep -nE '\\bdevelopment-(N|[0-9]+)\\.md\\b'" _ "$output"
   assert_failure 1
-  run grep -nE '^\| \*\*(DR|SR|QA|DC|RE)\*\* \|.*development-N\.md' skills/shared/stage-contracts.md
+  run grep -nE '^\| \*\*(DR|SR|QA|DC|RE)\*\* \|.*development-N\.md' skills/worktask/references/contracts/stage-table.md
   assert_failure 1
 }
 
@@ -91,7 +91,7 @@ write_dr() {
 }
 
 @test "S3: handoff-protocol.md spells the iteration idiom this suite executes" {
-  local doc="$PLUGIN_ROOT/skills/worktask/references/handoff-protocol.md" line
+  local doc="$(contract_source "$PLUGIN_ROOT/skills/worktask/references/handoff-protocol.md")" line
   while IFS= read -r line; do
     line="${line#"${line%%[![:space:]]*}"}"
     grep -qF -- "$line" "$doc" || fail "S3 drifted: handoff-protocol.md no longer carries: $line"
@@ -270,7 +270,7 @@ bare_dev_literals() {
 
 # step_48_slice <SKILL.md> — the body of #### Step 4.8, through its ##### subsections.
 step_48_slice() {
-  awk '/^#### Step 4\.8$/ { f = 1; next } f && /^#+ / && !/^##### / { f = 0 } f' "$1"
+  awk '/^#### Step 4\.8$/ { f = 1; next } f && /^#+ / && !/^##### / { f = 0 } f' "$(contract_source "$1")"
 }
 
 # A test on the row's own path being empty is dead: --task-create refuses a DV row without one,
@@ -303,17 +303,17 @@ EOF
   run grep -rhE "^#{2,6} Pinning a row's tree$" agents skills commands
   assert_output "#### Pinning a row's tree"
   run grep -rlE "^#{2,6} Pinning a row's tree$" agents skills commands
-  assert_output "skills/worktask/references/handoff-protocol.md"
+  assert_output "skills/worktask/references/contracts/artifact-map.md"
   run grep -rlF 'neither row reaches the other through `blocked_by`' agents skills commands
-  assert_output "skills/worktask/references/handoff-protocol.md"
+  assert_output "skills/worktask/references/contracts/artifact-map.md"
 }
 
 @test "B1: SKILL.md Step 4.8 cites the canonical pin rule and has no dead empty-path condition" {
   cd "$PLUGIN_ROOT"
-  run step_48_slice skills/worktask/SKILL.md
+  run step_48_slice skills/worktask/references/orchestration.md
   assert_success
   [[ "$output" == *"pin the tree"* ]] || fail "Step 4.8 slice is empty or lost its pin subsection"
-  [[ "$output" == *"handoff-protocol.md § Pinning a row's tree"* ]] || fail "Step 4.8 no longer cites the pin rule"
+  [[ "$output" == *"skills/worktask/references/contracts/artifact-map.md § Pinning a row's tree"* ]] || fail "Step 4.8 no longer cites the pin rule"
   run bash -c 'printf "%s\n" "$1" | grep -nE "$2"' _ "$output" "$DEAD_PIN_RE"
   assert_failure 1
 }
@@ -330,7 +330,7 @@ EOF
 dispatch_step48() {
   env -u WORKSPACE_ROOT -u MILESTONE_MODE -u CONTEXT_DIR -u CLAUDE_PROJECT_DIR \
     node "$PLUGIN_ROOT/$DV_FIX/dispatch-step48.js" \
-    "$PLUGIN_ROOT/skills/worktask/SKILL.md" "$1" "$2" "$3"
+    "$(contract_source "$PLUGIN_ROOT/skills/worktask/references/orchestration.md")" "$1" "$2" "$3"
 }
 
 @test "pinned session serializes a later stream on its assigned tree" {

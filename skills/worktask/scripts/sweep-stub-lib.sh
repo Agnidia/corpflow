@@ -37,7 +37,7 @@ SWEEP_ID_RE='^sw-[A-Z]{2}[0-9]+-[0-9]+$'
 # The whole class vocabulary. Space-delimited so a `case` and a jq --argjson both derive from it.
 # Deliberately two values. A risk-shaped observation — one that records something without asking
 # anything — is NOT a sweep item and gets no class here: it belongs in the artifact's `follow-ups`
-# anchor (`skills/shared/stage-contracts.md § A risk-shaped observation is not a sweep item`).
+# anchor (`skills/worktask/references/contracts/sweep-items.md § A risk-shaped observation is not a sweep item`).
 SWEEP_CLASS_ENUM='decision escalate'
 
 # An optional `.md` path, then exactly one `#`, then a non-empty lowercase-kebab anchor. The

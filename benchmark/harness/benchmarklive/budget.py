@@ -104,19 +104,23 @@ class RunningTally:
     only a stage heavier than every predecessor can still breach the cap.
     """
 
-    def __init__(self, budget: float) -> None:
+    def __init__(self, budget: float, strict: bool = False) -> None:
         self.budget = budget
         self.spent_usd = 0.0
         self.max_stage_usd = 0.0
+        self.strict = strict
+        self.reliable = True
 
     def reserve(self, next_stage_estimate: float) -> float:
         return max(next_stage_estimate, self.max_stage_usd)
 
     def can_afford(self, next_stage_estimate: float) -> bool:
-        return self.spent_usd + self.reserve(next_stage_estimate) <= self.budget
+        return self.reliable and self.spent_usd + self.reserve(next_stage_estimate) <= self.budget
 
     def add(self, real_cost: Optional[float]) -> None:
         if real_cost is None:
+            if self.strict:
+                self.reliable = False
             return
         self.spent_usd += real_cost
         self.max_stage_usd = max(self.max_stage_usd, real_cost)

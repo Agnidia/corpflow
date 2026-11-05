@@ -7,7 +7,6 @@ related:
   - agents/technical-writer.md
   - commands/docs-audit.md
   - commands/docs-release-notes.md
-  - commands/worktask.md
 ---
 
 # README Update Command

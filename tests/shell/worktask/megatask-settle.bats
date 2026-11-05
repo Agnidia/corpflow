@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Contract tests for skills/worktask/scripts/megatask-settle.sh — the write every "→ USER"
-# stop makes first under a /megatask per-issue run (skills/worktask/SKILL.md § USER under
+# stop makes first under a /megatask per-issue run (skills/worktask/references/orchestration.md § USER under
 # /megatask):
 #   - a per-issue ledger (PL0.metadata.megatask_group) settles its own worktree's
 #     workspace.json as failed / escalated_to_user, with one megatask_escalated row;
@@ -16,8 +16,8 @@ load "${BATS_TEST_DIRNAME}/../../lib/test_helper.bash"
 
 SCRIPT="skills/worktask/scripts/megatask-settle.sh"
 MONITOR="hooks/megatask-monitor.sh"
-SKILL_DOC="skills/worktask/SKILL.md"
-WORKTASK_DOC="commands/worktask.md"
+SKILL_DOC="skills/worktask/references/orchestration.md"
+WORKTASK_DOC="skills/worktask/SKILL.md"
 
 # Megatask root with its own ledger, group milestone-9: issue 41 (in progress, the worktree
 # under test) blocks issue 42. Mirrors what init-worktree.sh and build-orchestrator.sh leave.
@@ -154,13 +154,13 @@ settle() {
 @test "docs: every USER site under /megatask points at the rule, and /worktask holds the grant" {
   local rule grant
   rule="$(awk '$0 == "### USER under /megatask" {f=1; next} f && /^#/ {exit} f {print}' \
-    "$PLUGIN_ROOT/$SKILL_DOC")"
+    "$(contract_source "$PLUGIN_ROOT/$SKILL_DOC")")"
   [ -n "$rule" ] || fail "no § USER under /megatask in $SKILL_DOC"
   printf '%s' "$rule" | grep -qF "bash \${CLAUDE_PLUGIN_ROOT}/$SCRIPT --subject" \
     || fail "§ USER under /megatask does not run $SCRIPT"
   printf '%s' "$rule" | grep -qF 'stopForUser' || fail "the rule does not cover stopForUser"
   # Mid-run escalation, the refused-landing report, and Step 7's blocked row.
-  [ "$(grep -cF '§ USER under /megatask' "$PLUGIN_ROOT/$SKILL_DOC")" -ge 3 ] \
+  [ "$(grep -cF '§ USER under /megatask' "$(contract_source "$PLUGIN_ROOT/$SKILL_DOC")")" -ge 3 ] \
     || fail "fewer than three USER sites in $SKILL_DOC point at § USER under /megatask"
   grant="$(sed -n 's/^allowed-tools: //p' "$PLUGIN_ROOT/$WORKTASK_DOC")"
   printf '%s' "$grant" | grep -qF "Bash(bash \${CLAUDE_PLUGIN_ROOT}/$SCRIPT *)" \
