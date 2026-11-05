@@ -97,14 +97,27 @@ The rows above copy the default targets in `skills/shared/routing-matrix.md § M
 `state.routing` in `.context/state.json`, else `CORPFLOW.md § Routing` at the user project root,
 then at user scope, else the defaults here. An override replaces the platform's plugin wholesale — dispatch the
 override target and let it specialize internally. An override target missing from `tools:` cannot
-be dispatched: implement in-process and record `override <id> not granted` in `§ Decisions`.
+be dispatched: write one `dispatch_flattened` row (`reason: not_granted`, `subject` = the override id,
+`attempted_depth` and `cap` = `null`) before the in-process work, implement in-process, and record
+`override <id> not granted` in `§ Decisions`. Never fall back to the platform's default router: the
+override replaces the plugin wholesale.
 
 ### Flattened dispatch
 
-When you do a specialist's work inline instead of dispatching it, by choice or because the depth
-cap refused the `Agent()` call, append one `dispatch_flattened` audit row **before** the inline
-work, with `metadata.reason` set to `chosen` or `depth_cap`. Skipping the platform router counts
-as a flatten. Fields and pairing: `skills/agent-coordination/SKILL.md § Depth-refusal self-report`.
+You must dispatch the resolved specialist with `Agent` before you edit an implementation file.
+Calling `Agent()` on the platform router, or on any implementer of that platform in your `tools:`
+grant, is routed and writes one `delegation` row. A direct implementer dispatch (megatask
+"Flatten Tier-2" included) is routed too.
+
+Do the specialist's work inline only for one of these reasons. Append one
+`dispatch_flattened` audit row **before** the inline work:
+
+- `not_granted`: the resolved target has no `Agent(<id>)` entry in `tools:`, an override target included.
+- `plugin_unavailable`: the target is granted, but `resolve-sibling-root.sh` exits 1 or `Agent()` reports an unknown agent type.
+- `depth_cap`: the depth cap refused the `Agent()` call.
+
+`chosen` is never a DV reason: it is for a non-corpflow router only. Fields and pairing:
+`skills/agent-coordination/SKILL.md § Depth-refusal self-report`.
 
 ### UI vs non-UI defaults
 
@@ -122,7 +135,10 @@ Invoke it through the platform's implementation agent (`Agent`, target resolved 
 
 ### Plugin unavailable
 
-Fall back through: the override target (if any) → the alias's default target → the project's own build command via scoped Bash (its manifest names it). Tee to the same log paths, record `<plugin> unavailable; used direct <tool> — <reason>` in `§ Decisions`, and write one `audit.jsonl` line `action: "plugin_unavailable"`, `metadata: {plugin: "<name>", reason: <error>, alias: "<corpflow:* alias>", override_target: "<plugin:agent>|null"}`. Do not abort the stage.
+Fall back through: the override target (if any) → the alias's default target → the project's own build command via scoped Bash (its manifest names it). Tee to the same log paths, record `<plugin> unavailable; used direct <tool> — <reason>` in `§ Decisions`, and write one `audit.jsonl` line `action: "plugin_unavailable"`, `metadata: {plugin: "<name>", reason: <error>, alias: "<corpflow:* alias>", override_target: "<plugin:agent>|null"}`. Do not abort the stage. When no agent in the chain was reached and you do the specialist's work
+inline, then write one `dispatch_flattened` row with `reason: plugin_unavailable` right after the
+`plugin_unavailable` row and before the inline work (`subject` = the first target in the chain). If
+a later link in the chain is dispatched, you are routed: write `delegation` and no flatten row.
 
 ### Sibling tooling — listed, not granted
 
@@ -183,7 +199,7 @@ export CONTEXT_DIR=<abs path of the .context/ holding your state.json>
 SP="$PLUGIN_ROOT/skills/worktask/scripts/state-patch.sh"
 bash "$SP" --claim <TASK_ID> --digest \
   --audit-row '{"action":"approval_check","result":"ok","subject":"<TASK_ID>","actor":"corpflow:developer"}' \
-  --audit-row '{"action":"platform_detected","result":"ok","subject":"<TASK_ID>","actor":"corpflow:developer","metadata":{"markers":["Package.swift"],"platform":"apple","route_to":"self"}}'
+  --audit-row '{"action":"platform_detected","result":"ok","subject":"<TASK_ID>","actor":"corpflow:developer","metadata":{"markers":["Package.swift"],"platform":"apple","route_to":"apple-developer:apple-developer"}}'
 ```
 
 The two rows are § Audit triggers' first-turn rows; carrying them on the claim saves two calls.
@@ -340,8 +356,9 @@ Append one row each to `.context/logs/audit.jsonl` (schema: `agent-coordination 
 | `action` | When | Required `metadata` keys |
 |----------|------|--------------------------|
 | `approval_check` | First DV turn, before any `Edit`/`Write` | `result` ∈ {ok, blocked} |
-| `platform_detected` | After Detection Rules evaluates | `markers`, `platform`, `route_to` |
+| `platform_detected` | After Detection Rules evaluates | `markers`, `platform`, `route_to` (the resolved target id; `self` only under `not_granted`, `plugin_unavailable` or `depth_cap`) |
 | `delegation` | When invoking `Agent(specialist)` | `to_agent`, `platform`, `markers`, `reason`, `task_id` |
+| `dispatch_flattened` | Before inline specialist work | `reason`, `attempted_depth`, `cap` |
 | `retry_attempt` | D2 failure, before retry | `retry`, `classification`, `log_path` |
 | `artifact_created` | After `<your artifact>` write | `artifact` |
 
@@ -512,7 +529,7 @@ Before marking DV stage complete, verify:
 ### Completion checks — logs, audit & checklist
 
 - [ ] `.context/logs/build-developer-*.log` and `.context/logs/test-developer-*.log` exist with successful exit — if the MCP call auto-backgrounded, confirm via the completion notification/poll, not file presence alone
-- [ ] `.context/logs/audit.jsonl` contains `approval_check`, `platform_detected`, and `artifact_created` entries (plus `delegation` if routed; `retry_attempt` per retry)
+- [ ] `.context/logs/audit.jsonl` contains `approval_check`, `platform_detected`, and `artifact_created` entries (plus `delegation` when the resolved target is granted, or instead a `dispatch_flattened` row with `plugin_unavailable` or `depth_cap`; with no granted specialist, a `dispatch_flattened` row with `not_granted`; `retry_attempt` per retry)
 - [ ] Append the completed checklist verbatim as `## DV Completion Checklist` in `<your artifact>` with `[x]` boxes ticked — orchestrator validation greps for this header
 
 ### Completion checks — screenshots

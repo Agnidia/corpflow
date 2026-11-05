@@ -196,12 +196,31 @@ section() {
 
 # --- REQ-7: chosen flattens are reported too ---------------------------------
 
-@test "REQ-7: dispatch_flattened carries reason depth_cap or chosen, before the work" {
+@test "REQ-7: dispatch_flattened carries four reasons, chosen non-corpflow only, before the work" {
   run section "$COORD" "#### Depth-refusal self-report"
   assert_output --partial '| `metadata.reason` | `depth_cap`'
-  assert_output --partial '`chosen` (the agent flattened by choice)'
-  assert_output --partial '`null` under `chosen`'
+  assert_output --partial '`not_granted`'
+  assert_output --partial '`plugin_unavailable`'
+  assert_output --partial '`null` under every reason except `depth_cap`'
+  echo "$output" | grep -F '`chosen`' | grep -qF 'non-corpflow'
   run section "$DEV" "### Flattened dispatch"
   assert_output --partial '`dispatch_flattened` audit row **before** the inline'
-  assert_output --partial '`chosen` or `depth_cap`'
+  assert_output --partial '`not_granted`'
+  assert_output --partial '`plugin_unavailable`'
+  assert_output --partial '`depth_cap`'
+  echo "$output" | grep -F 'must' | grep -qF '`Agent`'
+  run section "$DEV" "### Completion checks — logs, audit & checklist"
+  echo "$output" | grep -F 'delegation' | grep -qF 'granted'
+}
+
+@test "REQ-7: DV never uses chosen, route_to self in the example, or 'if routed'" {
+  run section "$DEV" "### Flattened dispatch"
+  run bash -c 'printf "%s\n" "$1" | grep -E "(^|[^A-Za-z_])chosen([^A-Za-z_]|$)" | grep -v -E "(^|[^A-Za-z_])never([^A-Za-z_]|$)"' _ "$output"
+  assert_failure 1
+  run grep -F '"route_to":"self"' "$PLUGIN_ROOT/$DEV"
+  assert_failure 1
+  run grep -F 'if routed' "$PLUGIN_ROOT/$DEV"
+  assert_failure 1
+  run grep -F 'depth-cap refusal or choice' "$PLUGIN_ROOT/$COORD"
+  assert_failure 1
 }
