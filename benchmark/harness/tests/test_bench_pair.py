@@ -549,5 +549,40 @@ class ExecutableExitCodes(unittest.TestCase):
             self.assertNotIn(token, source)
 
 
+class BudgetMismatchWarning(unittest.TestCase):
+    """Unequal arm allowances warn on stderr and still join with exit 0."""
+
+    setUp = ExecutableExitCodes.setUp
+    tearDown = ExecutableExitCodes.tearDown
+    _write = ExecutableExitCodes._write
+    _run = ExecutableExitCodes._run
+
+    def test_unequal_budgets_warn_naming_both_and_still_join(self):
+        warnings = []
+        joined = pairing.join_arm_records(arm_record("with", budget=50.0),
+                                          arm_record("without", budget=25.0),
+                                          warn=warnings.append)
+        self.assertEqual(joined.budget_usd, 75.0)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("with budget_usd 50.0", warnings[0])
+        self.assertIn("without budget_usd 25.0", warnings[0])
+        a = self._write("a.json", arm_record("with", budget=50.0))
+        b = self._write("b.json", arm_record("without", budget=25.0))
+        proc = self._run("--a", a, "--b", b, "--out", os.path.join(self.tmp, "j.json"))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("bench-pair: warning: arm budgets differ", proc.stderr)
+
+    def test_equal_budgets_join_silently(self):
+        warnings = []
+        pairing.join_arm_records(arm_record("with", budget=25.0),
+                                 arm_record("without", budget=25.0), warn=warnings.append)
+        self.assertEqual(warnings, [])
+        a = self._write("a.json", arm_record("with", budget=25.0))
+        b = self._write("b.json", arm_record("without", budget=25.0))
+        proc = self._run("--a", a, "--b", b, "--out", os.path.join(self.tmp, "j.json"))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("budgets differ", proc.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

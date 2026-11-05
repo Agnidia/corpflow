@@ -24,6 +24,7 @@ from . import preamble
 from . import usage_limit
 from . import workdirs
 from .diagnostics import capture_diagnostics, merge_diagnostics
+from .providers.claude import preflight
 
 # Re-export shim: callers and tests address these as ``dispatch.<name>``.
 from .arm_exec import (  # noqa: F401
@@ -42,6 +43,7 @@ from .records import (  # noqa: F401
     _arm_verdict,
     _oracle_conforms,
     _stage_attributions,
+    arm_record_path,
     build_arm_record,
     build_live_record,
 )
@@ -541,7 +543,10 @@ def _dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
              git_runner: Optional[workdirs.GitRunner] = None,
              wait_on_limit: bool = False,
              limit_policy: Optional[usage_limit.LimitPolicy] = None,
-             provider_adapter=None) -> int:
+             provider_adapter=None,
+             preflight_runner: Optional[preflight.ProbeRunner] = None,
+             arm_record_dir: Optional[str] = None,
+             grader: Optional[Callable] = None) -> int:
     """Run the live pipeline end-to-end and write the BenchmarkRecord.
 
     ``config_dir`` (else ``BENCH_CONFIG_DIR``, else ``~/.claude-eval``) is the
@@ -562,6 +567,11 @@ def _dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
     it is derived from ``without_arm`` so every pre-existing caller keeps its exact
     behaviour. A single-arm selection records only its own arm and gets the whole
     budget — there is no second arm to reserve half for.
+
+    Claude runs probe both arms' plugin sets first and refuse with rc 5 on any mismatch
+    (``preflight_runner``; production uses the real CLI only when ``dispatcher`` is None).
+    Each arm is measured and graded as soon as it stops; a paired run also writes it to
+    ``arm_record_dir`` as a single-arm record that survives a kill of the next arm.
     """
     from . import credentials  # local import keeps credentials optional at import time
 
@@ -649,6 +659,19 @@ def _dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
         warn(str(e))
         return 2
 
+    # Both configurations, whatever the selection: a subset or one-arm run still
+    # certifies the baseline before anything is paid for.
+    if provider_adapter is None:
+        runner = preflight_runner or (preflight.default_probe_runner if dispatcher is None
+                                      else None)
+        if runner is not None:
+            verdicts = preflight.run_preflight((without_spec, with_spec), settings_path,
+                                               child_env, runner)
+            for verdict in verdicts:
+                warn(preflight.describe(verdict))
+            if not all(v.ok for v in verdicts):
+                return 5
+
     record_dir = os.path.dirname(record_path)
     if record_dir:
         os.makedirs(record_dir, exist_ok=True)
@@ -705,8 +728,7 @@ def _dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
             with_partial=with_res.partial, plugin=with_res.plugin, arm_plugins=arm_plugins,
             config_leaks=leaks)
 
-    def _compose(partial: bool) -> BenchmarkRecord:
-        record = _base_record(partial)
+    def _stamp_era(record: BenchmarkRecord, arm_results: dict, names) -> BenchmarkRecord:
         if provider_era is not None:
             record.era.update(provider_era)
             record.era["accounting"] = {
@@ -716,19 +738,46 @@ def _dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
                         "attempt accounting unreliable", "terminal token accounting unreliable"),
                     "incomplete_stages": [s for s in stages
                                           if s not in r.completed_stages]}
-                for n, r in results.items()}
-            for n in selection.dispatch:
+                for n, r in arm_results.items()}
+            for n in names:
                 record.era["accounting"].setdefault(
                     n, {"allowance_usd": per_arm_budget, "overshoot_usd": 0.0,
                         "stop_reason": "not started", "attempts": [],
                         "incomplete_stages": list(stages)})
-        elif any(r.attempts for r in results.values()):
+        elif any(r.attempts for r in arm_results.values()):
             record.era["accounting"] = {name: {"attempts": result.attempts}
-                                        for name, result in results.items() if result.attempts}
+                                        for name, result in arm_results.items() if result.attempts}
         return record
+
+    def _compose(partial: bool) -> BenchmarkRecord:
+        return _stamp_era(_base_record(partial), results, selection.dispatch)
 
     def _flush(partial: bool) -> None:
         write_record(_compose(partial), record_path)
+
+    # Only a run carrying both arms has an arm worth splitting out; a stage-subset WITH
+    # run would otherwise pair with a full-pipeline WITHOUT arm.
+    split_arms = (arm_record_dir is not None
+                  and selection.record_shape == baseline_mod.SHAPE_PAIRED
+                  and set(selection.dispatch) == {"with", "without"})
+
+    def _write_arm_record(name: str) -> Optional[str]:
+        """Persist one finished arm in the ``--arm`` shape; a write fault only warns."""
+        res = results[name]
+        path = arm_record_path(arm_record_dir, run_id, name)
+        record = build_arm_record(
+            f"{run_id}-{name}", timestamp_utc, git_sha, per_arm_budget, name, res.usages,
+            res.dispatched, arm_partial=res.partial, app=apps.get(name), plugin=res.plugin,
+            arm_plugins={name: res.plugins} if res.plugins is not None else {},
+            config_leaks={name: res.config_leaks} if res.config_leaks is not None else {})
+        try:
+            os.makedirs(arm_record_dir, exist_ok=True)
+            write_record(_stamp_era(record, {name: res}, (name,)), path)
+        except OSError as exc:
+            warn(f"{name} arm record not written to {path}: {exc}")
+            return None
+        warn(f"{name} arm graded; arm record at {path}")
+        return path
 
     if provider_adapter is None and capture_mode != CAPTURE_STREAM_JSON:
         warn("plugin load unverified: --capture json emits no system/init event, so "
@@ -761,30 +810,34 @@ def _dispatch(workdir: str, budget: float, record_path: str, benchmark_dir: str,
                            if name == "with" else None))
         # Flush as each arm completes so a later arm's breach cannot lose it.
         _flush(partial=True)
-        if results[name].usage_limit is not None:
-            warn(f"live run stopped: {name} arm hit the usage limit: "
-                 f"{usage_limit.describe(results[name].usage_limit)}; partial record at "
-                 f"{record_path}; completed stages are kept, rerun after the reset")
-            return 6
         if results[name].plugin_error is not None:
             # Return before measuring: a wrong-tree run must not spend oracle build time
-            # or reach the caller's history rotation, which keys off a zero exit.
+            # or reach the caller's history rotation, which keys off a zero exit. Checked
+            # before the usage limit so a contaminated arm is never graded.
             warn(f"live run refused: {name} arm broke its plugin contract: "
                  f"{results[name].plugin_error}; partial record at {record_path} "
                  "is not a measurement of this commit")
             return 5
+        # Graded before the next arm starts, partial or not: a kill during the next arm
+        # must not cost this one its oracle score. Dispatch timers have stopped, so
+        # grading stays out of wall_clock_s.
+        apps[name] = _measure_arm(
+            specs[name].cwd, plugin_root, results[name].dispatched, warn, grader=grader,
+            app_path=baseline_mod.genlib.relative_path(
+                os.path.join(workdir_path, name), plugin_root))
+        _flush(partial=True)
+        arm_path = _write_arm_record(name) if split_arms else None
+        if results[name].usage_limit is not None:
+            warn(f"live run stopped: {name} arm hit the usage limit: "
+                 f"{usage_limit.describe(results[name].usage_limit)}; partial record at "
+                 f"{record_path}"
+                 + (f", graded arm record at {arm_path}" if arm_path else "")
+                 + "; completed stages are kept, rerun after the reset")
+            return 6
         if provider_adapter is not None and results[name].stop_reason in (
                 "attempt accounting unreliable", "terminal token accounting unreliable", "configuration verification blocked"):
             warn(f"live run stopped: {name} {results[name].stop_reason}; partial saved at {record_path}")
             break
-
-    # Every dispatched arm is measured and graded, including a single-arm run: an arm
-    # with no oracle payload carries no quality signal to compare against.
-    for name in results:
-        apps[name] = _measure_arm(
-            specs[name].cwd, plugin_root, results[name].dispatched, warn,
-            app_path=baseline_mod.genlib.relative_path(
-                os.path.join(workdir_path, name), plugin_root))
 
     # Scoped to the arms that actually dispatched, so an arm that never ran cannot
     # raise the flag on the arm that did.

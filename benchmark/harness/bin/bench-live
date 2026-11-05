@@ -20,9 +20,14 @@ pre-existing default byte-stable.
 --wait-on-limit (the default) sleeps through the account's rolling usage limit, to the
 reset plus a 2-minute margin (6h cap), and re-dispatches only the stage that hit it;
 --no-wait-on-limit ends the run instead.
+A paired run (claude or codex) writes each finished arm, graded, to
+results/runs/live-arm/<run_id>-<arm>.json so bench-pair can join it with a later --arm
+run if the other arm is killed. A claude run first probes both arms' plugin sets with
+one cheap call each.
 Exit codes: 0 ok / 1 the WITH ledger could not be seeded, nothing dispatched / 2 pre-flight
-decline / 3 no credential / 4 running-tally breach (partial written first) / 5 an arm's
-loaded plugins broke its contract, or either arm read a plugin cache outside its config dir /
+decline / 3 no credential / 4 running-tally breach (partial written first) / 5 the plugin
+preflight refused (nothing dispatched), an arm's loaded plugins broke its contract, or
+either arm read a plugin cache outside its config dir /
 6 usage limit, waiting off or over the cap (partial written, reset time in the message) /
 64 bad usage.
 """
@@ -149,7 +154,9 @@ def main(argv):
             workdir=workdir, budget=budget, record_path=record, benchmark_dir=benchmark_dir,
             prompts_dir=prompts_dir_arg, stages=stages, capture_mode=capture_arg,
             selection=selection, config_dir=config_dir_arg,
-            workdir_root=workdir_root_arg, wait_on_limit=wait_on_limit, provider=provider)
+            workdir_root=workdir_root_arg, wait_on_limit=wait_on_limit, provider=provider,
+            arm_record_dir=os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(record))), "live-arm"))
     except Exception as exc:  # noqa: BLE001 — top-level CLI guard
         die(f"bench-live: dispatch failed: {exc}", 1)
     sys.exit(rc)

@@ -7,6 +7,7 @@ other's.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -141,6 +142,15 @@ def build_live_record(run_id: str, timestamp_utc: str, git_sha: str, budget: flo
                        git_sha=git_sha, budget_usd=budget, with_pm=with_p,
                        without_pm=without_p, live_partial=live_partial, stages=stages_all,
                        era=build_era(plugin, arm_plugins, config_leaks))
+
+
+def arm_record_path(arm_record_dir: str, run_id: str, arm: str) -> str:
+    """Where a paired run persists one arm as a single-arm record.
+
+    The ``<run_id>-<arm>`` stem is the id ``--arm`` runs carry, so ``bench-pair`` reads
+    a paired run's arm and a resumed single-arm run as the same kind of input.
+    """
+    return os.path.join(arm_record_dir, f"{run_id}-{arm}.json")
 
 
 def build_arm_record(run_id: str, timestamp_utc: str, git_sha: str, budget: float,

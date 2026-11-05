@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Sequence
 
 from ... import capture
 
@@ -79,6 +79,66 @@ def check_stage_bare(stdout: str) -> PluginCheck:
         return PluginCheck(plugins=labels, error=(
             f"baseline arm loaded plugins {labels}; expected none.{_describe_errors(init.errors)}"))
     return PluginCheck(plugins=labels)
+
+
+def _sibling_key(entry: dict, siblings: Sequence[str]) -> Optional[str]:
+    """The ``siblings`` entry this loaded plugin is, or None for a plugin nobody asked for.
+
+    ``source`` (``name@marketplace``) is the exact identity when the CLI reports it; a
+    build that omits it falls back to the bare name, which cannot tell two marketplaces'
+    copies apart but still catches a missing or an extra plugin.
+    """
+    source = entry.get("source")
+    if isinstance(source, str) and source:
+        return source if source in siblings else None
+    name = entry.get("name")
+    for sibling in siblings:
+        if name == sibling.split("@", 1)[0]:
+            return sibling
+    return None
+
+
+def check_exact_plugin_set(stdout: str, expected_root: str,
+                           siblings: Sequence[str]) -> PluginCheck:
+    """Fail closed unless ``system/init`` lists the tree under test plus each sibling once.
+
+    Stricter than :func:`check_stage_plugin`, which ignores everything but corpflow: a
+    builtin or account-synced plugin beside the WITH arm would be measured as part of
+    corpflow without anything saying so.
+    """
+    init = capture.parse_init_plugins(stdout)
+    if init is None:
+        return PluginCheck(error=(
+            "no system/init event in output; cannot confirm which plugins loaded "
+            "(plugin verification needs --output-format stream-json)"))
+    labels = plugin_labels(init.plugins)
+    check = _check_corpflow(init, expected_root)
+    check.plugins = labels
+    if check.error is not None:
+        return check
+    counts = {sibling: 0 for sibling in siblings}
+    extra = []
+    for entry in init.plugins:
+        if entry.get("name") == "corpflow":
+            continue
+        key = _sibling_key(entry, siblings)
+        if key is None:
+            extra.extend(plugin_labels([entry]))
+        else:
+            counts[key] += 1
+    problems = []
+    missing = [s for s, n in counts.items() if n == 0]
+    repeated = [s for s, n in counts.items() if n > 1]
+    if missing:
+        problems.append(f"sibling plugins not loaded {missing}")
+    if repeated:
+        problems.append(f"sibling plugins loaded more than once {repeated}")
+    if extra:
+        problems.append(f"unexpected plugins loaded {extra}")
+    if problems:
+        check.error = ("; ".join(problems) + f"; expected only corpflow and {list(siblings)}."
+                       + _describe_errors(init.errors))
+    return check
 
 
 def _check_corpflow(init: "capture.InitPlugins", expected_root: str) -> PluginCheck:

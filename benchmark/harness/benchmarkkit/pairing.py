@@ -3,7 +3,8 @@
 Pure: two parsed record dicts in, a list of refusals or a joined ``BenchmarkRecord``
 out. No filesystem, no clock, no subprocess, and no ``benchmarklive`` import — the
 join is analysis, not dispatch, and sits on the same side of the boundary as the
-analyzer and the reporter.
+analyzer and the reporter. The one side effect is the join's stderr warning on unequal
+arm budgets, which a caller can redirect through ``warn``.
 
 The gate is fail-closed. A permissive gate is worse than no gate: it launders two
 incomparable runs as a comparison, which is the exact misreading this work exists to
@@ -14,7 +15,8 @@ reader sees all of them at once rather than fixing one and hitting the next.
 from __future__ import annotations
 
 import hashlib
-from typing import Optional
+import sys
+from typing import Callable, Optional
 
 from . import analysis
 from .metrics import (
@@ -224,7 +226,23 @@ def arm_pair(record_a: dict, record_b: dict) -> dict:
     return keyed
 
 
-def join_arm_records(record_a: dict, record_b: dict) -> BenchmarkRecord:
+def budget_mismatch(record_a: dict, record_b: dict) -> Optional[str]:
+    """A warning naming both ``budget_usd`` values when the arms ran on different allowances.
+
+    Warn-only, never a refusal: a resumed arm given the paired total instead of the
+    per-arm share is still a real measurement, just not a like-for-like one.
+    """
+    keyed = {analysis.single_arm(r): r.get("budget_usd") for r in (record_a, record_b)}
+    with_budget, without_budget = keyed.get(ARMS[0]), keyed.get(ARMS[1])
+    if with_budget == without_budget:
+        return None
+    return (f"arm budgets differ: with budget_usd {_quoted(with_budget)} vs without "
+            f"budget_usd {_quoted(without_budget)}; the joined comparison is not "
+            "like-for-like")
+
+
+def join_arm_records(record_a: dict, record_b: dict,
+                     warn: Optional[Callable[[str], None]] = None) -> BenchmarkRecord:
     """Weld two comparable arm records into the existing paired shape.
 
     Raises :class:`PairingError` on a malformed pair *and* on any comparability
@@ -241,6 +259,9 @@ def join_arm_records(record_a: dict, record_b: dict) -> BenchmarkRecord:
     if refusals:
         raise PairingError(
             "refusing to join two incomparable records: " + "; ".join(refusals))
+    mismatch = budget_mismatch(record_a, record_b)
+    if mismatch is not None:
+        (warn or (lambda s: sys.stderr.write(s + "\n")))(f"bench-pair: warning: {mismatch}")
     with_rec, without_rec = keyed[ARMS[0]], keyed[ARMS[1]]
 
     with_pm = PathMetrics.from_dict((with_rec.get("paths") or {}).get("with") or {})
