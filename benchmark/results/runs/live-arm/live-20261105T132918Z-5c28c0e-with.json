@@ -1,0 +1,786 @@
+{
+  "run_id": "live-20261105T132918Z-5c28c0e-with",
+  "timestamp_utc": "2026-11-05T13:29:21Z",
+  "mode": "live",
+  "git_sha": "5c28c0e",
+  "budget_usd": 25.0,
+  "paths": {
+    "with": {
+      "tokens": {
+        "in": 21221,
+        "out": 230271,
+        "total": 251492,
+        "cache_read": 8809706,
+        "cache_creation": 629046
+      },
+      "cost_usd": 10.195080579999999,
+      "wall_clock_s": 2367.3837,
+      "loc_produced": 2776,
+      "test_count": 84,
+      "coverage_pct": null,
+      "estimate_complexity_score": 0,
+      "stage_count": 10,
+      "pass_fail": "pass",
+      "app_path": "benchmark/workdirs/live-20261105T132918Z-5c28c0e-with/with",
+      "oracle": {
+        "built": true,
+        "cases_total": 42,
+        "cases_passed": 42,
+        "pass_rate": 1.0,
+        "tiers": {
+          "implied": {
+            "total": 9,
+            "passed": 9,
+            "pass_rate": 1.0
+          },
+          "specified": {
+            "total": 33,
+            "passed": 33,
+            "pass_rate": 1.0
+          }
+        },
+        "cases_digest": "sha256:8065259102d52025f62f1db5c5667d5f0fbc2fd5db461d72061a308eeb1fbf97"
+      }
+    }
+  },
+  "arm": "with",
+  "stages": [
+    {
+      "stage": "PL",
+      "fresh_in": 2617,
+      "cache_creation": 64478,
+      "cache_read": 744396,
+      "out": 31924,
+      "cost_usd": 1.3030042000000004,
+      "coverage": {
+        "agents": [],
+        "skills": [],
+        "commands": [],
+        "tool_calls": 23
+      },
+      "arm": "with",
+      "parent_fresh_in": 42,
+      "parent_cache_creation": 64478,
+      "parent_cache_read": 744396,
+      "parent_out": 31893,
+      "duration_s": 310.16342737500963,
+      "diagnostics": {
+        "tool_output_characters": 36761,
+        "tool_output_unit": "Unicode characters; not tokens",
+        "environment_failure_count": 0,
+        "environment_failure_repetitions": 0,
+        "environment_failures": [],
+        "truncation_count": 0,
+        "artifact_characters": 22053,
+        "handoff_characters": 1133,
+        "handoff_sizes": [
+          {
+            "path": "planning-0.md",
+            "available": true,
+            "characters": 22053,
+            "lines": 351,
+            "sha256": "b8349d1ba40dd66f433e10c6aeb213d561a22241759e5291d591b9d4af74573e",
+            "estimated_tokens": 4901,
+            "token_proxy": "whitespace words times 1.33; not provider usage",
+            "handoff": {
+              "characters": 1133,
+              "lines": 20,
+              "estimated_tokens": 175
+            }
+          }
+        ],
+        "instruction_fingerprint": null,
+        "ledger_summary": {
+          "status_counts": {
+            "completed": 1,
+            "pending": 6
+          },
+          "contradictions": [],
+          "artifacts": [
+            {
+              "path": "planning-0.md",
+              "available": true,
+              "characters": 22053,
+              "lines": 351,
+              "sha256": "b8349d1ba40dd66f433e10c6aeb213d561a22241759e5291d591b9d4af74573e",
+              "estimated_tokens": 4901,
+              "token_proxy": "whitespace words times 1.33; not provider usage",
+              "handoff": {
+                "characters": 1133,
+                "lines": 20,
+                "estimated_tokens": 175
+              }
+            }
+          ],
+          "ledger_estimated_tokens": 763,
+          "approval": "not evaluated; diagnostics only"
+        },
+        "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+      }
+    },
+    {
+      "stage": "AR",
+      "fresh_in": 2033,
+      "cache_creation": 69561,
+      "cache_read": 354311,
+      "out": 26764,
+      "cost_usd": 1.1624357,
+      "coverage": {
+        "agents": [],
+        "skills": [],
+        "commands": [],
+        "tool_calls": 8
+      },
+      "arm": "with",
+      "parent_fresh_in": 18,
+      "parent_cache_creation": 69561,
+      "parent_cache_read": 354311,
+      "parent_out": 26740,
+      "duration_s": 250.73021591700672,
+      "diagnostics": {
+        "tool_output_characters": 42647,
+        "tool_output_unit": "Unicode characters; not tokens",
+        "environment_failure_count": 0,
+        "environment_failure_repetitions": 0,
+        "environment_failures": [],
+        "truncation_count": 0,
+        "artifact_characters": 18081,
+        "handoff_characters": 1498,
+        "handoff_sizes": [
+          {
+            "path": "architecture-0.md",
+            "available": true,
+            "characters": 18081,
+            "lines": 164,
+            "sha256": "58f61ee334fff06b6863341d4ee5d14d749014e7bbb35f481c3ab943a373f2dd",
+            "estimated_tokens": 3217,
+            "token_proxy": "whitespace words times 1.33; not provider usage",
+            "handoff": {
+              "characters": 1498,
+              "lines": 19,
+              "estimated_tokens": 219
+            }
+          }
+        ],
+        "instruction_fingerprint": null,
+        "ledger_summary": {
+          "status_counts": {
+            "completed": 2,
+            "pending": 5
+          },
+          "contradictions": [],
+          "artifacts": [
+            {
+              "path": "architecture-0.md",
+              "available": true,
+              "characters": 18081,
+              "lines": 164,
+              "sha256": "58f61ee334fff06b6863341d4ee5d14d749014e7bbb35f481c3ab943a373f2dd",
+              "estimated_tokens": 3217,
+              "token_proxy": "whitespace words times 1.33; not provider usage",
+              "handoff": {
+                "characters": 1498,
+                "lines": 19,
+                "estimated_tokens": 219
+              }
+            }
+          ],
+          "ledger_estimated_tokens": 1036,
+          "approval": "not evaluated; diagnostics only"
+        },
+        "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+      }
+    },
+    {
+      "stage": "TL",
+      "fresh_in": 1904,
+      "cache_creation": 23395,
+      "cache_read": 68268,
+      "out": 4898,
+      "cost_usd": 0.14929219999999999,
+      "coverage": {
+        "agents": [],
+        "skills": [],
+        "commands": [],
+        "tool_calls": 4
+      },
+      "arm": "with",
+      "parent_fresh_in": 10,
+      "parent_cache_creation": 23395,
+      "parent_cache_read": 68268,
+      "parent_out": 4866,
+      "duration_s": 44.765514124999754,
+      "diagnostics": {
+        "tool_output_characters": 10925,
+        "tool_output_unit": "Unicode characters; not tokens",
+        "environment_failure_count": 0,
+        "environment_failure_repetitions": 0,
+        "environment_failures": [],
+        "truncation_count": 0,
+        "artifact_characters": 5982,
+        "handoff_characters": 941,
+        "handoff_sizes": [
+          {
+            "path": "coordination-0.md",
+            "available": true,
+            "characters": 5982,
+            "lines": 77,
+            "sha256": "9517810729307277047f9f4326a770e51649c7b6969a55a94da1655c503960f2",
+            "estimated_tokens": 1062,
+            "token_proxy": "whitespace words times 1.33; not provider usage",
+            "handoff": {
+              "characters": 941,
+              "lines": 18,
+              "estimated_tokens": 151
+            }
+          }
+        ],
+        "instruction_fingerprint": null,
+        "ledger_summary": {
+          "status_counts": {
+            "completed": 3,
+            "pending": 5
+          },
+          "contradictions": [],
+          "artifacts": [
+            {
+              "path": "coordination-0.md",
+              "available": true,
+              "characters": 5982,
+              "lines": 77,
+              "sha256": "9517810729307277047f9f4326a770e51649c7b6969a55a94da1655c503960f2",
+              "estimated_tokens": 1062,
+              "token_proxy": "whitespace words times 1.33; not provider usage",
+              "handoff": {
+                "characters": 941,
+                "lines": 18,
+                "estimated_tokens": 151
+              }
+            }
+          ],
+          "ledger_estimated_tokens": 1138,
+          "approval": "not evaluated; diagnostics only"
+        },
+        "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+      }
+    },
+    {
+      "stage": "DV",
+      "fresh_in": 2879,
+      "cache_creation": 205620,
+      "cache_read": 6153192,
+      "out": 121154,
+      "cost_usd": 5.298724499999999,
+      "coverage": {
+        "agents": [],
+        "skills": [],
+        "commands": [],
+        "tool_calls": 47
+      },
+      "arm": "with",
+      "parent_fresh_in": 88,
+      "parent_cache_creation": 205620,
+      "parent_cache_read": 6153192,
+      "parent_out": 121124,
+      "duration_s": 1258.6483588750125,
+      "diagnostics": {
+        "tool_output_characters": 100545,
+        "tool_output_unit": "Unicode characters; not tokens",
+        "environment_failure_count": 0,
+        "environment_failure_repetitions": 0,
+        "environment_failures": [],
+        "truncation_count": 0,
+        "artifact_characters": 24356,
+        "handoff_characters": 1611,
+        "handoff_sizes": [
+          {
+            "path": "development-0.md",
+            "available": true,
+            "characters": 24356,
+            "lines": 255,
+            "sha256": "d53a082381ddab66dae2a95af2d567b8021d7416a137b7e6942e8942e942cd5e",
+            "estimated_tokens": 4519,
+            "token_proxy": "whitespace words times 1.33; not provider usage",
+            "handoff": {
+              "characters": 1611,
+              "lines": 34,
+              "estimated_tokens": 203
+            }
+          }
+        ],
+        "instruction_fingerprint": null,
+        "ledger_summary": {
+          "status_counts": {
+            "completed": 4,
+            "pending": 4
+          },
+          "contradictions": [],
+          "artifacts": [
+            {
+              "path": "development-0.md",
+              "available": true,
+              "characters": 24356,
+              "lines": 255,
+              "sha256": "d53a082381ddab66dae2a95af2d567b8021d7416a137b7e6942e8942e942cd5e",
+              "estimated_tokens": 4519,
+              "token_proxy": "whitespace words times 1.33; not provider usage",
+              "handoff": {
+                "characters": 1611,
+                "lines": 34,
+                "estimated_tokens": 203
+              }
+            }
+          ],
+          "ledger_estimated_tokens": 1578,
+          "approval": "not evaluated; diagnostics only"
+        },
+        "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+      }
+    },
+    {
+      "stage": "DR",
+      "fresh_in": 2150,
+      "cache_creation": 69783,
+      "cache_read": 524244,
+      "out": 11493,
+      "cost_usd": 0.8927237,
+      "coverage": {
+        "agents": [],
+        "skills": [],
+        "commands": [],
+        "tool_calls": 13
+      },
+      "arm": "with",
+      "parent_fresh_in": 26,
+      "parent_cache_creation": 69783,
+      "parent_cache_read": 524244,
+      "parent_out": 11464,
+      "duration_s": 130.84576879200176,
+      "diagnostics": {
+        "tool_output_characters": 97503,
+        "tool_output_unit": "Unicode characters; not tokens",
+        "environment_failure_count": 0,
+        "environment_failure_repetitions": 0,
+        "environment_failures": [],
+        "truncation_count": 0,
+        "artifact_characters": 6715,
+        "handoff_characters": 875,
+        "handoff_sizes": [
+          {
+            "path": "developer-review-0.md",
+            "available": true,
+            "characters": 6715,
+            "lines": 83,
+            "sha256": "8da1b8b61490fe87869f13613ccac151deef1b96ff6923565d405bc36097fc11",
+            "estimated_tokens": 1254,
+            "token_proxy": "whitespace words times 1.33; not provider usage",
+            "handoff": {
+              "characters": 875,
+              "lines": 15,
+              "estimated_tokens": 143
+            }
+          }
+        ],
+        "instruction_fingerprint": null,
+        "ledger_summary": {
+          "status_counts": {
+            "completed": 5,
+            "pending": 3
+          },
+          "contradictions": [],
+          "artifacts": [
+            {
+              "path": "developer-review-0.md",
+              "available": true,
+              "characters": 6715,
+              "lines": 83,
+              "sha256": "8da1b8b61490fe87869f13613ccac151deef1b96ff6923565d405bc36097fc11",
+              "estimated_tokens": 1254,
+              "token_proxy": "whitespace words times 1.33; not provider usage",
+              "handoff": {
+                "characters": 875,
+                "lines": 15,
+                "estimated_tokens": 143
+              }
+            }
+          ],
+          "ledger_estimated_tokens": 1689,
+          "approval": "not evaluated; diagnostics only"
+        },
+        "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+      }
+    },
+    {
+      "stage": "SR",
+      "fresh_in": 2048,
+      "cache_creation": 61443,
+      "cache_read": 433946,
+      "out": 15172,
+      "cost_usd": 0.8815841,
+      "coverage": {
+        "agents": [],
+        "skills": [],
+        "commands": [],
+        "tool_calls": 14
+      },
+      "arm": "with",
+      "parent_fresh_in": 24,
+      "parent_cache_creation": 61443,
+      "parent_cache_read": 433946,
+      "parent_out": 15147,
+      "duration_s": 161.6368857500056,
+      "diagnostics": {
+        "tool_output_characters": 73657,
+        "tool_output_unit": "Unicode characters; not tokens",
+        "environment_failure_count": 0,
+        "environment_failure_repetitions": 0,
+        "environment_failures": [],
+        "truncation_count": 0,
+        "artifact_characters": 4732,
+        "handoff_characters": 710,
+        "handoff_sizes": [
+          {
+            "path": "security-review-0.md",
+            "available": true,
+            "characters": 4732,
+            "lines": 67,
+            "sha256": "8aa51cc4954666850004824637a95e1b05e8d38490f06d092d0131a0b27e458b",
+            "estimated_tokens": 868,
+            "token_proxy": "whitespace words times 1.33; not provider usage",
+            "handoff": {
+              "characters": 710,
+              "lines": 13,
+              "estimated_tokens": 118
+            }
+          }
+        ],
+        "instruction_fingerprint": null,
+        "ledger_summary": {
+          "status_counts": {
+            "completed": 6,
+            "pending": 3
+          },
+          "contradictions": [],
+          "artifacts": [
+            {
+              "path": "security-review-0.md",
+              "available": true,
+              "characters": 4732,
+              "lines": 67,
+              "sha256": "8aa51cc4954666850004824637a95e1b05e8d38490f06d092d0131a0b27e458b",
+              "estimated_tokens": 868,
+              "token_proxy": "whitespace words times 1.33; not provider usage",
+              "handoff": {
+                "characters": 710,
+                "lines": 13,
+                "estimated_tokens": 118
+              }
+            }
+          ],
+          "ledger_estimated_tokens": 1828,
+          "approval": "not evaluated; diagnostics only"
+        },
+        "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+      }
+    },
+    {
+      "stage": "QA",
+      "fresh_in": 2127,
+      "cache_creation": 27945,
+      "cache_read": 98992,
+      "out": 2006,
+      "cost_usd": 0.14173339999999998,
+      "coverage": {
+        "agents": [],
+        "skills": [],
+        "commands": [],
+        "tool_calls": 4
+      },
+      "arm": "with",
+      "parent_fresh_in": 10,
+      "parent_cache_creation": 27945,
+      "parent_cache_read": 98992,
+      "parent_out": 1981,
+      "duration_s": 94.24731612499454,
+      "diagnostics": {
+        "tool_output_characters": 8271,
+        "tool_output_unit": "Unicode characters; not tokens",
+        "environment_failure_count": 0,
+        "environment_failure_repetitions": 0,
+        "environment_failures": [],
+        "truncation_count": 0,
+        "artifact_characters": null,
+        "handoff_characters": null,
+        "handoff_sizes": [],
+        "instruction_fingerprint": null,
+        "ledger_summary": {
+          "status_counts": {
+            "completed": 6,
+            "in_progress": 1,
+            "pending": 2
+          },
+          "contradictions": [],
+          "artifacts": [],
+          "ledger_estimated_tokens": 1828,
+          "approval": "not evaluated; diagnostics only"
+        },
+        "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+      }
+    },
+    {
+      "stage": "DC",
+      "fresh_in": 1832,
+      "cache_creation": 43106,
+      "cache_read": 208078,
+      "out": 9583,
+      "cost_usd": 0.01567668,
+      "coverage": {
+        "agents": [],
+        "skills": [],
+        "commands": [],
+        "tool_calls": 11
+      },
+      "arm": "with",
+      "parent_fresh_in": 16,
+      "parent_cache_creation": 43106,
+      "parent_cache_read": 208078,
+      "parent_out": 9555,
+      "duration_s": 54.43848983399221,
+      "diagnostics": {
+        "tool_output_characters": 52402,
+        "tool_output_unit": "Unicode characters; not tokens",
+        "environment_failure_count": 0,
+        "environment_failure_repetitions": 0,
+        "environment_failures": [],
+        "truncation_count": 0,
+        "artifact_characters": 3472,
+        "handoff_characters": 694,
+        "handoff_sizes": [
+          {
+            "path": "documentation-0.md",
+            "available": true,
+            "characters": 3472,
+            "lines": 52,
+            "sha256": "e819afc664458ed2ccab13c336ea3149db06bdbfb55a4a09017bf1e555e557d9",
+            "estimated_tokens": 603,
+            "token_proxy": "whitespace words times 1.33; not provider usage",
+            "handoff": {
+              "characters": 694,
+              "lines": 11,
+              "estimated_tokens": 123
+            }
+          }
+        ],
+        "instruction_fingerprint": null,
+        "ledger_summary": {
+          "status_counts": {
+            "completed": 7,
+            "in_progress": 1,
+            "pending": 2
+          },
+          "contradictions": [],
+          "artifacts": [
+            {
+              "path": "documentation-0.md",
+              "available": true,
+              "characters": 3472,
+              "lines": 52,
+              "sha256": "e819afc664458ed2ccab13c336ea3149db06bdbfb55a4a09017bf1e555e557d9",
+              "estimated_tokens": 603,
+              "token_proxy": "whitespace words times 1.33; not provider usage",
+              "handoff": {
+                "characters": 694,
+                "lines": 11,
+                "estimated_tokens": 123
+              }
+            }
+          ],
+          "ledger_estimated_tokens": 1875,
+          "approval": "not evaluated; diagnostics only"
+        },
+        "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+      }
+    },
+    {
+      "stage": "FN",
+      "fresh_in": 1833,
+      "cache_creation": 26813,
+      "cache_read": 104719,
+      "out": 3704,
+      "cost_usd": 0.15467550000000002,
+      "coverage": {
+        "agents": [],
+        "skills": [],
+        "commands": [],
+        "tool_calls": 5
+      },
+      "arm": "with",
+      "parent_fresh_in": 12,
+      "parent_cache_creation": 26813,
+      "parent_cache_read": 104719,
+      "parent_out": 3673,
+      "duration_s": 31.281244625002728,
+      "diagnostics": {
+        "tool_output_characters": 13633,
+        "tool_output_unit": "Unicode characters; not tokens",
+        "environment_failure_count": 0,
+        "environment_failure_repetitions": 0,
+        "environment_failures": [],
+        "truncation_count": 0,
+        "artifact_characters": 4092,
+        "handoff_characters": 439,
+        "handoff_sizes": [
+          {
+            "path": "complete-summary-0.md",
+            "available": true,
+            "characters": 4092,
+            "lines": 91,
+            "sha256": "dbdd915d119c898f1436842be6f757ff02192311272e5502b330ba13e0a5392d",
+            "estimated_tokens": 827,
+            "token_proxy": "whitespace words times 1.33; not provider usage",
+            "handoff": {
+              "characters": 439,
+              "lines": 10,
+              "estimated_tokens": 75
+            }
+          }
+        ],
+        "instruction_fingerprint": null,
+        "ledger_summary": {
+          "status_counts": {
+            "completed": 8,
+            "in_progress": 1,
+            "pending": 1
+          },
+          "contradictions": [],
+          "artifacts": [
+            {
+              "path": "complete-summary-0.md",
+              "available": true,
+              "characters": 4092,
+              "lines": 91,
+              "sha256": "dbdd915d119c898f1436842be6f757ff02192311272e5502b330ba13e0a5392d",
+              "estimated_tokens": 827,
+              "token_proxy": "whitespace words times 1.33; not provider usage",
+              "handoff": {
+                "characters": 439,
+                "lines": 10,
+                "estimated_tokens": 75
+              }
+            }
+          ],
+          "ledger_estimated_tokens": 1913,
+          "approval": "not evaluated; diagnostics only"
+        },
+        "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+      }
+    },
+    {
+      "stage": "ST",
+      "fresh_in": 1798,
+      "cache_creation": 36902,
+      "cache_read": 119560,
+      "out": 3573,
+      "cost_usd": 0.19523060000000003,
+      "coverage": {
+        "agents": [],
+        "skills": [
+          "corpflow:self-improvement"
+        ],
+        "commands": [],
+        "tool_calls": 5
+      },
+      "arm": "with",
+      "parent_fresh_in": 12,
+      "parent_cache_creation": 36902,
+      "parent_cache_read": 119560,
+      "parent_out": 3545,
+      "duration_s": 30.626476207995438,
+      "diagnostics": {
+        "tool_output_characters": 14543,
+        "tool_output_unit": "Unicode characters; not tokens",
+        "environment_failure_count": 0,
+        "environment_failure_repetitions": 0,
+        "environment_failures": [],
+        "truncation_count": 0,
+        "artifact_characters": 2980,
+        "handoff_characters": 385,
+        "handoff_sizes": [
+          {
+            "path": "retrospective-0.md",
+            "available": true,
+            "characters": 2980,
+            "lines": 62,
+            "sha256": "5bf97efe21b74586ec909efab66c55785ddc734302314983a9fd5b656b743b7b",
+            "estimated_tokens": 650,
+            "token_proxy": "whitespace words times 1.33; not provider usage",
+            "handoff": {
+              "characters": 385,
+              "lines": 9,
+              "estimated_tokens": 59
+            }
+          }
+        ],
+        "instruction_fingerprint": null,
+        "ledger_summary": {
+          "status_counts": {
+            "completed": 9,
+            "in_progress": 1
+          },
+          "contradictions": [],
+          "artifacts": [
+            {
+              "path": "retrospective-0.md",
+              "available": true,
+              "characters": 2980,
+              "lines": 62,
+              "sha256": "5bf97efe21b74586ec909efab66c55785ddc734302314983a9fd5b656b743b7b",
+              "estimated_tokens": 650,
+              "token_proxy": "whitespace words times 1.33; not provider usage",
+              "handoff": {
+                "characters": 385,
+                "lines": 9,
+                "estimated_tokens": 59
+              }
+            }
+          ],
+          "ledger_estimated_tokens": 1975,
+          "approval": "not evaluated; diagnostics only"
+        },
+        "output_usage_basis": "provider-reported output; reasoning-inclusive when reported by the provider"
+      }
+    }
+  ],
+  "era": {
+    "harness": "python-3",
+    "provider": "claude",
+    "source_digest": "35d061bf207c7fa7e98a83e191423b9a267c9d96030590b17b3efa873f1e6cd0",
+    "pricing": {
+      "basis": "CLI-reported USD",
+      "source": "result.total_cost_usd"
+    },
+    "prompt_contract": "scripted-cli-v5",
+    "model_pins": {
+      "PL": "claude-opus-5-5",
+      "AR": "claude-opus-5-5",
+      "TL": "claude-sonnet-5-5",
+      "DV": "claude-opus-5-5",
+      "DR": "claude-opus-5-5",
+      "SR": "claude-opus-5-5",
+      "QA": "claude-sonnet-5-5",
+      "DC": "claude-haiku-5-5",
+      "FN": "claude-sonnet-5-5",
+      "ST": "claude-sonnet-5-5"
+    },
+    "cli_version": "2.1.318 (Claude Code)",
+    "plugin_version": "4.1.4",
+    "plugin_path": "/Volumes/internal/Projects/igrsoft/ai-agents/corpflow",
+    "plugins_with": [
+      "corpflow@4.1.4",
+      "apple-developer@1.31.0"
+    ],
+    "config_leaks": {
+      "with": []
+    }
+  }
+}
