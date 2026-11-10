@@ -110,29 +110,15 @@ setup() {
   [ ! -e "$WD/target-dir/escaped.txt" ]
 }
 
-# --- phantom-row suppression, and the count that keeps it honest -------------
-# The runtime fires SubagentStop on a ~31s cadence for the whole life of a
-# dispatch: one real agent produced 21 rows. Every row the runtime delivers,
-# phantom or terminal, carries no stage and duration 0 — so the discriminator is
-# a REPEATED dedupe_key, and a first-seen key always records whatever its fields
-# say. Suppressing repeats is only safe if the suppression itself is recorded,
-# because a predicate one shade too broad would hide real events undetectably.
+# --- duplicate delivery ------------------------------------------------------
+# Every stop the runtime delivers carries no stage and duration 0, so the
+# discriminator is a REPEATED dedupe_key; a first-seen key always records.
 
 stop() {
   # stop <json payload> — one SubagentStop firing with no identity in the
   # environment, so the stage ladder resolves to its terminal fallback.
   run env -u CLAUDE_SUBAGENT_TYPE -u CLAUDE_TASK_METADATA_STAGE \
     CLAUDE_PROJECT_DIR="$WD" bash "$PLUGIN_ROOT/$SCRIPT" <<< "$1"
-}
-
-# ghost <session> <n> — n phantom firings of one agent whose first stop has
-# already been recorded: every one is a repeat of a key the trail holds.
-ghost() {
-  local i
-  for i in $(seq 1 "$2"); do
-    stop "$(jq -cn --arg s "$1" '{agent_id:"ghost", session_id:$s, duration_ms:0}')"
-    assert_success
-  done
 }
 
 rows_of() { jq -r --arg a "$1" 'select(.action == $a) | .action' "$WD/.context/logs/audit.jsonl" 2>/dev/null | wc -l | tr -d ' '; }
@@ -143,6 +129,8 @@ rows_of() { jq -r --arg a "$1" 'select(.action == $a) | .action' "$WD/.context/l
   stop '{"agent_id":"ghost","session_id":"s1","duration_ms":0}'
   assert_success
   [ "$(rows_of subagent_stopped)" = "1" ]
+  # The guard keeps no state of its own: the trail is the only seen-set.
+  [ -z "$(find "$WD/.context/logs" -name '.subagent-suppressed.*')" ]
 }
 
 @test "AC-3a: a FIRST-seen key with no stage and zero duration still records" {
@@ -153,7 +141,6 @@ rows_of() { jq -r --arg a "$1" 'select(.action == $a) | .action' "$WD/.context/l
   stop '{"agent_type":"corpflow:qa-engineer","agent_id":"a2","session_id":"s1","duration_ms":0}'
   assert_success
   [ "$(rows_of subagent_stopped)" = "2" ]
-  [ "$(rows_of subagent_stops_suppressed)" = "0" ]
   run jq -se 'map(.metadata.stage == "unknown" and .metadata.duration_ms == 0) | all' \
     "$WD/.context/logs/audit.jsonl"
   assert_success
@@ -172,235 +159,6 @@ rows_of() { jq -r --arg a "$1" 'select(.action == $a) | .action' "$WD/.context/l
   stop '{"agent_id":"a1","session_id":"s1","duration_ms":0}'
   assert_success
   [ "$(rows_of subagent_stopped)" = "2" ]
-}
-
-@test "AC-3b: n suppressions then a flush emit exactly one summary row counting n" {
-  # n is deliberately greater than one: a test asserting only that the row exists,
-  # or using n of one, cannot tell a working counter from a broken one — which is
-  # the failure mode this whole option was chosen to prevent.
-  stop '{"agent_id":"ghost","session_id":"s1","duration_ms":0}'
-  assert_success
-  ghost s1 5
-  [ "$(rows_of subagent_stopped)" = "1" ]
-  [ "$(rows_of subagent_stops_suppressed)" = "0" ]
-
-  # A first-seen stop for the same session is the flush trigger.
-  stop '{"agent_id":"real","session_id":"s1","duration_ms":1200}'
-  assert_success
-  [ "$(rows_of subagent_stops_suppressed)" = "1" ]
-  run jq -se 'map(select(.action == "subagent_stops_suppressed")) | last
-    | .metadata.suppressed_count == 5
-      and .subject == "s1"
-      and .result == "ok"
-      and (.metadata.window_start | length) > 0
-      and (.metadata.window_end | length) > 0' "$WD/.context/logs/audit.jsonl"
-  assert_success
-}
-
-@test "AC-3b: ZERO suppressions emit no summary row" {
-  # An informational row reporting nothing is noise in the trail it exists to
-  # keep honest.
-  stop '{"agent_id":"real","session_id":"s1","duration_ms":1200}'
-  assert_success
-  [ "$(rows_of subagent_stopped)" = "1" ]
-  [ "$(rows_of subagent_stops_suppressed)" = "0" ]
-}
-
-@test "AC-3b: the flush resets the window — a second flush does not re-report it" {
-  stop '{"agent_id":"ghost","session_id":"s1","duration_ms":0}'
-  ghost s1 2
-  stop '{"agent_id":"real","session_id":"s1","duration_ms":1200}'
-  stop '{"agent_id":"real2","session_id":"s1","duration_ms":1200}'
-  assert_success
-  [ "$(rows_of subagent_stops_suppressed)" = "1" ]
-  run jq -se 'map(select(.action == "subagent_stops_suppressed"))
-    | last | .metadata.suppressed_count == 2' "$WD/.context/logs/audit.jsonl"
-  assert_success
-}
-
-@test "AC-3c: concurrent hooks racing on one session's window lose no suppression" {
-  # Two hooks fire on the same SubagentStop and parallel worktask streams run
-  # concurrently. A read-increment-write on a shared counter under-counts here,
-  # silently — reproducing this finding's own defect class inside its fix. One
-  # token appended per suppression cannot.
-  stop '{"agent_id":"ghost","session_id":"s1","duration_ms":0}'
-  assert_success
-  local i pids=()
-  for i in $(seq 1 20); do
-    env -u CLAUDE_SUBAGENT_TYPE -u CLAUDE_TASK_METADATA_STAGE CLAUDE_PROJECT_DIR="$WD" \
-      bash "$PLUGIN_ROOT/$SCRIPT" \
-      <<< '{"agent_id":"ghost","session_id":"s1","duration_ms":0}' &
-    pids+=($!)
-  done
-  for i in "${pids[@]}"; do wait "$i"; done
-
-  stop '{"agent_id":"real","session_id":"s1","duration_ms":1200}'
-  assert_success
-  run jq -se 'map(select(.action == "subagent_stops_suppressed"))
-    | last | .metadata.suppressed_count == 20' "$WD/.context/logs/audit.jsonl"
-  assert_success
-}
-
-@test "AC-3b: windows are per session — one session's flush leaves another's pending" {
-  stop '{"agent_id":"ghost","session_id":"sA","duration_ms":0}'
-  ghost sA 2
-  stop '{"agent_id":"ghost","session_id":"sB","duration_ms":0}'
-  ghost sB 1
-  stop '{"agent_id":"real","session_id":"sA","duration_ms":1200}'
-  assert_success
-  run jq -se 'map(select(.action == "subagent_stops_suppressed"))
-    | length == 1 and (last | .subject == "sA" and .metadata.suppressed_count == 2)' \
-    "$WD/.context/logs/audit.jsonl"
-  assert_success
-  [ -f "$WD/.context/logs/.subagent-suppressed.sB" ]
-}
-
-@test "REQ-4c: the summary row goes through the SHARED appender, not a third append site" {
-  # A hand-rolled third append site is what the requirement refuses: the appender
-  # holds the closed actor/result sets and the symlink refusal, and a duplicate
-  # would drift from both. The hook's own `>> audit.jsonl` for subagent_stopped
-  # is the only remaining direct write in the file.
-  grep -q 'corpflow_hook_audit_row' "$PLUGIN_ROOT/$SCRIPT"
-  [ "$(grep -c '>> "\$LOG_DIR/audit.jsonl"' "$PLUGIN_ROOT/$SCRIPT")" = "1" ]
-
-  stop '{"agent_id":"ghost","session_id":"s1","duration_ms":0}'
-  ghost s1 1
-  stop '{"agent_id":"real","session_id":"s1","duration_ms":1200}'
-  run jq -se 'map(select(.action == "subagent_stops_suppressed")) | last
-    | .actor == "hook:audit-subagent" and (has("subject"))
-      and (.metadata | has("suppressed_count"))' "$WD/.context/logs/audit.jsonl"
-  assert_success
-}
-
-@test "REQ-22: a missing library degrades the summary, never the hook's exit code" {
-  # The guarded-source idiom exists for exactly this: the hook runs under set -eu,
-  # where a truncated library is fatal and `||` cannot rescue it. Suppression must
-  # still suppress; only the summary is deferred.
-  local fake="$WD/hooks"
-  mkdir -p "$fake"
-  cp "$PLUGIN_ROOT/$SCRIPT" "$fake/"
-  local i
-  for i in 1 2; do
-    run env -u CLAUDE_SUBAGENT_TYPE -u CLAUDE_TASK_METADATA_STAGE CLAUDE_PROJECT_DIR="$WD" \
-      bash "$fake/audit-subagent.sh" <<< '{"agent_id":"ghost","session_id":"s1","duration_ms":0}'
-    assert_success
-  done
-  run env -u CLAUDE_SUBAGENT_TYPE -u CLAUDE_TASK_METADATA_STAGE CLAUDE_PROJECT_DIR="$WD" \
-    bash "$fake/audit-subagent.sh" <<< '{"agent_id":"real","session_id":"s1","duration_ms":1200}'
-  assert_success
-  [ "$(rows_of subagent_stopped)" = "2" ]
-  [ "$(rows_of subagent_stops_suppressed)" = "0" ]
-  [ "$(wc -l < "$WD/.context/logs/.subagent-suppressed.s1" | tr -d ' ')" = "1" ]
-}
-
-# --- SR-1 / SR-2: the window file is store-shaped, so it is guarded like one ---
-
-@test "SR-1: a symlinked window file is refused on APPEND, never followed" {
-  # The same reasoning as the audit.jsonl guard twenty lines away: following the
-  # link turns the append into a write primitive against an arbitrary target.
-  mkdir -p "$WD/.context/logs" "$WD/target-dir"
-  printf 'untouched\n' > "$WD/target-dir/victim.txt"
-  ln -s "$WD/target-dir/victim.txt" "$WD/.context/logs/.subagent-suppressed.s1"
-
-  stop '{"agent_id":"ghost","session_id":"s1","duration_ms":0}'
-  ghost s1 1
-  [ "$(cat "$WD/target-dir/victim.txt")" = "untouched" ]
-}
-
-@test "SR-1: a symlinked window file is refused on FLUSH — no target content reaches the trail" {
-  # The flush is the second leg and the larger one: mv moves the LINK, then wc,
-  # head and tail all follow it, and field two of the target's first and last
-  # lines would be written into audit.jsonl as the window bounds. That is an
-  # arbitrary-file read exfiltrated into the audit trail.
-  mkdir -p "$WD/.context/logs" "$WD/target-dir"
-  printf '1 SECRET-FIRST\n2 SECRET-LAST\n' > "$WD/target-dir/secret.txt"
-  ln -s "$WD/target-dir/secret.txt" "$WD/.context/logs/.subagent-suppressed.s1"
-
-  stop '{"agent_id":"real","session_id":"s1","duration_ms":1200}'
-  assert_success
-  [ "$(rows_of subagent_stops_suppressed)" = "0" ]
-  run grep -c 'SECRET' "$WD/.context/logs/audit.jsonl"
-  assert_failure
-  # The link and its target both survive: refusing is not deleting.
-  [ -L "$WD/.context/logs/.subagent-suppressed.s1" ]
-  [ -s "$WD/target-dir/secret.txt" ]
-}
-
-@test "SR-2: a window that cannot be reported is NOT claimed — the count survives to the next flush" {
-  # The inversion SR found: the flush claimed and destroyed the records, and only
-  # then discovered it could not write the row. Suppression runs at full strength
-  # on that path, so the trail was narrowed with no trace of the narrowing — the
-  # one property this hook's header promises to preserve.
-  local fake="$WD/hooks"
-  mkdir -p "$fake"
-  cp "$PLUGIN_ROOT/$SCRIPT" "$fake/"
-  local i
-  # The first firing records; the four that follow are repeats of its key.
-  for i in 0 1 2 3 4; do
-    run env -u CLAUDE_SUBAGENT_TYPE -u CLAUDE_TASK_METADATA_STAGE CLAUDE_PROJECT_DIR="$WD" \
-      bash "$fake/audit-subagent.sh" <<< '{"agent_id":"ghost","session_id":"s1","duration_ms":0}'
-    assert_success
-  done
-  # A genuine stop under the degraded library: the row it cannot write is not a
-  # reason to delete the four records it holds.
-  run env -u CLAUDE_SUBAGENT_TYPE -u CLAUDE_TASK_METADATA_STAGE CLAUDE_PROJECT_DIR="$WD" \
-    bash "$fake/audit-subagent.sh" <<< '{"agent_id":"real","session_id":"s1","duration_ms":1200}'
-  assert_success
-  [ "$(rows_of subagent_stops_suppressed)" = "0" ]
-  [ "$(wc -l < "$WD/.context/logs/.subagent-suppressed.s1" | tr -d ' ')" = "4" ]
-
-  # The library is present again on the next invocation, and the whole window
-  # reports: deferred, not lost.
-  stop '{"agent_id":"real2","session_id":"s1","duration_ms":1200}'
-  assert_success
-  run jq -se 'map(select(.action == "subagent_stops_suppressed")) | last
-    | .metadata.suppressed_count == 4 and .metadata.truncated == false' \
-    "$WD/.context/logs/audit.jsonl"
-  assert_success
-}
-
-@test "SR-2: a symlinked audit.jsonl also defers the window instead of destroying it" {
-  # The appender returns 0 on every refusal and cannot report a dropped row, so
-  # its reachable refusals are anticipated before the claim rather than detected
-  # after it. This is the second of the two, and the one no library probe sees.
-  mkdir -p "$WD/.context/logs" "$WD/target-dir"
-  stop '{"agent_id":"ghost","session_id":"s1","duration_ms":0}'
-  ghost s1 2
-  # The swap happens after the seen-set was consulted; the trail is now a link.
-  mv "$WD/.context/logs/audit.jsonl" "$WD/.context/logs/audit.real"
-  ln -s "$WD/target-dir/escaped.txt" "$WD/.context/logs/audit.jsonl"
-
-  stop '{"agent_id":"real","session_id":"s1","duration_ms":1200}'
-  assert_success
-  [ ! -e "$WD/target-dir/escaped.txt" ]
-  [ "$(wc -l < "$WD/.context/logs/.subagent-suppressed.s1" | tr -d ' ')" = "2" ]
-}
-
-@test "SR-2: the window is capped, and a capped summary reports a floor and says so" {
-  # sw-SR0-3 option A's cost: a window that cannot be reported now survives, so it
-  # needs a bound. Past the cap the append is skipped and the summary marks
-  # itself truncated — bounded growth that describes itself, rather than a count
-  # invented from a second counter this design refuses to keep.
-  mkdir -p "$WD/.context/logs"
-  local pending="$WD/.context/logs/.subagent-suppressed.s1" i now
-  # A CURRENT epoch, or the window expires on the first suppression and flushes
-  # before the cap is ever exercised.
-  now="$(date -u +%s)"
-  # Seeded AFTER the key's first stop, or that stop would flush the window itself.
-  stop '{"agent_id":"over","session_id":"s1","duration_ms":0}'
-  assert_success
-  for i in $(seq 1 1000); do printf '%s 2026-09-08T00:00:00Z\n' "$now"; done > "$pending"
-
-  stop '{"agent_id":"over","session_id":"s1","duration_ms":0}'
-  assert_success
-  [ "$(wc -l < "$pending" | tr -d ' ')" = "1000" ]
-
-  stop '{"agent_id":"real","session_id":"s1","duration_ms":1200}'
-  assert_success
-  run jq -se 'map(select(.action == "subagent_stops_suppressed")) | last
-    | .metadata.suppressed_count == 1000 and .metadata.truncated == true' \
-    "$WD/.context/logs/audit.jsonl"
-  assert_success
 }
 
 @test "AC-2: a stray bare .context in a clean checkout is not a ledger — no logs, no row" {

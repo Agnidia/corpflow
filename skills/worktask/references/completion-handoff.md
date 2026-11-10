@@ -13,7 +13,7 @@ Related: [After PL0 — steps 1–3](loop-entry.md#after-pl0--steps-13) · [Step
 - Patch status at every transition (in_progress at claim, the verdict-mapped status at completion)
 - Execute a stage only after its `blocked_by` dependencies have settled
 - Pass `model` from task metadata to the Agent tool (`model: opus` → `model: "opus"`); don't rely on frontmatter inheritance
-- Stamp `metadata.effort` on the task row: it is the ledger record the Step C.0a resolver bumps, and the only place a per-stage override (DV at `xhigh`) is recoverable. In-process it becomes the `Agent` call's `effort` (2.1.292), except on haiku, which gets none (transport `none`); headless dispatch turns it into `--effort`
+- Stamp `metadata.effort` on the task row: it is the ledger record the Step C.0a resolver bumps, and the only place a per-stage override (DV at `xhigh`) is recoverable. In-process it becomes the `Agent` call's `effort`, except on haiku, which gets none (transport `none`); headless dispatch turns it into `--effort`
 - `metadata.agent`: always fully-qualified `plugin:agent` (`corpflow:developer`, `apple-developer:ios-developer`)
 - A stage agent failing after 3 retries escalates per the error handling chain
 

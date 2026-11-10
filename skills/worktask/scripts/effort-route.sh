@@ -12,7 +12,7 @@
 #
 #   `--cap <tier>` is the account ceiling cached in `facts.capabilities.effort_cap.<model>`. A
 #   request above it is lowered to it before either transport sees it (`requested` carries the
-#   lowered tier, `capped_from` the original), because Claude Code 2.1.314+ would lower it
+#   lowered tier, `capped_from` the original), because Claude Code would lower it
 #   anyway, and only after a refused request.
 #
 #   Symbols: none exported — this file is a CLI, never sourced (unlike effort-ladder.sh).

@@ -60,7 +60,7 @@ them on; `--worktask-impact-only` only narrows the output.
 /cc-update 2.1.77 --agent developer            # one file; --command prompt-audit for a command
 /cc-update 2.1.77 --scope agents --notes "New Elicitation hook; agents inherit model"
 /cc-update 2.1.70 --force                      # older than the recorded min version
-/cc-update 2.1.260 --dry-run --notes "claude agents run gains --idle-timeout <s>"   # ledger preview
+/cc-update 2.1.260 --dry-run --notes "claude -p gains --idle-timeout <s>"   # ledger preview
 ```
 
 ## Output Format
@@ -287,7 +287,7 @@ Changelog entries are categorized by keyword and routed to the file types below.
 | Category | Keywords | Affected files |
 |----------|----------|----------------|
 | **Comms** | the keywords in § Communication Surfaces Watch | the owning files named there |
-| **Ledger** | new `claude agents run` flag, new frontmatter key, new `Agent()` param, `claude agents --json` key, `--json-schema`, `--permission-mode` value | the files in § Ledger Field Review |
+| **Ledger** | new `claude -p` or `claude agents` flag, new frontmatter key, new `Agent()` param, `claude agents --json` key, `--json-schema`, `--permission-mode` value | the files in § Ledger Field Review |
 | **Commands** | slash command, /clear, /reload-plugins, Tool(param:value) permission syntax | worktask + relevant command files, agent-coordination |
 | **Security** | auto mode, destructive git block, commit --amend guard, IaC destroy block, trigger delivery can't auto-approve, auth-stub tools headless, --restricted, TOCTOU, path traversal | git-conventions, resume reference, security-review-process `references/claude-code-hardening.md` |
 

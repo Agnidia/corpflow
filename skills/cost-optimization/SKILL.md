@@ -86,7 +86,7 @@ Handoff summaries guide navigation; they cannot substitute for reviewing the cod
 
 ### 4d. Command Output Hygiene
 
-Command output stays in context for the rest of the session, like an appended file, and is re-billed on every later turn. Run noisy commands with their quiet flag (`-quiet`, `--silent`, `-q`) or trim them (`| tail -n 50`). Send builds and tests to the platform's `/<plugin>:build-test` or its builder subagent, which returns a verdict instead of the raw log. The session-wide output cap: `${CLAUDE_SKILL_DIR}/references/token-baselines.md § Knobs`.
+Command output stays in context for the rest of the session, like an appended file, and is re-billed on every later turn. Run noisy commands with their quiet flag (`-quiet`, `--silent`, `-q`) or trim them (`| tail -n 50`). Send builds and tests to the platform's `/<plugin>:build-test` or its builder subagent, which returns a verdict instead of the raw log. The session-wide output cap: `${CLAUDE_SKILL_DIR}/references/token-baselines.md § Knobs`. Background command notices and TaskStop results over 1,000 characters show only the start and end, so tee a long command to `.context/logs/` when its middle matters.
 
 ### 5. Early Termination
 

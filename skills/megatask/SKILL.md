@@ -189,6 +189,14 @@ A batch cannot stop for one issue's approvals, so every per-issue `PL0` is stamp
 (`skills/worktask/references/workflow.md § Step A.4`). The single human checkpoint is megatask's own **R1 batch
 confirmation**, before any worktree exists; per-issue changes are reviewable as per-issue PRs.
 
+Bypassed gates do not cover tool permission prompts. Headless stages deny them with
+`--permission-prompts none`. An in-process stage, a subagent or a teammate waits on the prompt
+unless the operator sets `permissions.denyInsteadOfPrompting: true`. With it set, the
+call is denied, the turn continues, and the stage reports `permission_denied`
+(`skills/agent-coordination/SKILL.md § Retry / Escalate Matrix`). R1 warns when the setting is unset
+(`commands/megatask.md § R1 permission-prompt check`). It is the operator's setting, so megatask
+never writes it.
+
 #### Parking an escalate-class question
 
 Escalate-class questions are never auto-decided — they park that single issue while the batch

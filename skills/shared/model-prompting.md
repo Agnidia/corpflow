@@ -158,8 +158,9 @@ in reasoning, then write it once, not twice.
 
 ### Version sensitivity
 
-`model-selection.md § Aliases` resolves `fable` to Fable 5.1, but Claude apps gateway sessions
-still get Fable 5. The block is safe on both: each line is a counter-instruction whose worst
+`model-selection.md § Aliases` resolves `fable` to Fable 5.2, but Claude apps gateway sessions
+can still get an earlier Fable. The source links point at the Fable 5.1 guide, the newest one this
+plugin has checked. The block is safe on both: each line is a counter-instruction whose worst
 case on a model without the behaviour is a no-op. The long-output line carries the prompt half
 of the 5.1 page's `#leave-room-for-long-outputs-at-xhigh-and-max-effort`; the `max_tokens` half
 belongs to Claude Code (`model-selection.md § Output headroom at xhigh and max`). The live

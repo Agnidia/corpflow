@@ -232,7 +232,7 @@ def match_row(entry, rows):
     # Names are not unique, so a name decides only when exactly one row carries it. Two or
     # more are an ambiguous match: an empty row classifies as liveness-unknown, never as gone,
     # because re-delegating beside a live twin doubles the stage's work. The name itself is
-    # stable for peers across a reload or --resume since Claude Code 2.1.309.
+    # stable for peers across a reload or --resume.
     name = entry.get("name")
     if name:
         named = [row for row in rows if row.get("name") == name]

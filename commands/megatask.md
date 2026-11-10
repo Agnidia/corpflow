@@ -138,12 +138,22 @@ All three are warn-and-continue, never a hard gate. See `skills/megatask/SKILL.m
 
 | Projection | Formula | Cap (default) |
 |---|---|---|
-| Total spawns | `issue_count × ~9–11 stages` + nested-delegation spawns | no cap (removed in CC 2.1.224) |
+| Total spawns | `issue_count × ~9–11 stages` + nested-delegation spawns | no cap |
 | Max chain depth | megatask spends one level on the per-issue orchestrator, so DV → platform-router → Tier-2 lands at **4** | `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` (3) |
 | Peak concurrent | `parallel_tracks × (orchestrator + stage agent + nested children)` | `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (20) |
 
 Over-cap depth ⇒ name both remediations: raise the env var, or flatten Tier-2 dispatch
 (`skills/megatask/SKILL.md § Depth remediations`).
+
+#### R1 permission-prompt check
+
+Warn and continue, like the projections. Read `permissions.denyInsteadOfPrompting` from
+`~/.claude/settings.json`, `.claude/settings.json` and `.claude/settings.local.json`; the last
+file that sets it wins. When none sets it to `true`, add one R1 line: *"Permission prompts are
+on: an in-process stage that hits a prompt waits until someone answers it. Set
+`permissions.denyInsteadOfPrompting: true` to deny it instead; the stage then reports
+`permission_denied`."* Never write the setting yourself (`skills/megatask/SKILL.md § Unattended
+Execution`).
 
 #### R1 outcomes
 

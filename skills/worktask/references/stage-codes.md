@@ -131,7 +131,7 @@ the matrix stays the only place a tier is *decided*, the file is where Claude Co
 static one from, and a parity test holds the two together
 (`tests/shell/worktask/agent-effort-frontmatter.bats`). A per-dispatch deviation from that static
 tier (a default-writer stamp, a resolver bump, a `CORPFLOW.md § Models`/`state.models` override)
-rides the `Agent` tool's `effort` parameter in-process (2.1.292), or routes headless when the
+rides the `Agent` tool's `effort` parameter in-process, or routes headless when the
 operator opts in — `skills/agent-coordination/references/headless-dispatch.md § Effort route and
 transport`.
 Alias resolution, the Fable 5 credit gate, managed-allowlist resolution and the effort

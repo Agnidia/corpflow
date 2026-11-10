@@ -166,5 +166,5 @@ escalation. Never re-enter a still-blocked do/while after a refused resume.
 
 The dispatcher reads optional compaction and retry controls from the same ledger row on fresh launch and resume.
 It exits 2 instead of emitting a fallback warning when an in-process fallback would discard a configured control.
-Treat this as a refused dispatch, including CLI absence, a version below 2.1.303, authentication failure, and unresolved agent identity.
+Treat this as a refused dispatch, including CLI absence, a version below `MIN_CC_VERSION`, authentication failure, and unresolved agent identity.
 A child that already changed files still exits 3 under the existing side-effect guard.

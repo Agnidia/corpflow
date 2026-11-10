@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.1.5] — 2026-11-10
+
+### Changed
+
+- Require Claude Code 2.1.322+ (was 2.1.316+), and raise the `headless-dispatch.sh` floor to match: the new recovery row for a refused stage report depends on the 2.1.319 notice.
+- Integrate Claude Code 2.1.317→2.1.322: Fable 5.2 as the `fable` default ($8/$40), the per-model effort fallback for subagents, the 3-minute shell backgrounding in background subagents, MCP tasks, `permissions.denyInsteadOfPrompting`, `credential_expires_at`, and the 2.1.319/2.1.321 sandbox and permission fixes.
+- Add `Reattach rows — a refused stage report`: a refused background report is asked for once through Step 6.5a4, never re-dispatched, and escalates on a second miss.
+- Map safeguard stops and flagged-message stops in the Retry / Escalate Matrix: a first safeguard stop retries once under `logic` with a narrowed prompt; a second one, or a stop under "Ask each time", goes to `hard_constraint`.
+- Warn at megatask R1 when `permissions.denyInsteadOfPrompting` is unset, since a permission prompt otherwise parks an in-process lane.
+
+### Fixed
+
+- Stop recording a backgrounded test call as a run: `test-execution-promote.sh` discards the dedupe marker when the Bash result carries `backgroundTaskId` and writes a `test_run_backgrounded` row. Before this, a suite that a background subagent moved to the background after 3 minutes was recorded from its partial output, and the gate then denied the re-run.
+
+### Removed
+
+- Remove the `audit-subagent.sh` phantom-stop suppression window and its `subagent_stops_suppressed` summary row. `SubagentStop` fires once per subagent on every supported build, so a repeated `dedupe_key` now writes no second row and leaves no trace file.
+- Remove compat notes for Claude Code builds older than 2.1.322: the per-band "Claude Code 2.1.A–2.1.B" sections are folded into their topical sections, and version tags, "before/no longer" history and fix notices are gone from agents, commands and skills.
+
 ## [4.1.4] — 2026-11-02
 
 ### Changed

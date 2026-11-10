@@ -66,13 +66,17 @@ Every stage reads `exploration.md`; source-file access differs.
 | Classification | Trigger | Retry | Escalate to |
 |---|---|---|---|
 | `transient` | 5xx / rate-limit / network | 3, backoff 2^n s | — (same agent) |
-| `logic` | bug / wrong approach | 3, corrective context from retry 2 | — (same agent) |
+| `logic` | bug / wrong approach; a first safeguard stop (retry with a narrower prompt) | 3, corrective context from retry 2 | — (same agent) |
 | `missing_input` | required artifact absent | No | previous stage per chain |
 | `ambiguous_requirements` | requirements unclear | No | PL |
 | `design_flaw` | architecture blocks implementation | No | AR |
-| `hard_constraint` | ethics / security / legal block | No | abort + block for human (`"ST"`) |
+| `hard_constraint` | ethics / security / legal block; a second safeguard stop; a subagent stopped on a flagged message | No | abort + block for human (`"ST"`) |
 | `exhausted` | `retry_count == 3` | No | previous stage per chain |
 | `permission_denied` | auto-mode classifier denies a tool call | No | — (same agent) |
+
+#### Safeguard and flagged-message stops
+
+When safeguards stop a subagent, Claude Code tells the parent to retry with a narrower prompt or to tell the user. The orchestrator does the first through `logic`: one retry with the request narrowed to the stage's acceptance criteria. A second stop on the same stage goes to the user as `hard_constraint`. Under "Switch models when a message is flagged" = "Ask each time", a subagent stops instead of switching models. A retry on the same model is flagged again, so that stop goes straight to `hard_constraint`. Record the stop text in `last_error.message`.
 
 #### Confirmed environment restrictions
 
@@ -418,11 +422,13 @@ Pairs with the orchestrator's forward-looking `dispatch_depth_projected` (`skill
 
 #### Background-by-default dispatch
 
-Subagents run in the background by default: the dispatching agent keeps its turn and receives the child's result as a completion notification. So (1) an `Agent()` launch acknowledgement is not stage completion — advance a stage (Step 6.5, the `completed` patch) only on the completion notification or the `subagent_stopped` audit row (`skills/worktask/references/dispatch-readiness.md § Orchestrator Execution Loop`); (2) unblocked sibling stages (parallel DVN tracks, DC+QA) overlap with no extra orchestration.
+Subagents run in the background by default: the dispatching agent keeps its turn and receives the child's result as a completion notification. So (1) an `Agent()` launch acknowledgement is not stage completion — advance a stage (Step 6.5, the `completed` patch) only on the completion notification or the `subagent_stopped` audit row (`skills/worktask/references/dispatch-readiness.md § Orchestrator Execution Loop`); (2) unblocked sibling stages (parallel DVN tracks, DC+QA) overlap with no extra orchestration. This holds in terminal, print/SDK, desktop and IDE sessions. A subagent's own Agent calls default to the foreground, so wait for completion evidence before settling the stage.
+
+A completion notification that says the report was refused is not a failed stage: `skills/worktask/references/recovery-liveness.md § Reattach rows — a refused stage report`. A background report survives compaction, and a burst of waiting reports arrives as separate requests. `/clear` keeps the running commands of background agents, teammates and workflows. A background command notice over 1,000 characters shows only its start and end, so the stage log, not the notice, is the record.
 
 ##### Depth accounting & background permission prompts
 
-Resumed subagents restore their original spawn depth and their own prompt and tool restrictions, and forked ones count toward the cap — so reattach is safe and identity alone never forces a re-dispatch. Permission prompts from background subagents surface in the main session (the dialog names the asking agent; Esc denies just that tool), so an unattended run parks on them — see the resume `waitingFor` branch table.
+Resumed subagents restore their original spawn depth and their own prompt and tool restrictions, and forked ones count toward the cap — so reattach is safe and identity alone never forces a re-dispatch. Permission prompts from background subagents surface in the main session (the dialog names the asking agent; Esc denies just that tool), so an unattended run parks on them — see the resume `waitingFor` branch table. `permissions.denyInsteadOfPrompting` denies them instead (`skills/megatask/SKILL.md § Unattended Execution`).
 
 ##### Two independent ceilings
 
@@ -447,13 +453,13 @@ When `--max-budget-usd` trips, new spawns are denied and running background suba
 
 ### Model Selection
 
-Prefer reading an artifact over invoking an agent. Per-invocation override: `Agent({ subagent_type: "corpflow:developer", model: "opus", effort: "high" })` — `effort` needs 2.1.292. The spawn tool is `Agent`; hooks, matchers and grants name only `Agent`.
+Prefer reading an artifact over invoking an agent. Per-invocation override: `Agent({ subagent_type: "corpflow:developer", model: "opus", effort: "high" })` The spawn tool is `Agent`; hooks, matchers and grants name only `Agent`.
 
 Permission rules accept `Tool(param:value)` with `*` wildcards — `Agent(model:opus)` permits only opus-model spawns, `Agent(model:*)` any override — so auto mode's dispatch overrides can be constrained without listing every agent. `Agent(type)` deny rules and `Agent(x,y)` allowed-types restrictions apply to named subagent spawns too.
 
 #### Effort on nested delegation
 
-A nested `Agent` call without `effort` runs at the target's own `effort:` frontmatter tier, never the caller's. Probed at 2.1.292: `team-lead` at `xhigh` spawned `technical-lead`, which ran at `high`. So a stage agent that hands its stage's primary work to another agent passes its own tier, the `effort:` line of its brief:
+A nested `Agent` call without `effort` runs at the target's own `effort:` frontmatter tier, never the caller's. Probed: `team-lead` at `xhigh` spawned `technical-lead`, which ran at `high`. So a stage agent that hands its stage's primary work to another agent passes its own tier, the `effort:` line of its brief:
 
 | Delegation | `effort` |
 |---|---|
@@ -464,6 +470,8 @@ A nested `Agent` call without `effort` runs at the target's own `effort:` frontm
 | Consults: TL → technical-lead, AR → platform architect, PM → designer or ethics | none: the target's own tier |
 
 Pass no `effort` to a haiku target, or when the brief has no `effort:` line.
+
+A target with no `effort:` frontmatter, on a model other than the main conversation's, runs at that model's saved effort level or its default, not at the session's effort. Consults to a sibling plugin agent with no frontmatter tier can therefore change tier with the operator's `/effort` history. Pass the brief's `effort` when the tier of the consult matters.
 
 #### Model aliases, allowlists & @-mentions
 
@@ -516,7 +524,7 @@ Every Monitor watch carries a bounded deadline — at most 30 minutes, 10 inside
 
 ### MCP Auto-Background
 
-An MCP tool call past the auto-background threshold (default 2 minutes, `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS`) is backgrounded by Claude Code itself: the caller gets a handle, not the result. Handle it like a backgrounded `Agent()` dispatch (§ Background-by-default dispatch): the handle is not the build/test outcome. A completion gate reading an artifact the call produces (e.g. `developer § D1`'s `build-developer-*.log`) waits for the real completion signal — a log still being written is not done, and file presence proves nothing.
+An MCP tool call past the auto-background threshold (default 2 minutes, `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS`) is backgrounded by Claude Code itself: the caller gets a handle, not the result. An MCP server that runs a call as an MCP task is backgrounded at once, and Claude is told when it finishes (`CLAUDE_CODE_DISABLE_MCP_TASK_BACKGROUND=1` waits inside the call). In a background subagent a Bash command moves to the background after 3 minutes on every provider; `test-execution-promote.sh` never records such a handle as a test run. Handle it like a backgrounded `Agent()` dispatch (§ Background-by-default dispatch): the handle is not the build/test outcome. A completion gate reading an artifact the call produces (e.g. `developer § D1`'s `build-developer-*.log`) waits for the real completion signal — a log still being written is not done, and file presence proves nothing.
 
 #### MCP auto-background threshold tuning
 
@@ -525,7 +533,7 @@ An MCP tool call past the auto-background threshold (default 2 minutes, `CLAUDE_
 
 ### MCP Tool Inheritance
 
-Subagents inherit MCP tools from servers already running in the parent at delegation time, so cross-plugin tools (XcodeBuildMCP, Pencil, …) need no per-tool `tools:` entries. A lazy-spawned server (`npx -y …` over stdio) starts only on its first tool call in a session, and inheriting the server reference does not spawn it, so a child can fail its first `mcp__<server>__*` call with "tool not available". The orchestrator does no warm-up: the platform plugin owns cold start and its CLI fallback (`skills/worktask/references/completion-handoff.md § Platform tooling ownership`).
+Subagents inherit MCP tools from the parent's servers, including servers that finish connecting after the subagent starts, so cross-plugin tools (XcodeBuildMCP, Pencil, …) need no per-tool `tools:` entries. A lazy-spawned server (`npx -y …` over stdio) starts only on its first tool call in a session, and inheriting the server reference does not spawn it, so a child can fail its first `mcp__<server>__*` call with "tool not available". The orchestrator does no warm-up: the platform plugin owns cold start and its CLI fallback (`skills/worktask/references/completion-handoff.md § Platform tooling ownership`).
 
 ### Subagent Worktree Access
 
@@ -541,6 +549,15 @@ Worktree-isolated subagents get Read/Edit access to their own worktree with no e
 - **Fresh worktrees**: `isolation: "worktree"` never reuses a stale worktree from a prior session, so old untracked files cannot leak into a new stage.
 - **cwd survives resume**: subagents resumed via `SendMessage` restore the explicit `cwd` they were spawned with.
 - **Stable key order**: `tasks{}` keys sort lexically by stage id, so handoff math like "the latest DV task is the highest-numbered DVN" holds.
+- **Worktree lifetime**: a subagent's isolated worktree stays while a background subagent it started still works in it. Unchanged subagent worktrees are cleaned up. In a bare repository a new worktree starts from the default branch.
+
+#### Forks, teammates & limits
+
+- Forks launched together are each told which launch is their own, so a fork does not start a sibling's work.
+- Split-pane teammates inherit the leader's tool deny rules and `--tools`. Cloud sessions and teammates are told when compaction left the oldest messages out of the summary.
+- Subagents preload at most 32 distinct skills; use the Skill tool for more.
+- MCP descriptions loaded through tool search allow 16384 characters. Agent tool lists match only the named MCP server; use `mcp__<whole name>__*` when its name contains `__`.
+- A parent session does not keep each subagent's tool results until the turn ends.
 
 ## Coordination Patterns
 
@@ -663,22 +680,3 @@ The `/config` "Dynamic workflow size" setting (`workflowSizeGuideline`; default 
 #### Gate prompts — idle behaviour
 
 These dialogs do not auto-continue on idle, so a PL/FN gate park holds until the operator answers. Idle-timeout auto-continue is an explicit `/config` opt-in; keep it off on hosts running gated worktasks.
-
-## Claude Code 2.1.303 coordination compatibility
-
-Main-conversation Agent calls run in the background across terminal, print/SDK, desktop, and IDE sessions from 2.1.302.
-A subagent's own calls default to the foreground. Wait for completion evidence before settling the stage.
-The first in-process teammate SendMessage call no longer requires prior tool-search loading (2.1.295).
-Subagents preload at most 32 distinct skills; use the Skill tool for additional skills.
-MCP descriptions loaded through tool search allow 16384 characters. Agent tool lists match only the named MCP server;
-use `mcp__<whole name>__*` when its name contains `__` (2.1.299).
-
-## Claude Code 2.1.316 coordination compatibility
-
-Forks launched together are each told which launch is their own (2.1.307). A fork no longer starts a sibling's work.
-A subagent's isolated worktree stays while a background subagent it started still works in it (2.1.311).
-Unchanged subagent worktrees are cleaned up; in a bare repository a new worktree starts from the default branch (2.1.305).
-A subagent can use MCP tools from servers that finish connecting after it starts (2.1.311).
-Cloud sessions and teammates are told when compaction left the oldest messages out of the summary (2.1.305).
-Split-pane teammates inherit the leader's tool deny rules and `--tools` (2.1.309).
-Parent sessions no longer keep each subagent's tool results until the turn ends (2.1.314).

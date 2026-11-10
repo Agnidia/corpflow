@@ -23,7 +23,7 @@ Ladder, from `skills/shared/model-selection.md § Effort Levels`: `low < medium 
 
 ### The tier is a request, not a guarantee
 
-`metadata.effort` is carried in-process by the `Agent` tool's `effort` parameter (2.1.292) and on the opt-in headless surface by `claude -p --agent … --effort`. `skills/worktask/scripts/effort-route.sh` picks the surface: in-process by default, headless only when `CORPFLOW_HEADLESS_ROUTE=on`. A request is still not a guarantee: a managed `maxEffortLevel` can cap it, so the hook row decides what ran. The bump is computed and recorded on every path and applied on the surface the route decision picked.
+`metadata.effort` is carried in-process by the `Agent` tool's `effort` parameter and on the opt-in headless surface by `claude -p --agent … --effort`. `skills/worktask/scripts/effort-route.sh` picks the surface: in-process by default, headless only when `CORPFLOW_HEADLESS_ROUTE=on`. A request is still not a guarantee: a managed `maxEffortLevel` can cap it, so the hook row decides what ran. The bump is computed and recorded on every path and applied on the surface the route decision picked.
 
 #### Transport audit
 

@@ -38,7 +38,7 @@ Claude Code's own internal agents (prompt suggestions, `/btw`) also fire `Subage
 
 | Hook Event | Fires When | Matcher | Payload Fields |
 | --- | --- | --- | --- |
-| `InstructionsLoaded` | A rule or nested CLAUDE.md loads, including on Write/Edit inside its scope and on a single-file Bash `cat`/`head`/`tail`/`sed -n`/`grep` view (2.1.293) | — | `agent_id`, `agent_type` when a subagent's file access loaded it; effort for rules and nested CLAUDE.md loaded on file access |
+| `InstructionsLoaded` | A rule or nested CLAUDE.md loads, including on Write/Edit inside its scope and on a single-file Bash `cat`/`head`/`tail`/`sed -n`/`grep` view | — | `agent_id`, `agent_type` when a subagent's file access loaded it; effort for rules and nested CLAUDE.md loaded on file access |
 
 ### Notification as resume wake-up
 
@@ -64,7 +64,7 @@ The Agent tool has no `resume` parameter; use `SendMessage` to reach running age
 ### Compaction recovery & hook-output guards
 
 - `PreCompact` fires before automatic compaction and blocks it with exit code 2. The managed `hooks/precompact-checkpoint.sh` (in `plugin.json`) snapshots `.context/state.json` to `.context/state.checkpoint-<ts>.json` on every compaction and never blocks (always exit 0).
-- `<system-reminder>` tags in hook output are escaped before they reach Claude (2.1.292); corpflow hooks never rely on them.
+- `<system-reminder>` tags in hook output are escaped before they reach Claude; corpflow hooks never rely on them.
 - Parent agents recover subagent results after compaction; killed or interrupted background agents keep partial results in context. `PostCompact` can re-inject critical state: the managed `skills/context-compression/scripts/post-compact-recovery.sh` writes `.context/logs/post-compact-<ts>.json`. It is registered and recurrence-guarded (`manifest-parity.bats`) but has never been observed firing — a real compaction cannot be simulated in CI — so treat it as registered, not confirmed working.
 
 #### SessionEnd finalization
@@ -152,7 +152,7 @@ Metadata only: the `dedupe_key` shape is unchanged.
 - Log events carry `message.uuid`, `client_request_id` and `tool_source` for message-level correlation and tool provenance across spans and audit rows.
 - `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` sets the 60 KB truncation limit on OTEL content attributes — set it with `OTEL_RESOURCE_ATTRIBUTES` when a collector enforces a payload ceiling.
 - Log events emitted outside the turn's async context (background/notification-triggered) carry the interaction span's trace context, so a background-agent completion nests under the originating trace.
-- Session transcripts record the reasoning effort per assistant message and `subagentStatusLine` includes it; the `subagentStatusLine` payload also carries `agentType`, so a status script can tell custom subagent types apart (2.1.293) (pairs with § Hook Effort Visibility).
+- Session transcripts record the reasoning effort per assistant message and `subagentStatusLine` includes it; the `subagentStatusLine` payload also carries `agentType`, so a status script can tell custom subagent types apart (pairs with § Hook Effort Visibility).
 
 #### BG-Task ID Schema Watch
 
@@ -234,7 +234,7 @@ Hyphenated matchers exact-match rather than substring-match, so a matcher meant 
 
 ### Hook Effort Visibility
 
-Hook payloads include `effort.level` (`low|medium|high|xhigh|max`), so audit/cost hooks can attribute spend to the effort tier without parsing model metadata. corpflow hooks read the payload only and write `"unknown"` when it has no `effort`. `$CLAUDE_EFFORT` is not a substitute: a haiku subagent's payload omits `effort` while the env var still holds the tier the `Agent` call requested (2.1.292). Tier model: `skills/shared/model-selection.md`.
+Hook payloads include `effort.level` (`low|medium|high|xhigh|max`), so audit/cost hooks can attribute spend to the effort tier without parsing model metadata. corpflow hooks read the payload only and write `"unknown"` when it has no `effort`. `$CLAUDE_EFFORT` is not a substitute: a haiku subagent's payload omits `effort` while the env var still holds the tier the `Agent` call requested. Tier model: `skills/shared/model-selection.md`.
 
 ### Error, config & compatibility semantics
 
@@ -255,7 +255,7 @@ Hook payloads include `effort.level` (`low|medium|high|xhigh|max`), so audit/cos
 #### Config-error hints & main-thread agents
 
 - A prompt-type or agent-type hook for `SessionStart`, `Setup` or `SubagentStart` is rejected at load ("use a command-type hook instead"): stage-lifecycle hooks that must react before any session message exists are `type: "command"` (or `type: "mcp_tool"`).
-- A `prompt` or `agent` hook written as an instruction ("Block commands that ...") now blocks what it names, and an instruction-style `prompt` hook on `Stop`/`SubagentStop` ends the turn early less often (2.1.294). corpflow ships only command hooks; re-check a sibling or user hook of either type.
+- A `prompt` or `agent` hook written as an instruction ("Block commands that ...") blocks what it names. corpflow ships only command hooks; re-check a sibling or user hook of either type.
 - Agent frontmatter `hooks:` and `mcpServers` apply in `--agent <name>` main-thread runs as well as subagent delegations, but only for project and user agents: a plugin agent ignores both in either context (§ Agent-scoped hooks live in plugin.json).
 
 ### Hook Terminal Sequences
@@ -337,9 +337,9 @@ MCP servers can request structured input mid-task via interactive forms or brows
 
 Use them to log elicitation requests for the audit trail, pre-fill known values from task metadata, and route complex elicitations to the right stage agent.
 
-## Hook reliability through Claude Code 2.1.303
+## Hook failure and payload rules
 
-Command and HTTP hooks accept `onFailure: "block"` from 2.1.295. Launch failures, unexpected exits,
+Command and HTTP hooks accept `onFailure: "block"`. Launch failures, unexpected exits,
 timeouts, and invalid JSON/schema output block supported actions. A deliberate exit 0 still follows the hook's own decision.
 The plugin pins this behavior on its test-execution and decision-protection PreToolUse hooks and its PreModelSwitch gate.
 Advisory artifact checks and observational hooks retain their existing behavior.
@@ -348,19 +348,20 @@ Keep the stage-boundary harness as the enforcement mechanism when a completion h
 
 ### Payload validation and concurrency
 
-Async multiline JSON and SessionStart environment propagation are fixed in 2.1.295. SessionEnd while
-background commands run and plugin worktree hooks under `--worktree` are fixed in 2.1.300; `--tmux` remains excluded.
-Hook `updatedInput` is validated as tool input from 2.1.300; unknown keys are dropped and invalid input denies the call.
-Prompt and agent hooks run at most twelve instances per event concurrently from 2.1.302. Command hooks are unaffected.
-These releases do not confirm background notification ID keys, maxTurns partial keys, or model-switch/resume payload field names.
+Hook `updatedInput` is validated as tool input; unknown keys are dropped and invalid input denies the call.
+Plugin worktree hooks run under `--worktree`; `--tmux` remains excluded.
+Prompt and agent hooks run at most 24 at a time per session. corpflow registers command hooks only.
+A skill source registers at most 1,024 hooks and 16,384 matcher characters per session.
+Each PreCompact hook's output is cut at 10,000 characters. `precompact-checkpoint.sh` prints nothing to the model.
+A PreToolUse `ask` is kept when another hook's `defer` finishes first, and an embedding app gets its own hook's `ask` reason.
+An `mcp_tool` hook answer over 16 MiB refuses the call.
+Background notification ID keys, maxTurns partial keys, and model-switch/resume payload field names stay unconfirmed.
 
-## Claude Code 2.1.304–2.1.316 hook behavior
+### Subagent and tool events
 
-`SubagentStop` fires once, when a subagent finishes (2.1.311). Before, it fired about twice a minute per running subagent.
-`audit-subagent.sh` keeps its phantom-row suppression as a defense.
-Hooks that match `Bash` also run on the shell commands the `Monitor` tool starts (2.1.314). They can block or ask, not approve or rewrite.
-Probed at 2.1.316, the payload is `tool_name: "Bash"` with `tool_input.command`, so `test-execution-gate.sh` gates Monitor test runs unchanged.
-A hook `if` condition such as `Monitor(tail *)` matches Monitor commands as `Bash(tail *)` matches Bash (2.1.314).
-Each PreCompact hook's output is cut at 10,000 characters (2.1.314). `precompact-checkpoint.sh` prints nothing to the model.
-Prompt and agent hooks run at most 24 at a time per session (2.1.312). corpflow registers command hooks only.
-A skill source registers at most 1,024 hooks and 16,384 matcher characters per session (2.1.304).
+`SubagentStop` fires once, when a subagent finishes. `audit-subagent.sh` still writes no second row for a repeated `dedupe_key`.
+Hooks that match `Bash` also run on the shell commands the `Monitor` tool starts. They can block or ask, not approve or rewrite.
+The payload is `tool_name: "Bash"` with `tool_input.command`, so `test-execution-gate.sh` gates Monitor test runs unchanged.
+A hook `if` condition such as `Monitor(tail *)` matches Monitor commands as `Bash(tail *)` matches Bash.
+PostToolUse hooks run, with up to 10 seconds to finish, on tool calls that finish after a new message interrupts the turn. `test-execution-promote.sh` reads `is_interrupt` and keeps such a call inert.
+A Bash call that returns `backgroundTaskId` is a handle, not a result. A background subagent's shell command moves there after 3 minutes, and the result then carries `subagentCapApplied: true` and `timedOutAfterMs: 180000` beside partial stdout (confirmed from transcripts). `test-execution-promote.sh` discards the dedupe marker for it and writes a `test_run_backgrounded` row.

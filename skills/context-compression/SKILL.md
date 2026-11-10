@@ -133,7 +133,7 @@ What each handoff carries into the stage it feeds:
 
 Use the extended inbound figure only on a live 1M window for a genuinely complex run; standard budgets cost less.
 
-- **Credit gate**: without 1M usage credits a 1M session auto-compacts back under the standard limit, so plan against the standard column unless credits are confirmed. **Fable 5.x** (default Fable 5.1) is 1M by default but credit-gated: fable-tier dispatch fails without credits (`skills/shared/model-selection.md`). **Sonnet 5.5** is natively 1M; the release notes do not say whether that window is credit-gated, so the standard column applies until credits are confirmed.
+- **Credit gate**: without 1M usage credits a 1M session auto-compacts back under the standard limit, so plan against the standard column unless credits are confirmed. **Fable 5.x** (default Fable 5.2) is 1M by default but credit-gated: fable-tier dispatch fails without credits (`skills/shared/model-selection.md`). **Sonnet 5.5** is natively 1M; the release notes do not say whether that window is credit-gated, so the standard column applies until credits are confirmed.
 - **Opus 5.5 is the exception**: its 1M window is ungated, so opus-tier stages on the `opus` alias always plan against the extended column.
 #### Extended Context Budget — fallback and long sessions
 
@@ -170,7 +170,7 @@ Over budget, cut in this order:
 | Error retry | Trim non-essential context |
 | User request | Manual compression |
 | Post-compaction | Deferred tool schemas preserved — no re-fetch needed; a folder's CLAUDE.md is not attached a second time after a compaction or resume |
-| Write/Edit or a Bash view in a rule's scope | Path-scoped `.claude/rules` and nested CLAUDE.md load on Write and Edit too, and on a single-file Bash `cat`/`head`/`tail`/`sed -n`/`grep` view (2.1.293), not only on Read — count them in the stage budget of every agent with those Bash grants |
+| Write/Edit or a Bash view in a rule's scope | Path-scoped `.claude/rules` and nested CLAUDE.md load on Write and Edit too, and on a single-file Bash `cat`/`head`/`tail`/`sed -n`/`grep` view, not only on Read — count them in the stage budget of every agent with those Bash grants |
 | Context too long for the auto-mode classifier | The conversation is compacted instead of every tool call prompting or failing |
 | Last few turns are noise | `/rewind`, not `/compact` (`skills/cost-optimization/references/token-baselines.md § Session commands`) |
 
