@@ -172,6 +172,33 @@ count_files() { find "$RUNS" -type f -name "$1" 2>/dev/null | wc -l | tr -d ' ';
   [ "$(count_files '*')" = "0" ]
 }
 
+@test "a backgrounded call discards — a handle is not a result" {
+  gate_run './run-tests.sh'
+  post_run './run-tests.sh' '{"stdout":"","interrupted":false,"backgroundTaskId":"b43ijcryf"}'
+  assert_success
+  [ "$(count_files '*')" = "0" ]
+  grep -q '"test_run_backgrounded"' "$WD/.context/logs/audit.jsonl"
+}
+
+@test "an auto-moved call discards even when its partial stdout carries a count" {
+  # CC 2.1.318 moves a background subagent's command after 180 s and returns
+  # what it printed so far: a pass count here belongs to an unfinished run.
+  gate_run './run-tests.sh'
+  post_run './run-tests.sh' \
+    '{"stdout":"34 tests passed","interrupted":false,"backgroundTaskId":"x1","subagentCapApplied":true,"timedOutAfterMs":180000}'
+  assert_success
+  [ "$(count_files '*')" = "0" ]
+  grep '"test_run_backgrounded"' "$WD/.context/logs/audit.jsonl" | grep -q '"auto_moved":true'
+}
+
+@test "an empty backgroundTaskId is not a handle — the result still promotes" {
+  gate_run './run-tests.sh'
+  post_run './run-tests.sh' '{"stdout":"7 tests, 0 failures","backgroundTaskId":""}'
+  assert_success
+  [ "$(count_files '*.pending')" = "0" ]
+  [ "$(count_files '*')" = "1" ]
+}
+
 @test "a missing tool_response key discards — absence is not a result" {
   gate_run './run-tests.sh'
   local payload

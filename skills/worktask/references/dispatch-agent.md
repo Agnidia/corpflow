@@ -130,7 +130,7 @@ if (route.route === "headless") {
   launchAck = Agent({
     subagent_type: subagentType,
     model: effectiveModel,
-    ...effortArg,  // agent-param: the stamped tier, honoured in-process since 2.1.292
+    ...effortArg,  // agent-param: the stamped tier, honoured in-process
     prompt,  // composed stdout with [6]/[7] spliced in, never full.description
     ...(stageSchema ? { schema: stageSchema } : {}),
   });

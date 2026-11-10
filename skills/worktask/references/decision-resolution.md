@@ -114,12 +114,12 @@ Empty set ⇒ no-op, fall through to § Step C.0 unchanged.
 
 ##### Step C.0a — how the tier reaches the stage agent
 
-Since CC 2.1.292 the `Agent` tool takes an `effort` parameter, so the computed tier reaches an
+The `Agent` tool takes an `effort` parameter, so the computed tier reaches an
 in-process stage agent directly. `skills/worktask/scripts/effort-route.sh` still decides the
 surface: in-process with `Agent({ effort })` by default; headless through
 `skills/worktask/scripts/headless-dispatch.sh` only when the operator sets
-`CORPFLOW_HEADLESS_ROUTE=on`. Both carriers outrank the agent's own `effort:` frontmatter
-(probed at 2.1.292). The audit row's `effort_transport` names the surface:
+`CORPFLOW_HEADLESS_ROUTE=on`. Both carriers outrank the agent's own `effort:` frontmatter.
+The audit row's `effort_transport` names the surface:
 
 ###### Effort transport surfaces
 
@@ -195,5 +195,5 @@ it does to the first attempt, since side effects already exist either way.
 ###### Step C.0a — do not reach the tier another way
 
 Never substitute a different agent believed to run at a higher tier: that trades the domain
-expertise answering the question for a guess. Pass the tier on `Agent({ effort })` (2.1.292),
+expertise answering the question for a guess. Pass the tier on `Agent({ effort })`,
 never through prompt text: a tier asked for in prose is not applied.

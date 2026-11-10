@@ -155,8 +155,8 @@ their own `SKILL.md` are listed in `skills[]`.
 
 - Run `claude plugin validate` before publishing: it reports `SKILL.md` files whose frontmatter fails
   to parse, which otherwise fail to load silently. Tooling reads `success` from `--json` rather than
-  scraping the text output. Since 2.1.289 it no longer skips the plugin when its folder also holds a
-  marketplace manifest, so validate the plugin manifest path, not only the marketplace.
+  scraping the text output. It checks the plugin when its folder also holds a marketplace
+  manifest, so validate the plugin manifest path, not only the marketplace.
 - A plugin may declare `"."` as a `skills` path, meaning the plugin root itself.
 - The `archive` source installs from a zip over HTTPS and accepts an optional SHA-256 pin. Pin the
   hash for any non-first-party marketplace entry.
@@ -171,7 +171,7 @@ their own `SKILL.md` are listed in `skills[]`.
   (`gatingHooks` under `--json`). corpflow ships no mods, and a user-installed mod that makes an
   organization's guard skip its check is unloaded.
 
-#### Marketplace install, plugin tests and name limits (2.1.292)
+#### Marketplace install, plugin tests and name limits
 
 - `claude plugin install --marketplace <source>` adds the marketplace when needed, under the
   same policy checks as `marketplace add`, then installs from it.

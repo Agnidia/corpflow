@@ -17,7 +17,7 @@ Standard API rates, USD per million tokens, for the model each alias resolves to
 | **haiku** | Haiku 5.5 | 0.10 | 0.50 | 0.01 | 1x (baseline) | Formatting, routing, checklists, status checks |
 | **sonnet** | Sonnet 5.5 | 2.00 | 10.00 | 0.10 | 20x haiku | Implementation, analysis, test design, coordination |
 | **opus** | Opus 5.5 | 4.00 | 20.00 | 0.20 | 40x haiku | Architecture decisions, review gates, complex reasoning, meta-optimization |
-| **fable** | Fable 5.1 | 10.00 | 50.00 | 0.25 | 100x haiku | Operator override only, never a stage default |
+| **fable** | Fable 5.2 | 8.00 | 40.00 | 0.20 | 80x haiku | Operator override only, never a stage default |
 
 Relative cost holds at any input:output mix, since every tier prices output at 5x input. Dollars:
 `skills/cost-optimization/SKILL.md § Cost Estimation Formula`.
@@ -42,7 +42,7 @@ Re-check the rates against the `claude-api` skill whenever an alias moves to a n
 | --- | --- | --- | --- |
 | `opus` | Opus 5.5 (`claude-opus-5-5`), the default Opus and Claude Code's default model outside Foundry | 1M by default, no usage-credit gate | § Cost Tiers; fast mode multiplier on top |
 | `sonnet` | Sonnet 5.5 (`claude-sonnet-5-5`), the default Sonnet on the Anthropic API | native 1M | § Cost Tiers |
-| `fable` | Fable 5.1 (`claude-fable-5-1`), Mythos-class top reasoning. Claude apps gateway sessions still resolve `fable` and `best` to Fable 5 | 1M by default (`[1m]` names normalize to the base id) | § Cost Tiers |
+| `fable` | Fable 5.2 (`claude-fable-5-2`, the default Fable), Mythos-class top reasoning. `/model claude-fable-5-1` pins the previous one. Claude apps gateway sessions can still resolve `fable` and `best` to an earlier Fable | 1M by default (`[1m]` names normalize to the base id) | § Cost Tiers |
 | `haiku` | Haiku 5.5 (`claude-haiku-5-5`), the default Haiku on the Anthropic API | 1M | § Cost Tiers; prompts over 100K bill at the higher Haiku rate |
 
 Opus-tier stages follow the `opus` alias to each new default Opus with no plugin change. `fable` is
@@ -50,10 +50,10 @@ a valid operator override, never a plugin default.
 
 ### Workflow-only model override
 
-`CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL` selects the model for workflow agents from Claude Code 2.1.296.
+`CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL` selects the model for workflow agents.
 It leaves other subagents unchanged. Keep `metadata.model` explicit and reconcile the effective model through existing `model_resolved` evidence.
 The classifier-only `CLAUDE_CODE_AUTO_MODE_MODEL` does not change stage model selection.
-Fable/best can retry once on the previous Fable model when the newest is unavailable to the organization (2.1.301).
+Fable/best can retry once on the previous Fable model when the newest is unavailable to the organization. After a fallback, Claude names the model that ran, so `model_resolved` stays accurate across wakes.
 Record observed resolution rather than assuming that the requested alias ran.
 
 ### Prefer the alias over a pinned id
@@ -73,13 +73,15 @@ Degrade via a session `fallbackModel` (`--fallback-model`) or an `Agent({ model 
 
 `/fast` applies to Opus: higher token rate and price multiplier, pinned via `/model`. The `opus`
 (Opus 5.5) and `fable` targets get Claude Code's lean system prompt by default and `sonnet` and
-`haiku` do not, so `opus` and `fable` stages carry a small standing input-token saving.
+`haiku` do not, so `opus` and `fable` stages carry a small standing input-token saving. Fast
+mode falls back to standard speed on the same model before it switches models. Vertex supports fast
+mode in the global, us and eu regions.
 
 ## Effort Levels
 
 `low` ○, `medium` ◐, `high` ●, `xhigh` ⬣, `max` ⬛. Default effort is `high` on API-key, Bedrock,
 Vertex, Foundry, Team and Enterprise plans; Pro keeps `medium` on older models. "ultrathink" runs
-its turn at `xhigh` on the 5.x models (2.1.311; `CLAUDE_CODE_DISABLE_ULTRATHINK` turns it off), and `/effort auto` resets. `/effort` stores its default per model, a saved
+its turn at `xhigh` on the 5.x models (`CLAUDE_CODE_DISABLE_ULTRATHINK` turns it off), and `/effort auto` resets. `/effort` stores its default per model, a saved
 level never carries onto a newly released model, and an explicit level set anywhere (`-p`, Agent
 SDK, `effortLevel` in project/managed/`--settings`) beats a model's launch default. None of that
 is under the pipeline's control, so every stage passes `effort` explicitly.
@@ -103,7 +105,7 @@ off, the request fails with `Effort 'xhigh' isn't available with thinking turned
 ### Output headroom at xhigh and max
 
 Thinking counts toward a request's output limit even when its text is not returned, and at
-`xhigh`/`max` Opus 5.5 and Fable 5.1 think longer per turn. Claude Code sets that limit, not the
+`xhigh`/`max` Opus 5.5 and Fable 5.x think longer per turn. Claude Code sets that limit, not the
 plugin: a `CLAUDE_CODE_MAX_OUTPUT_TOKENS` lowered below the model's default can cut an
 `xhigh` stage's reply off. The prompt-side half for Fable is in
 `skills/shared/model-prompting.md § fable — the block`.
@@ -113,10 +115,16 @@ plugin: a `CLAUDE_CODE_MAX_OUTPUT_TOKENS` lowered below the model's default can 
 Hooks read the active tier from `effort.level` (JSON payload; `"unknown"` when absent), so cost/audit
 hooks attribute spend per tier without parsing model metadata
 (`skills/agent-coordination/references/hook-monitoring.md § Hook Effort Visibility`). Subagents
-and compaction inherit the session's extended-thinking config; pass per-stage `metadata.model` +
-`effort` anyway, because explicit beats inherited for stage determinism and cost attribution. An
+and compaction inherit the session's extended-thinking config. A subagent on a model other than
+the main conversation's takes that model's saved effort level or its default, not the session's.
+Pass per-stage `metadata.model` + `effort` anyway, because explicit beats inherited for
+stage determinism and cost attribution. An
 automatic model switch (after a flagged message, or a retry on a fallback model) keeps the current
-effort level instead of taking the new model's default or saved level.
+effort level instead of taking the new model's default or saved level. A subagent that inherited a
+parent subagent's model keeps it when a background job or message wakes it. Under "Switch models
+when a message is flagged" = "Ask each time", a subagent stops instead of switching; the
+orchestrator treats that stop as `hard_constraint`
+(`skills/agent-coordination/SKILL.md § Safeguard and flagged-message stops`).
 
 ### Effort frontmatter and caps
 
@@ -129,11 +137,14 @@ per-dispatch `Agent()` argument.
 #### Effort precedence
 
 corpflow sets a tier only per call: the `Agent` tool's `effort` parameter in-process, `--effort`
-on a headless `claude -p --agent` child. Both outrank the agent's own `effort:` frontmatter
-(probed at 2.1.292), which beats the session level (`effortLevel`, `/effort`) and a model's
+on a headless `claude -p --agent` child. Both outrank the agent's own `effort:` frontmatter,
+which beats the session level (`effortLevel`, `/effort`) and a model's
 launch default. corpflow reads and sets no effort env var. An operator's
 `CLAUDE_CODE_EFFORT_LEVEL` removes the `effort` parameter from the Agent tool and pins every
 subagent; the audit row then shows `effort_resolved` ≠ `effort_requested`.
+`CLAUDE_CODE_SUBAGENT_EFFORT` sets a subagent's default effort when the call, frontmatter and
+session name none. Ledger dispatches pass `effort`, so the variable reaches only nested spawns that
+omit it — the same exposure as `CLAUDE_CODE_SUBAGENT_MODEL`.
 
 #### Effort caps and observation
 
@@ -143,7 +154,10 @@ does not support falls back downward to the highest one it does (§ xhigh routin
 is not on Claude Code's effort list at all, so its frontmatter `effort:` (and any resolver bump)
 never applies. `metadata.effort` keeps the requested tier regardless of any of this, so read the
 hook-reported `effort.level` — never a stage's own frontmatter or request — before trusting what
-tier it actually ran at.
+tier it actually ran at. Hook and OpenTelemetry `effort` values show the level in force, not a
+level picked mid-task. An admin effort cap makes Claude Code lower the tier and retry; Step
+6.5b-cap caches the lower tier in `facts.capabilities.effort_cap`, and later routes pass it as
+`effort-route.sh --cap`.
 
 ## Managed Allowlists and Org Restrictions
 
@@ -267,15 +281,3 @@ Two controls cover it. PL0 reads the variable before any spend and raises a plan
 Step 6.5b backfills `dispatched_agents[].model_resolved` when the runtime surfaces the model that
 ran, so cost follows the forced tier rather than the pin. The force applies at spawn, so there is
 no mid-stage switch for `hooks/model-switch-gate.sh` to refuse.
-
-## Claude Code 2.1.304–2.1.316 model and effort
-
-`CLAUDE_CODE_SUBAGENT_EFFORT` (2.1.316) sets a subagent’s default effort when the call, frontmatter, and session name none.
-Ledger dispatches pass `effort`; the variable reaches only nested spawns that omit it.
-This is the same exposure as `CLAUDE_CODE_SUBAGENT_MODEL`. Read the hook-reported `effort.level`, not the request.
-An admin effort cap makes Claude Code lower the tier and retry (2.1.314). Step 6.5b-cap caches the lower tier in
-`facts.capabilities.effort_cap`, and later routes pass it as `effort-route.sh --cap`.
-Hook and OpenTelemetry `effort` values show the level in force, not a level picked mid-task (2.1.312).
-A subagent that inherited a parent subagent's model keeps it when a background job or message wakes it (2.1.316).
-After a fallback, Claude names the model that ran (2.1.305). `model_resolved` stays accurate across wakes.
-Fast mode on Opus 4.8 is deprecated and goes away on 2026-11-30. corpflow pins no Opus 4.8 id.

@@ -4,9 +4,9 @@ Repository-tracked memory (lean rolling format). Narratives live in git history,
 
 ## Version Tracking
 
-- Plugin version: **4.1.4** (2026-11-02; CC 2.1.316 update, version held.)
-- Claude Code min required: **2.1.316** (headless startup exit 1, Monitor→Bash hooks, single SubagentStop)
-- Claude Code latest integrated band: **2.1.304→2.1.316**
+- Plugin version: **4.1.5** (2026-11-10; CC 2.1.322 update, refused-report row, backgrounded-test gate fix.)
+- Claude Code min required: **2.1.322** (refused bg-report notice, 3-min subagent shell backgrounding, Fable 5.2)
+- Claude Code latest integrated band: **2.1.317→2.1.322**
 
 ## CC Feature Band Index
 
@@ -14,6 +14,7 @@ Canonical band files live in the authoritative memory directory (`~/.claude/proj
 
 | Band | Canonical file | Plugin release |
 |------|----------------|----------------|
+| 2.1.317→2.1.322 | cc-features-2.1.317-322.md | v4.1.5 (refused-report row, backgrounded-test gate; min CC → 2.1.322) |
 | 2.1.304→2.1.316 | cc-features-2.1.304-316.md | v4.1.4 held (startup_failed, effort_cap; min CC → 2.1.316) |
 | 2.1.295→2.1.303 | cc-features-2.1.295-303.md (draft in .context/; sync pending) | v4.1.3 (dispatch controls, hook failure blocking; min CC → 2.1.303; 297/298 unpublished) |
 | 2.1.293→2.1.294 | cc-features-2.1.293-294.md | v4.1.1 develop (Haiku 5.5 rates, DC repin; min CC → 2.1.294) |
@@ -37,16 +38,12 @@ Canonical band files live in the authoritative memory directory (`~/.claude/proj
 | 2.1.129→2.1.140 | cc-features-2.1.129-140.md | v3.9.2 |
 | 2.1.122→2.1.128 | cc-features-2.1.122-128.md | v3.8.1 |
 | 2.1.115→2.1.121 | cc-features-2.1.115-121.md | v3.6.1 |
-| 2.1.102→2.1.114 | cc-features-2.1.102-114.md | v3.6.0 |
-| 2.1.92→2.1.101 | cc-features-2.1.92-101.md | v3.5.0 |
-| 2.1.87→2.1.91 | cc-features-2.1.87-91.md | v3.4.0 |
-| 2.1.77→2.1.86 | cc-features-2.1.77-86.md | v3.3.0 |
-| 2.1.51→2.1.76 | cc-features-2.1.51-76.md | v3.1.0/v3.2.0 |
 
-> Band files before 2.1.221 are missing from disk (likely the CC 2.1.228 memory-folder cleanup bug); rows kept as the record.
+> Rows before 2.1.115 are trimmed (see git history). Band files before 2.1.221 are missing from disk (likely the CC 2.1.228 memory-folder cleanup bug); rows kept as the record.
 
 ## Release History (last 12, newest first)
 
+- 2026-11-10: v4.1.5 — Claude Code 2.1.322 update (27 files, refused-report row, backgrounded-test gate fix; min CC 2.1.322).
 - 2026-11-02: v4.1.4 — Claude Code 2.1.316 update (startup_failed, effort_cap, unique-name resume; min CC 2.1.316; version held).
 - 2026-11-01: v4.1.4 — hide Codex adapter skills from the Claude Code `/` menu (`user-invocable: false`).
 - 2026-10-19: v4.1.3 — Claude Code 2.1.303 update (28 files, dispatch controls, hook enforcement; min CC 2.1.303).
@@ -58,4 +55,3 @@ Canonical band files live in the authoritative memory directory (`~/.claude/proj
 - 2026-10-05: v4.1.1 — user-scope CORPFLOW.md fallback (`corpflow_md_locate`); CHANGELOG backfill for consultant-return.v1, screenshot manifests, `## Models`.
 - 2026-09-29: v4.1.0 (develop) — Claude Code 2.1.284 update (33 files, min CC → 2.1.284, Opus/Sonnet 5.5-only guidance, preflight mid-pattern :* parity).
 - 2026-09-23: v4.0.32 (develop) — Claude Code 2.1.280 update (6 files, min CC → 2.1.280, Opus 5.5 default, workflow-size 15→10, TaskOutput removal, held-message delivery notice).
-- 2026-09-13: v4.0.32 (develop) — Claude Code 2.1.270 update (18 files, min CC → 2.1.270, queued reattach row, SessionEnd hook timeout, FORCE preflight).

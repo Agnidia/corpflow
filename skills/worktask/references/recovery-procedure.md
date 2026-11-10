@@ -80,9 +80,9 @@ Related: [Mid-stage yield](recovery-liveness.md#mid-stage-yield) · [Pending com
 
 ### Step 0 notes — scheduled tasks &amp; agents-view replies
 
-   Scheduled tasks and `/loop` wakeups come back after a compaction or resume, and a foreground-set task fires after a `/background` hand-off; a recurring one no longer runs an extra time on resume, respawn or fork. A background session waiting on a scheduled wakeup is kept through updates and low memory. Saved tasks created after `/resume`, `/branch` or `/clear` now fire, and a background session's `/loop` survives a process restart (2.1.292). Plan mode is restored on resume.
+   Scheduled tasks and `/loop` wakeups come back after a compaction or resume, and a foreground-set task fires after a `/background` hand-off; a recurring one does not run an extra time on resume, respawn or fork. A background session waiting on a scheduled wakeup is kept through updates and low memory. Saved tasks created after `/resume`, `/branch` or `/clear` fire, and a background session's `/loop` survives a process restart. Plan mode is restored on resume.
 
-   A reply sent from `claude agents` arrives as a queued message and is retried for up to 12 s while a crashed session restarts. A slash command or answer it could not deliver is no longer saved and replayed on the next restart. A reply to a session parked on a permission prompt never approves the pending command.
+   A reply sent from `claude agents` arrives as a queued message and is retried for up to 12 s while a crashed session restarts. A slash command or answer it could not deliver is not saved and replayed on the next restart. A reply to a session parked on a permission prompt never approves the pending command. `/tasks` lists finished subagents under "Earlier in this session", even after a restart, and the operator can reopen one and message it. That is an operator path; the orchestrator still reattaches by the recorded id.
 
 ### Step 0 notes — background-agent guarantees
 
@@ -101,7 +101,7 @@ Related: [Mid-stage yield](recovery-liveness.md#mid-stage-yield) · [Pending com
 #### Interrupted calls &amp; transcript fidelity
 
 - **Interrupted calls**: a session that ended mid-tool-call resumes with that call marked outcome unknown and no hidden "Continue" message, so check its effect before repeating it. MCP calls in a resumed session wait up to 10s for a reconnecting server. `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` does not re-run a turn that ended at `--max-turns`.
-- **Transcript fidelity**: `--resume` keeps the turns after a batch of parallel tool calls, the context a compaction restored, and the last messages before a quit. A session backgrounded while idle resumes its conversation instead of reopening empty. After a compaction Claude no longer takes its own last actions from before it as done after it, which made it retract or redo finished work, and a message typed while Claude works survives `←` backgrounding; if it cannot move, the session stays in the foreground and says so (2.1.293).
+- **Transcript fidelity**: `--resume` keeps the turns after a batch of parallel tool calls, the context a compaction restored, and the last messages before a quit. A session backgrounded while idle resumes its conversation instead of reopening empty. A message typed while Claude works survives `←` backgrounding; if it cannot move, the session stays in the foreground and says so.
 
 #### Reattach, cross-spawn &amp; inspection
 
@@ -121,13 +121,11 @@ Related: [Mid-stage yield](recovery-liveness.md#mid-stage-yield) · [Pending com
 
 See `skills/context-compression/SKILL.md § PostCompact Recovery` for the compaction-specific flow.
 
-### Claude Code 2.1.303 resume compatibility
+### Resume identity rules
 
-Use the stored agent ID across restart and compaction. Name lookup after restart is fixed in 2.1.299,
-but names assigned before the last compaction still require the ID. Do not dispatch a replacement on name lookup failure alone.
-Repeated resumes retain SendMessage reachability from 2.1.295. Completion messages can describe an agent waiting
-on its own background work, receiving a late message, or stopping at a usage limit (2.1.299).
-A waiting notice is not a completed stage. Duplicate result/message delivery is also fixed in 2.1.299;
-continue to reconcile by task and agent ID before applying completion once.
+Use the stored agent ID across restart and compaction. Names assigned before the last compaction still require the ID,
+so do not dispatch a replacement on a name lookup failure alone. Repeated resumes keep SendMessage reachability.
+Completion messages can describe an agent waiting on its own background work, receiving a late message, or stopping
+at a usage limit. A waiting notice is not a completed stage. Reconcile by task and agent ID before applying a completion once.
 Stopping the agents service can stop live sessions after about one minute. Recheck discovery before redispatching.
 Resumed headless dispatches carry the same optional compaction and retry controls; do not substitute an in-process run.

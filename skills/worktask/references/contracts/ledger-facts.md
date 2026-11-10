@@ -143,7 +143,7 @@ migration, no tolerant reader.
 
 ```yaml
 # …continued: dispatched_agents.items.properties
-            agent_id: { type: string, description: "OPTIONAL launch-ack id when the runtime surfaces one (background-default dispatch); resume degrades to best-effort subagent_type match when absent; for an in-process teammate it is the agent ID, its name@team address is teammate_id (CC 2.1.290)" }
+            agent_id: { type: string, description: "OPTIONAL launch-ack id when the runtime surfaces one (background-default dispatch); resume degrades to best-effort subagent_type match when absent; for an in-process teammate it is the agent ID, its name@team address is teammate_id" }
             name: { type: string, description: "OPTIONAL named-spawn handle (megatask lanes); readable default names, /rename persists across restarts" }
             model_requested: { type: string, description: "OPTIONAL — metadata.model alias at dispatch" }
             model_resolved: { type: string, description: "OPTIONAL best-effort — model that actually ran (claude agents --json / audit); omit when unknown" }

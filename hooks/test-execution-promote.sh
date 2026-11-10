@@ -277,6 +277,21 @@ run_promote() {
   _pkey=$(dedupe_pending_key "$_class" "$_inv" "$_n")
   [ -n "$_pkey" ] || return 0
 
+  # A backgrounded call (`backgroundTaskId`, CONFIRMED) is a handle:
+  # its partial stdout may already show a pass count for a run that can still die.
+  # Discard, because a wrong suppression strands the stage and a re-run only costs time.
+  local _bg
+  _bg=$(printf '%s' "$_payload" | jq -c '
+    (.tool_response // null) as $r
+    | if ($r | type) == "object" and (($r.backgroundTaskId // "") | tostring | length) > 0
+      then {auto_moved: ($r.subagentCapApplied == true)} else empty end' 2> /dev/null)
+  if [ -n "$_bg" ]; then
+    dedupe_discard "$_ctx" "$_pkey"
+    command -v write_audit_row > /dev/null 2>&1 \
+      && write_audit_row "$_ctx" "test_run_backgrounded" "$_bg"
+    return 0
+  fi
+
   # One computation, one branch: `_ev` is both the promotion predicate and the
   # string the later denial will cite.
   if _ev="$(tool_evidence_token "$_payload")"; then

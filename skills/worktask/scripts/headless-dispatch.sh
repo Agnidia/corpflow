@@ -48,9 +48,9 @@ _HD_PLUGIN_ROOT="$(cd "${_HD_DIR}/../../.." && pwd)"
 # shellcheck source=effort-ladder.sh
 . "${_HD_DIR}/effort-ladder.sh"
 
-# 2.1.314 is the first CLI whose startup failure exits 1 with the error printed; below it a
-# failed start exited 0 with no output and read as a successful run.
-MIN_CC_VERSION="2.1.316"
+# The plugin minimum: recovery-liveness branches on the refused-report notice, and a failed
+# start must exit 1 with its error printed rather than read as a successful run.
+MIN_CC_VERSION="2.1.322"
 . "${_HD_DIR}/dispatch-controls.sh"
 
 usage() {

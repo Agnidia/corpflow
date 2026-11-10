@@ -29,7 +29,7 @@ The worktask workflow lives entirely under `skills/worktask/`. Translate only th
 | `TaskStop(id)` | `interrupt_agent` |
 | `ListAgents()` | `list_agents` |
 | `SendMessage(id, text)` | `send_message`; use `followup_task` when an idle agent must run again |
-| `TaskOutput` / `Monitor` | `wait_agent`, or wait on the active command session |
+| Completion notification / `Monitor` | `wait_agent`, or wait on the active command session |
 | `AskUserQuestion` | `request_user_input` |
 | `Skill(name)` | Invoke the installed `$name` skill or read its `SKILL.md` when it is support-only |
 | `EnterWorktree(path)` / worktree shell | Run with `workdir` set to the absolute worktree and pass it to children as `WORKSPACE_ROOT` |

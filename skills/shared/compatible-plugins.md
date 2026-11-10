@@ -119,17 +119,11 @@ worktask.
 See `skills/cross-plugin-handoff/references/plugin-contract.md` — the normative contract plus
 the ordered touchpoint checklist.
 
-## Claude Code 2.1.303 plugin compatibility
+## Runtime plugin rules
 
-Agent MCP allowlists match one server, including names containing `__`; spell the complete server as `mcp__<whole name>__*`.
-SessionStart output from late-loaded plugins no longer leaks across `/clear`, and duplicate plugin names receive a hooks warning (2.1.296).
-A plugin name collision still needs operator remediation; do not treat missing hook output as successful sibling initialization.
-Plugin hooks under `--worktree` run from 2.1.300; this fix does not cover `--tmux`.
-The shared CORPFLOW.md template remains unchanged, so this integration requires no sibling template migration.
-
-## Claude Code 2.1.316 plugin compatibility
-
-A `--plugin-dir` folder of plugins with an empty top-level `.mcp.json` loads as separate plugins (2.1.311).
-Plugin MCP `headersHelper` scripts get an intact `CLAUDE_PLUGIN_ROOT` and server URL (2.1.316).
-A sibling plugin cannot keep a headless run going past `--max-turns` by spawning subagents (2.1.304).
-The shared CORPFLOW.md template is unchanged, so siblings need no migration.
+- Agent MCP allowlists match one server, including names containing `__`; spell the complete server as `mcp__<whole name>__*`.
+- Duplicate plugin names get a hooks warning. A name collision still needs operator remediation; do not treat missing hook output as successful sibling initialization.
+- Plugin hooks run under `--worktree`, not under `--tmux`.
+- A `--plugin-dir` folder of plugins with an empty top-level `.mcp.json` loads as separate plugins.
+- Plugin MCP `headersHelper` scripts get an intact `CLAUDE_PLUGIN_ROOT` and server URL.
+- A sibling plugin cannot keep a headless run going past `--max-turns` by spawning subagents.

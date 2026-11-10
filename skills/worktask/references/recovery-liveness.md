@@ -88,6 +88,15 @@ the stage; every other result leaves it exactly where it was.
 | `session_list_truncated` — the account's session list was too long to enumerate fully | Any "agent gone" verdict reached under this condition is unconfirmed. Do not re-delegate off it: retry discovery once, then escalate |
 
 
+#### Reattach rows — a refused stage report
+
+A background stage's later report can be refused by the harness. The notification says it was refused and how to ask for it. A refused report is not a failed stage: the work and its artifact may be complete.
+
+| Event | Action |
+| --- | --- |
+| Notice: a stage's report was refused | Stage stays `in_progress`. Check the stage artifact first: a complete artifact with its handoff settles the stage through Step 6.5 as usual. Otherwise ask for the report once, with the notice's own instruction, through `completion-merge.md § Step 6.5a4` (`msg_id` + `--ack`). Log one `reattach_send_result` row with `metadata.reason: "report_refused"`. Do not re-dispatch or increment `retry_count` |
+| Second refusal, or no ack at the next boundary | Escalate per `ack-check.sh` (§ Reattach rows — one resend, then escalate). No third ask |
+
 #### Reattach rows — delivered is not acknowledged
 
 A send result says the harness accepted a message; only the stage's own `message_ack` row

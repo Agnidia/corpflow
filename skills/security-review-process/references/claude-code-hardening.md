@@ -28,12 +28,22 @@ mid-pattern file rules like `Read(secrets-*/config.json)`.
 
 ### Bash matching — prefixes and new prompts
 
-- Deny and ask rules hold through an environment-variable prefix with an expanded value (`TZ="$HOME" rm -rf build`), a bare assignment before the command under sandbox auto-allow, and a command or path named by a variable set on `declare`, `typeset`, `export` or `readonly`. These now prompt instead of auto-approving: variable names zsh reads differently from bash, read-only commands (`rg`, `git grep`) whose arguments the shell still expands as wildcards, more forms of `ps`, and `pyright`.
+- Deny and ask rules hold through an environment-variable prefix with an expanded value (`TZ="$HOME" rm -rf build`), a bare assignment before the command under sandbox auto-allow, and a command or path named by a variable set on `declare`, `typeset`, `export` or `readonly`. These prompt instead of auto-approving: variable names zsh reads differently from bash, read-only commands (`rg`, `git grep`) whose arguments the shell still expands as wildcards, more forms of `ps`, and `pyright`.
+
+### Permission rules — enforcement notes
+
+- Review explicit MCP server wildcards: a tools list does not admit neighboring servers with similar names.
+- PreToolUse and PermissionRequest `updatedInput` is validated against the tool schema.
+- A hook that permits a write cannot override plan mode.
+- A session's exact Bash ask rule is refused, not asked, when a broader deny covers the command. `which` with unusual flags asks.
+- `rm -r` of a mount root such as `/Volumes` gets the safety prompt. `sed -i` gets the standard Bash prompt and is not undone by `/rewind`.
 
 ### Read denies and protected-file writes
 
 - `Read` deny rules and the outside-directory read block also cover files reached through a symlink by an @-mention or IDE selection, a link swapped in mid-read, pasted or dragged image paths, the file names listed for an @-mentioned folder, and wildcards in option values of read-only Bash commands.
-- PreToolUse hook approvals and auto mode no longer skip the prompt for reads from network (UNC) paths, and a notebook or PDF read can no longer return an unapproved file through a link swapped mid-read (2.1.292).
+- PreToolUse hook approvals and auto mode still prompt for reads from network (UNC) paths.
+- `permissions.blockWritesOutsideWorkingDirectories` makes Write, Edit and NotebookEdit refuse paths outside the working directories in every mode.
+- Deny rules and protected-file prompts apply to the file that `cp` or `mv` (including `/bin/cp` and `/bin/mv`) writes into a directory.
 - A whole-tool `Bash` allow rule or an allowing hook prompts for, and does not run, a shell write to a file the file tools refuse outright (the Anthropic profile store, the host credentials file).
 
 ## Settings scope
@@ -52,15 +62,17 @@ mid-pattern file rules like `Read(secrets-*/config.json)`.
 ### Settings scope — managed policy and repo-settable keys
 
 - Managed `allowedProviders` limits the API providers a machine may use. A managed settings file that links outside the managed folder triggers a warning, and `/status` and doctor warn when managed settings ignore user sandbox `allowRead` paths or allowed domains.
-- Repository `.claude/settings.json` and `.claude/settings.local.json` can no longer set `CLAUDE_CODE_DISABLE_ATTACHMENTS` or turn Claude in Chrome on; project settings cannot widen or turn off an admin-required sandbox, replace the proxy behind a managed deny list, extend a strict allowlist, or reopen managed read-denies.
+- Repository `.claude/settings.json` and `.claude/settings.local.json` cannot set `CLAUDE_CODE_DISABLE_ATTACHMENTS` or turn Claude in Chrome on; project settings cannot widen or turn off an admin-required sandbox, replace the proxy behind a managed deny list, extend a strict allowlist, or reopen managed read-denies.
 - `CLAUDE_CODE_DISABLE_WEB_FETCH` removes the WebFetch tool.
 - A reply sent from `claude agents` to a session waiting on a permission prompt never approves the pending command; a repeated `--channels` reply ID is ignored; a respawned background worker honors `--allow-dangerously-skip-permissions` only after the bypass disclaimer was accepted.
 
-### Settings scope — policy cache and mode exits
+### Settings scope — read-denies, auto mode and trust
 
-- A tampered on-disk cache of server-managed settings can no longer switch off or unseat the built-in policy plugin while the settings fetch fails (2.1.292).
-- A skill's or slash command's `allowed-tools` rule no longer comes back in a later turn after the session leaves auto or plan mode partway through that turn (2.1.292).
-- A managed sandbox read-deny path that appears or re-points mid-session now drops project grants inside it and ends credential injection from files it covers (2.1.292).
+- A managed sandbox read-deny path that appears or re-points mid-session drops project grants inside it and ends credential injection from files it covers.
+- Keep explicit permission ceilings: print sessions from third-party providers can default to the CLI's default mode.
+- Auto mode with telemetry or feature flags off asks or denies the calls the server cannot check; there is no fallback classifier. A project's settings or a plugin cannot turn the server-side check back on after the user turned it off outside the project.
+- `--add-dir` registers marketplaces only after that folder's trust dialog.
+- A check asks before a shell command that holds the account email and names a User-Agent sends it to the network.
 
 ## Sandbox
 
@@ -70,6 +82,13 @@ mid-pattern file rules like `Read(secrets-*/config.json)`.
 | `sandbox.filesystem.disabled` | Skips filesystem isolation but keeps network egress control. Narrow escape hatch: requires a documented justification, never set to silence a failing command |
 | `--restricted` / `CLAUDE_CODE_RESTRICTED=1` | Removes the built-in tools that run commands or code plus `WebFetch` (unless named in `--tools`), keeps file tools inside the working directory, refuses `bypassPermissions`, ignores user, project and local settings files, and opens no cross-session messaging socket. The strongest posture for untrusted or third-party plugin content; too restrictive for a normal worktask, since no stage could build or test |
 
+Sandbox rules that need no setting:
+
+- Sandboxed commands cannot edit the `--mcp-config` file, and shell startup files run inside the sandbox.
+- Sandbox protections apply to a worktree entered by `claude -p --resume` or `--continue`.
+- Worktree-isolated sessions refuse locale-prefixed and zsh arithmetic commands, and ignore git replace refs.
+- A read-only Bash command does not run outside the sandbox without a prompt.
+
 ## Plugin and marketplace paths
 
 A plugin component path (command, agent, skill, hooks, other) that is a symlink, contains a
@@ -77,23 +96,3 @@ backslash, or points outside the plugin directory is refused as path traversal; 
 entry paths get the same check. This repo is both a marketplace and the plugin it publishes, so every
 `commands[]`, `agents[]` and `skills[]` entry in `.claude-plugin/marketplace.json` stays
 `./`-relative — no `../`, absolute path, or external URL.
-
-## Claude Code 2.1.295–2.1.303 hardening
-
-The 2.1.303 floor includes late-registered tool restriction enforcement (2.1.295), protection against sandbox writes
-to reloadable `--plugin-dir` code (2.1.299), safe-mode persistence on restart, and managed hook/MCP policy enforcement.
-Review explicit MCP server wildcards: tools lists no longer admit neighboring servers with similar names.
-PreToolUse and PermissionRequest `updatedInput` undergo tool-schema validation from 2.1.300.
-A hook that permits a write cannot override plan mode (fixed in 2.1.299).
-The Read tool refuses image sources above 128 MB and avoids reading image-named pipes/devices wholesale (2.1.302).
-Keep explicit permission ceilings; third-party print sessions can default to the CLI's default mode from 2.1.302.
-
-## Claude Code 2.1.304–2.1.316 hardening
-
-`permissions.blockWritesOutsideWorkingDirectories` (2.1.314) makes Write, Edit and NotebookEdit refuse paths outside the working directories in every mode.
-Worktree-isolated sessions refuse locale-prefixed and zsh arithmetic commands the guard missed, and ignore git replace refs (2.1.309).
-Sandboxed commands can no longer edit the `--mcp-config` file; shell startup files run inside the sandbox (2.1.309).
-Sandbox protections apply to a worktree entered by `claude -p --resume` or `--continue` (2.1.314).
-`--restricted` sessions no longer upload files outside the working directories through a Read allow rule (2.1.316).
-`rm -r` of a mount root such as `/Volumes` gets the safety prompt (2.1.304). `sed -i` gets the standard Bash prompt and is not undone by `/rewind` (2.1.309).
-Claude no longer writes role names or placeholders as GitHub @-mentions (2.1.309). The git-conventions rule stays.

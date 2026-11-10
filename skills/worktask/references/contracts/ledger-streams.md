@@ -91,7 +91,7 @@ The five optional fields below require the headless route. They remain unset by 
 
 | Field | Type | Child transport |
 | --- | --- | --- |
-| `auto_compact_window` | Integer, 100000–1000000 tokens | `--autocompact` and `CLAUDE_CODE_AUTO_COMPACT_WINDOW`; a subagent's `autoCompactWindow` can lower it, never raise it (2.1.312) |
+| `auto_compact_window` | Integer, 100000–1000000 tokens | `--autocompact` and `CLAUDE_CODE_AUTO_COMPACT_WINDOW`; a subagent's `autoCompactWindow` can lower it, never raise it |
 | `retry_watchdog` | Boolean | `CLAUDE_CODE_RETRY_WATCHDOG` (`1` or `0`) |
 | `retry_watchdog_max_wait_ms` | Positive integer milliseconds | `CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS` |
 | `retry_watchdog_max_usage_limit_wait_ms` | Positive integer milliseconds | `CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS` |
@@ -117,9 +117,9 @@ The ledger requires `effort`; the C.0a resolver reads it and bumps one rung.
 See `skills/worktask/references/contracts/sweep-boundaries.md § Blocking items are resolved, not asked`.
 Static agent `effort:` mirrors the matrix; `agent-effort-frontmatter.bats` enforces parity.
 Claude applies it only when the call omits effort.
-Since 2.1.292, `Agent()` passes the stamped tier (`effort_transport: "agent-param"`), above frontmatter.
+`Agent()` passes the stamped tier (`effort_transport: "agent-param"`), above frontmatter.
 Raises, resolver bumps, and `CORPFLOW.md § Models` overrides therefore apply in-process.
 Only `CORPFLOW_HEADLESS_ROUTE=on` chooses headless transport.
 `state-patch.sh` validates `EFFORT_ENUM` on `--task-create` and `--task-meta`.
-`CLAUDE_CODE_SUBAGENT_EFFORT` (2.1.316) supplies defaults only; explicit effort wins, requiring no new field.
+`CLAUDE_CODE_SUBAGENT_EFFORT` supplies defaults only; explicit effort wins, requiring no new field.
 Admin ceilings are cached in `facts.capabilities.effort_cap`.
